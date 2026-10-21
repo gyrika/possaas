@@ -144,3 +144,32 @@ test('times read the way the shop lives them', () => {
   assert.equal(ago(NOW - 3 * 3_600_000, NOW), '3 h ago');
   assert.equal(ago(NOW - 3 * 86_400_000, NOW), '3 days ago');
 });
+
+test('shops with something wrong come first, each problem in one line', async () => {
+  const { cloud, admin, db, session } = await setup();
+  // The test shop checks in now with a failed update; CheesyBeez Thalwila has never checked in.
+  const failed = JSON.stringify({ phase: 'failed', percent: 0, version: '1.0.5', at: NOW - 2 * 3_600_000 });
+  await cloud(new Request('https://cloud.test/api/v1/replica', {
+    method: 'POST',
+    headers: { authorization: 'Bearer server-b', 'content-type': 'application/json', 'x-station-version': '1.0.5', 'x-station-update': failed },
+    body: JSON.stringify({ events: [] }),
+  }));
+  // Three short closes in a row at the test shop (the ledger is empty: the counts alone say what was taken).
+  for (const back of [1, 2, 3]) {
+    const from = startOfDayColombo(NOW) - back * 86_400_000 + 5 * 3_600_000;
+    const body = { type: 'day.closed', id: `close-${back}`, shopId: 'shop-b', at: from + 12 * 3_600_000, orderNumber: 0, from, to: from + 12 * 3_600_000,
+      float: 500000, counted: 490000, count: { byTender: { cash: { cents: 0, orders: 0 } } } };
+    db.prepare("INSERT INTO events (tenant_id, id, source_seq, source_device, type, order_number, at, received_at, copied_at, body) VALUES ('shop-b', ?, ?, 'pc', 'day.closed', 0, ?, ?, ?, ?)")
+      .run(body.id, back, body.at, body.at, body.at, JSON.stringify(body));
+  }
+
+  const { shops } = await (await admin(req('/admin/api/shops', { session })))!.json();
+  assert.deepEqual(shops.map((s: { name: string; problems: { level: string; text: string }[] }) => [s.name, s.problems.map((p) => `${p.level}: ${p.text}`)]), [
+    ['Test shop', ['bad: Update to 1.0.5 failed 2 h ago', 'warn: Cash short at the last 3 closes: Rs 300 in all']],
+    ['CheesyBeez Thalwila', ['warn: Has not checked in yet']],
+  ]);
+  const page = await (await admin(req('/admin', { session })))!.text();
+  assert.match(page, /2 need attention · 1 of 2 online/);
+  assert.match(page, /class="shop is-bad"/);
+  assert.match(page, /<li class="warn">Cash short at the last 3 closes: Rs 300 in all<\/li>/);
+});

@@ -3,8 +3,8 @@
  * release (read from GitHub, cached by Cloudflare for 10 minutes), the three steps that
  * avoid surprises, and on a phone, a nudge to open it on the shop's computer instead.
  */
-const LATEST = 'https://api.github.com/repos/gyrika/ERP/releases/latest';
-const RELEASES = 'https://github.com/gyrika/ERP/releases/latest';
+const LATEST = 'https://api.github.com/repos/gyrika/possaas/releases/latest';
+const RELEASES = 'https://github.com/gyrika/possaas/releases/latest';
 
 export interface Release { version: string; url: string; sizeMb: number }
 
@@ -17,7 +17,7 @@ export const latestRelease = async (http: typeof fetch = fetch): Promise<Release
     } as RequestInit);
     if (!r.ok) return null;
     const rel = (await r.json()) as { tag_name?: string; assets?: { name: string; size: number; browser_download_url: string }[] };
-    const exe = rel.assets?.find((a) => /^CheesyBeez-Setup-.*\.exe$/.test(a.name));
+    const exe = rel.assets?.find((a) => /^LumePOS-Setup-.*\.exe$/.test(a.name));
     if (!rel.tag_name || !exe) return null;
     return { version: rel.tag_name.replace(/^v/, ''), url: exe.browser_download_url, sizeMb: Math.round(exe.size / 1_048_576) };
   } catch {

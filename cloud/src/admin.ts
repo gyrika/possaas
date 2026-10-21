@@ -1,3 +1,4 @@
+import { salesWindows, severity, shopProblems, type ShopProblem } from '../../src/domain/shopHealth.ts';
 import { PULL_LIMIT, type PullResponse } from '../../src/domain/sync.ts';
 import { isNewer } from '../../src/domain/version.ts';
 import type { D1Like } from './cloud.ts';
@@ -5,8 +6,8 @@ import { json, sha256Hex } from './http.ts';
 
 /**
  * /admin: the developer's view of every shop (not the owner's). Which version each
- * Station runs, when it last checked in, how its last update went, and one tap into
- * a shop's Owner view, read-only.
+ * Station runs, when it last checked in, how its last update went, what looks wrong there
+ * (src/domain/shopHealth.ts; those shops come first), and one tap into a shop's Owner view, read-only.
  *
  * Signed in with one long random password (the Worker secret ADMIN_KEY, made by
  * `npm run admin-key` in cloud/). Typed once, it becomes a signed session cookie for
@@ -65,9 +66,28 @@ export interface ShopRow {
   lastSeenAt: number | null;
   lastSaleAt: number | null;
   eventsToday: number;
+  /** What looks wrong, worst first; empty for a shop that is fine. */
+  problems: ShopProblem[];
 }
 
-export const shopRows = async (db: D1Like, now: number): Promise<ShopRow[]> => {
+/** The two weeks' closes of the day: the business day and counted minus expected cash (float + cash taken). */
+const CLOSES_SQL = `
+  SELECT e.tenant_id, e.at, json_extract(e.body, '$.from') AS day_from,
+    json_extract(e.body, '$.counted') - json_extract(e.body, '$.float') - json_extract(e.body, '$.count.byTender.cash.cents') AS diff
+  FROM shops s JOIN events e ON e.tenant_id = s.id AND e.type = 'day.closed' AND e.at >= ?`;
+
+export const shopRows = async (db: D1Like, now: number, latest: string | null = null): Promise<ShopRow[]> => {
+  const windows = salesWindows(now);
+  const [{ results: sales }, { results: closes }] = await Promise.all([
+    db.prepare(`SELECT tenant_id, paid_at FROM sales WHERE status = 'paid' AND (${windows.map(() => '(paid_at >= ? AND paid_at < ?)').join(' OR ')})`)
+      .bind(...windows.flat()).all<{ tenant_id: string; paid_at: number }>(),
+    db.prepare(CLOSES_SQL).bind(now - 15 * DAY).all<{ tenant_id: string; at: number; day_from: number; diff: number }>(),
+  ]);
+  const salesOf = new Map<string, number[]>();
+  for (const r of sales) (salesOf.get(r.tenant_id) ?? salesOf.set(r.tenant_id, []).get(r.tenant_id)!).push(r.paid_at);
+  const closesOf = new Map<string, { from: number; at: number; difference: number }[]>();
+  for (const r of closes) (closesOf.get(r.tenant_id) ?? closesOf.set(r.tenant_id, []).get(r.tenant_id)!).push({ from: r.day_from, at: r.at, difference: r.diff });
+
   const { results } = await db.prepare(`
     SELECT s.id, s.name, d.version, d.update_status, d.last_seen_at,
       (SELECT MAX(at) FROM events e WHERE e.tenant_id = s.id AND e.type = 'order.paid') AS last_sale,
@@ -76,15 +96,24 @@ export const shopRows = async (db: D1Like, now: number): Promise<ShopRow[]> => {
     ORDER BY COALESCE(d.last_seen_at, 0) DESC, s.name`)
     .bind(startOfDayColombo(now))
     .all<{ id: string; name: string; version: string | null; update_status: string | null; last_seen_at: number | null; last_sale: number | null; events_today: number }>();
-  return results.map((r) => ({
-    id: r.id,
-    name: r.name,
-    version: r.version,
-    update: r.update_status ? (JSON.parse(r.update_status) as ShopRow['update']) : null,
-    lastSeenAt: r.last_seen_at,
-    lastSaleAt: r.last_sale,
-    eventsToday: r.events_today,
-  }));
+  const rows = results.map((r): ShopRow => {
+    const update = r.update_status ? (JSON.parse(r.update_status) as ShopRow['update']) : null;
+    return {
+      id: r.id,
+      name: r.name,
+      version: r.version,
+      update,
+      lastSeenAt: r.last_seen_at,
+      lastSaleAt: r.last_sale,
+      eventsToday: r.events_today,
+      problems: shopProblems({
+        lastSeenAt: r.last_seen_at, version: r.version, update, latest,
+        sales: salesOf.get(r.id) ?? [], closes: closesOf.get(r.id) ?? [], now,
+      }),
+    };
+  });
+  // Shops with something wrong first (the worst at the top); within each, the last heard from first, as the query had it.
+  return rows.map((r, i) => ({ r, i })).sort((a, b) => severity(a.r.problems) - severity(b.r.problems) || a.i - b.i).map((x) => x.r);
 };
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -123,6 +152,9 @@ h1{margin:0;font-size:28px;letter-spacing:-.5px}
 .id{grid-column:1/-1;color:var(--muted);font-size:13px}
 .facts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;font-size:14px;color:var(--muted)}
 .warn{color:var(--warn)}.bad{color:var(--bad)}
+.problems{grid-column:1/-1;list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;font-weight:500}
+.problems li::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor;margin-right:8px;vertical-align:1px}
+.shop.is-bad{border-left:5px solid var(--bad)}.shop.is-warn{border-left:5px solid var(--warn)}
 .empty{color:var(--muted)}
 form{display:flex;flex-direction:column;gap:12px}
 input{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-height:50px;width:100%}
@@ -152,6 +184,7 @@ export const signInPage = (wrong: boolean): string => shell('CheesyBeez admin', 
 export const adminPage = (rows: ShopRow[], latest: string | null, now: number): string => {
   const online = rows.filter((r) => isOnline(r, now)).length;
   const behind = rows.filter((r) => latest && r.version && isNewer(latest, r.version)).length;
+  const attention = rows.filter((r) => r.problems.length).length;
   const row = (r: ShopRow) => {
     const on = isOnline(r, now);
     const old = !!(latest && r.version && isNewer(latest, r.version));
@@ -159,10 +192,14 @@ export const adminPage = (rows: ShopRow[], latest: string | null, now: number): 
       ? `${UPDATE_WORDS[r.update.phase] ?? r.update.phase}${r.update.version ? ` ${esc(r.update.version)}` : ''} · ${ago(r.update.at, now)}`
       : 'No update yet';
     const bad = r.update && ['failed', 'back'].includes(r.update.phase);
-    return `<a class="shop" href="/admin/shop/${encodeURIComponent(r.id)}#owner">
+    const level = ['is-bad', 'is-warn', ''][severity(r.problems)];
+    const problems = r.problems.length
+      ? `\n  <ul class="problems">${r.problems.map((p) => `<li class="${p.level}">${esc(p.text)}</li>`).join('')}</ul>`
+      : '';
+    return `<a class="${level ? `shop ${level}` : 'shop'}" href="/admin/shop/${encodeURIComponent(r.id)}#owner">
   <span class="state ${on ? 'on' : 'off'}">${on ? 'Online' : `Offline · ${ago(r.lastSeenAt, now)}`}</span>
   <span class="name">${esc(r.name)}</span>
-  <span class="id">${esc(r.id)}</span>
+  <span class="id">${esc(r.id)}</span>${problems}
   <span class="facts">
     <span class="${old ? 'warn' : ''}">Version ${esc(r.version ?? 'unknown')}${old ? ` · ${esc(latest!)} waiting` : ''}</span>
     <span class="${bad ? 'bad' : ''}">${upd}</span>
@@ -172,7 +209,7 @@ export const adminPage = (rows: ShopRow[], latest: string | null, now: number): 
   };
   return shell('CheesyBeez admin', `<main>
 <header><h1>Shops</h1><form method="post" action="/admin/logout"><button class="quiet" type="submit">Sign out</button></form></header>
-<p class="lead">${online} of ${rows.length} online · latest release ${esc(latest ?? 'unknown')}${behind ? ` · ${behind} still to update` : ''}</p>
+<p class="lead">${attention ? `${attention} need${attention === 1 ? 's' : ''} attention · ` : rows.length ? 'All fine · ' : ''}${online} of ${rows.length} online · latest release ${esc(latest ?? 'unknown')}${behind ? ` · ${behind} still to update` : ''}</p>
 ${rows.length ? rows.map(row).join('\n') : '<p class="empty">No shops yet.</p>'}
 </main>`, true);
 };
@@ -222,12 +259,12 @@ export const adminRoutes = async (req: Request, url: URL, o: AdminOptions): Prom
   if (req.method !== 'GET') return new Response('Method not allowed', { status: 405 });
 
   if (url.pathname === '/admin' || url.pathname === '/admin/') {
-    const [rows, latest] = await Promise.all([shopRows(o.db, now), o.latest()]);
-    return html(adminPage(rows, latest, now));
+    const latest = await o.latest();
+    return html(adminPage(await shopRows(o.db, now, latest), latest, now));
   }
   if (url.pathname === '/admin/api/shops') {
-    const [shops, latest] = await Promise.all([shopRows(o.db, now), o.latest()]);
-    return json(200, { shops, latest, serverTime: now });
+    const latest = await o.latest();
+    return json(200, { shops: await shopRows(o.db, now, latest), latest, serverTime: now });
   }
 
   // One shop's events, for its Owner view: the same answer an owner's phone gets, for any shop.
