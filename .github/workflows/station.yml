@@ -7,7 +7,9 @@
 # - Actions tab > Run workflow: a test build, nothing released.
 # The cloud is deployed only when the repository variable DEPLOY_CLOUD is "true" (and the two secrets
 # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are set). Off, a merge still tests and releases the
-# Setup.exe: possaas has no cloud of its own yet, and cloud/wrangler.toml still names CheesyBeez's.
+# Setup.exe. The installers are published twice: here (private, with the code) and, when the secret
+# RELEASES_TOKEN is set (a token that may write only to gyrika/lume-releases), in gyrika/lume-releases,
+# the public place shop PCs update from and the cloud's /get page links to. Public goes last.
 name: CheesyBeez Station
 
 on:
@@ -276,6 +278,8 @@ jobs:
     needs: [build, install-test]
     if: always() && github.event_name == 'push' && needs.build.result == 'success' && needs.install-test.result == 'success'
     runs-on: ubuntu-latest
+    env:
+      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -294,4 +298,21 @@ jobs:
             A PC without internet: **LumePOS-Offline-Setup-${{ needs.build.outputs.version }}.exe** (larger: it also carries Microsoft's WebView2).
             Needs Windows 10 (version 2004 or newer) or Windows 11, 64-bit.
             Windows may say "Windows protected your PC" the first time: click **More info**, then **Run anyway**.
-            Beta: automatic updates are off. To update a shop PC, run the new Setup.exe on it; the shop's data is kept.
+            Shop PCs install it by themselves once their counter has been quiet for 15 minutes; the shop's data is kept.
+
+      # The public copy: what shop PCs update from (station-update.ps1, server/updates.ts) and /get links to.
+      - name: Publish it for the shops (gyrika/lume-releases)
+        if: env.RELEASES_TOKEN != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: gyrika/lume-releases
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: v${{ needs.build.outputs.version }}
+          name: Lume POS ${{ needs.build.outputs.version }}
+          files: setup/*.exe
+          body: |
+            Lume POS ${{ needs.build.outputs.version }}: download **LumePOS-Setup-${{ needs.build.outputs.version }}.exe** and double-click it.
+            A PC without internet: **LumePOS-Offline-Setup-${{ needs.build.outputs.version }}.exe** (larger: it also carries Microsoft's WebView2).
+            Needs Windows 10 (version 2004 or newer) or Windows 11, 64-bit.
+            Windows may say "Windows protected your PC" the first time: click **More info**, then **Run anyway**.
+            Shop PCs install it by themselves once their counter has been quiet for 15 minutes; the shop's data is kept.

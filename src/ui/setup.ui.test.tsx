@@ -285,14 +285,14 @@ test('Shop setup → Backup: plug in a USB stick, look again, save a copy on it'
   expect(server.backups).toEqual(['E']);
 });
 
-test('Shop setup → Updates during the beta: automatic updates are off, and how to update by hand', async () => {
+test('Shop setup → Updates when automatic updates are switched off: how to update by hand', async () => {
   const server = fakeShopServer({ done: true, updatesOff: true });
   server.staff.push({ id: 'o', name: 'Nisal Vimukthi', role: 'owner', pin: '1234', active: true });
   const user = userEvent.setup();
   render(<SetupWizard mode="manage" />);
   await user.type(await screen.findByLabelText("The owner's PIN"), '1234{Enter}');
   await user.click(await screen.findByRole('button', { name: 'Updates' }));
-  expect((await screen.findByText(/Automatic updates are off/)).textContent).toMatch(/run the new Setup.exe on this PC/);
+  expect((await screen.findByText(/Automatic updates are off on this PC/)).textContent).toMatch(/run the new Setup.exe on this PC/);
   expect(screen.getByText('1.0.0')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Update now' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();

@@ -5,8 +5,8 @@ import { PRODUCT_NAME } from '../../src/domain/brand.ts';
  * release (read from GitHub, cached by Cloudflare for 10 minutes), the three steps that
  * avoid surprises, and on a phone, a nudge to open it on the shop's computer instead.
  */
-const LATEST = 'https://api.github.com/repos/gyrika/possaas/releases/latest';
-const RELEASES = 'https://github.com/gyrika/possaas/releases/latest';
+const LATEST = 'https://api.github.com/repos/gyrika/lume-releases/releases/latest';
+const RELEASES = 'https://github.com/gyrika/lume-releases/releases/latest';
 
 export interface Release { version: string; url: string; sizeMb: number }
 

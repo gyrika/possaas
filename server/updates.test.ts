@@ -34,11 +34,11 @@ test("check: the installed version and GitHub's latest", async () => {
   s.done();
 });
 
-test('off during the beta: no GitHub, nothing to install, even inside a Station on Windows', async () => {
+test('switched off (AUTO_UPDATES false): no GitHub, nothing to install, even inside a Station on Windows', async () => {
   const s = station('1.0.0');
   const asked: unknown[] = [];
   const ran: string[][] = [];
-  const u = updatesApi({ ...s, platform: 'win32', fetch: (async (...a: unknown[]) => { asked.push(a); return Response.json({ tag_name: 'v9.0.0' }); }) as unknown as typeof fetch, run: (c, a) => ran.push([c, ...a]) });
+  const u = updatesApi({ ...s, enabled: false, platform: 'win32', fetch: (async (...a: unknown[]) => { asked.push(a); return Response.json({ tag_name: 'v9.0.0' }); }) as unknown as typeof fetch, run: (c, a) => ran.push([c, ...a]) });
   assert.deepEqual(await u.check(), { current: '1.0.0', latest: null, newer: false, off: true });
   assert.throws(() => u.install(), /off: run the new Setup.exe/);
   await new Promise((r) => setTimeout(r, 600));

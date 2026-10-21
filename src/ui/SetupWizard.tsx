@@ -462,7 +462,7 @@ function UpdatesTab({ ownerPin }: { ownerPin?: string }) {
     return (
       <div className="setup__form">
         <p className="setup__lead">Installed: <b>{info.current}</b>.</p>
-        <p className="setup__done" role="status">Automatic updates are off during the beta. To update, run the new Setup.exe on this PC: your sales, menu and staff are kept.</p>
+        <p className="setup__done" role="status">Automatic updates are off on this PC. To update, run the new Setup.exe on this PC: your sales, menu and staff are kept.</p>
       </div>
     );
   }

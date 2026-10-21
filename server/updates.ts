@@ -12,14 +12,13 @@ export { isNewer };
  * owner says so, runs that updater straight away. In development there is no
  * Station, so there is nothing to update.
  */
-const LATEST = 'https://api.github.com/repos/gyrika/ERP/releases/latest';
+const LATEST = 'https://api.github.com/repos/gyrika/lume-releases/releases/latest';
 
 /**
- * Off during the possaas beta: LATEST is still the CheesyBeez ERP's releases, which would replace
- * this POS. New versions are installed by hand (run the new Setup.exe). Turn on together with
- * $UpdatesOn in deploy/station/station-update.ps1, once LATEST points at possaas' own releases.
+ * On: LATEST is Lume POS's own public releases (gyrika/lume-releases: installers only, the code stays
+ * private). Turned off and on together with $UpdatesOn in deploy/station/station-update.ps1.
  */
-export const AUTO_UPDATES = false;
+export const AUTO_UPDATES = true;
 
 export interface UpdateCheck {
   current: string;

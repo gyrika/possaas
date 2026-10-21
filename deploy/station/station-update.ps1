@@ -7,11 +7,10 @@
 # 3 minutes, the version that was running is put back by itself. Everything goes in logs\update.log.
 param([switch]$Force, [switch]$Nightly)
 
-# Automatic updates are OFF during the possaas beta: releases still come from gyrika/ERP, so an
-# update would put the CheesyBeez ERP over this POS. The nightly backup still runs. New versions
-# are installed by hand (run the new Setup.exe; the shop's data is kept). Turn on together with
-# AUTO_UPDATES in server/updates.ts, once releases come from possaas' own place.
-$UpdatesOn = $false
+# Releases come from gyrika/lume-releases: public, installers only (the code stays private), filled
+# by .github/workflows/station.yml. Turned off and on together with AUTO_UPDATES in server/updates.ts.
+$UpdatesOn = $true
+$Releases = 'gyrika/lume-releases'
 $ErrorActionPreference = 'Stop'
 $data = Join-Path $env:ProgramData 'CheesyBeez'
 $log = Join-Path $data 'logs\update.log'
@@ -93,7 +92,7 @@ try {
 
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
   $current = (Get-Content (Join-Path $PSScriptRoot 'version.txt') -Raw).Trim()
-  $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/gyrika/ERP/releases/latest' -Headers @{ 'User-Agent' = 'CheesyBeez-Station' } -TimeoutSec 30
+  $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Releases/releases/latest" -Headers @{ 'User-Agent' = 'Lume-POS-Station' } -TimeoutSec 30
   $latest = $release.tag_name.TrimStart('v')
   $script:target = $latest
   # Checked every 5 minutes: only the nightly run and "Update now" say so in the log.
@@ -134,7 +133,7 @@ try {
   Status 'going-back' 90
   Set-Content -Path $skipFile -Value $latest
   $back = "LumePOS-Setup-$current.exe"
-  $code = Install "https://github.com/gyrika/ERP/releases/download/v$current/$back" $back $false
+  $code = Install "https://github.com/$Releases/releases/download/v$current/$back" $back $false
   if (Answers $current) { Note "Back on $current (installer exit $code). Version $latest is skipped until a newer one comes out."; Status 'back' 100 }
   else { Note "Going back to $current did not answer either (installer exit $code): needs a look over AnyDesk." }
 } catch {
