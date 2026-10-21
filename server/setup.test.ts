@@ -22,7 +22,7 @@ async function start(cloudFetch?: typeof fetch, preConnected = Boolean(cloudFetc
       ? { url: settings.get().cloudUrl!, token: settings.get().cloudToken! } : null)),
     cloudUrl: 'https://cloud.test', fetch: cloudFetch, onCloudConnected: () => { connected += 1; },
   });
-  const server = createApp({ store, printer: dryRunPrinter(join(dir, 'prints')), setup });
+  const server = createApp({ store, printer: dryRunPrinter(join(dir, 'prints')), setup, shop: setup.publicShop });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/v1/setup`;
   const post = async (step: string, body: unknown = {}) => {
@@ -30,8 +30,9 @@ async function start(cloudFetch?: typeof fetch, preConnected = Boolean(cloudFetc
     return { status: r.status, body: await r.json() };
   };
   const state = async () => (await fetch(base)).json();
+  const shop = async () => { const r = await fetch(base.replace('/setup', '/shop-details')); return { status: r.status, body: await r.json() }; };
   const stop = async () => { await new Promise<void>((r) => server.close(() => r())); rmSync(dir, { recursive: true, force: true }); };
-  return { post, state, stop, store, settings, connected: () => connected };
+  return { post, state, shop, stop, store, settings, connected: () => connected };
 }
 
 test('a new shop: name it (this PC becomes the counter), add staff, finish only with an owner', async () => {
@@ -141,5 +142,25 @@ test("updates: the owner's PIN after setup; development has nothing to install",
   await s.post('/finish');
   assert.equal((await s.post('/update/check', {})).status, 401);
   assert.equal((await s.post('/update/install', { ownerPin: '1234' })).status, 409, 'no updates set up here');
+  await s.stop();
+});
+
+test("the shop's own name, town and receipt footer: for every screen, changed later only with the owner's PIN", async () => {
+  const s = await start();
+  assert.equal((await s.shop()).status, 404, 'nothing until the wizard names the shop');
+  await s.post('/shop', { name: "Rasika's Kitchen", place: 'Kandy' });
+  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen", place: 'Kandy', footer: 'Thank you!' });
+  await s.post('/staff', { name: 'Rasika', role: 'owner', pin: '1234' });
+  await s.post('/finish');
+  const id = (await s.state()).shop.id;
+
+  assert.equal((await s.post('/details', { name: 'X', place: '', footer: '' })).status, 401);
+  assert.equal((await s.post('/details', { name: ' ', ownerPin: '1234' })).status, 400, 'never without a name');
+  const saved = await s.post('/details', { name: "Rasika's Kitchen & Bakery", place: '12 Temple Road, Kandy', footer: '  Come again!  ', ownerPin: '1234' });
+  assert.equal(saved.status, 200);
+  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen & Bakery", place: '12 Temple Road, Kandy', footer: 'Come again!' });
+  assert.equal((await s.state()).shop.id, id, 'the id (and the cloud copy) never changes with the name');
+  await s.post('/details', { name: "Rasika's Kitchen", place: 'Kandy', footer: '', ownerPin: '1234' });
+  assert.equal((await s.shop()).body.footer, '', 'an empty footer stays empty');
   await s.stop();
 });

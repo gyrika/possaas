@@ -1,3 +1,5 @@
+import { ShopBrand } from './Brand.tsx';
+
 /**
  * The one header for the owner's and manager's screens (Owner view, Menu, Shop setup):
  * the same links in the same place on every one, the current one marked. No key hints
@@ -19,7 +21,7 @@ export function OwnerNav({ current, onRegister }: {
 }) {
   return (
     <header className="owner__head">
-      <span className="brand">CheesyBeez</span>
+      <ShopBrand />
       <nav className="owner__nav" aria-label="Owner sections">
         {SECTIONS.map((s) => (
           <a key={s.id} href={`#${s.id}`} aria-current={s.id === current ? 'page' : undefined}>{s.label}</a>

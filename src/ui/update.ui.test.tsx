@@ -31,7 +31,7 @@ test('an update the counter can follow: notice while downloading, whole screen t
   await answer({ ok: true, version: '1.0.9', update: step('backup', 61) });
   expect(screen.getByRole('status').textContent).toMatch(/^Saving a backup before update 1.0.10/);
   await answer('down');
-  expect(screen.getByRole('dialog', { name: 'Updating CheesyBeez' })).toBeTruthy();
+  expect(screen.getByRole('dialog', { name: 'Updating Lume POS' })).toBeTruthy();
   expect(screen.getByText('Installing version 1.0.10')).toBeTruthy();
   expect(screen.getByText(/Orders already taken are safe/)).toBeTruthy();
   expect(reload).not.toHaveBeenCalled();

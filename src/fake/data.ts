@@ -41,6 +41,9 @@ export const fakeOrders = (now: number): Order[] => {
   ];
 };
 
+/** The demo's shop (/?demo): its name, town and receipt footer, as Shop setup would give them. */
+export const FAKE_SHOP_DETAILS = { name: 'CheesyBeez', place: 'Thalwila', footer: 'Thank you!' };
+
 /**
  * What the ordering page's /api/v1/shop answers in `npm run dev` (vite.config.ts), so the page shows a
  * real-looking open shop instead of "Couldn't check". The hours are an example, NOT the shop's: the live

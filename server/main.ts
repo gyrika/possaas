@@ -87,6 +87,7 @@ const fleet = process.env.CLOUD_ADMIN_KEY
   ? createFleet({ url: process.env.CLOUD_ADMIN_URL || 'https://cheesybeez-cloud.cheesybeez-cloud.workers.dev', key: process.env.CLOUD_ADMIN_KEY })
   : null;
 
+const setup = setupApi({ store, settings, usePrinter: printer.use, printsDir, port, cloud: cloudLink, cloudUrl, onCloudConnected: startCloud, updates });
 const server = createApp({
   store,
   staticDir: fileURLToPath(new URL('../dist', import.meta.url)),
@@ -94,7 +95,8 @@ const server = createApp({
   onStored: (tenantId, events) => { if (tenantId === cloudShop()) { replicator?.nudge(); online?.onEvents(events); } },
   online: () => online,
   cloudStatus: () => replicator?.status() ?? null,
-  setup: setupApi({ store, settings, usePrinter: printer.use, printsDir, port, cloud: cloudLink, cloudUrl, onCloudConnected: startCloud, updates }),
+  shop: setup.publicShop,
+  setup,
   version: updates.current,
   updating: () => activeUpdate(updates.status(), Date.now()),
   fleet,
@@ -104,7 +106,7 @@ startCloud();
 server.listen(port, '0.0.0.0', () => {
   const s = settings.get();
   const lan = Object.values(networkInterfaces()).flat().find((a) => a && a.family === 'IPv4' && !a.internal)?.address;
-  console.log(`CheesyBeez server on http://localhost:${port}${lan ? `  (shop Wi-Fi: http://${lan}:${port})` : ''}`);
+  console.log(`Lume POS server on http://localhost:${port}${lan ? `  (shop Wi-Fi: http://${lan}:${port})` : ''}`);
   console.log(`  shop: ${s.setupDone ? `${s.shopName} (${s.shopId})` : 'not set up yet: open the address above on this PC'}`);
   console.log(`  version: ${updates.current()}`);
   console.log(`  database: ${storeName}`);

@@ -3,6 +3,7 @@ import { RECEIPT_WIDTH, receipt } from '../domain/receipt.ts';
 import { totals } from '../domain/totals.ts';
 import type { Order, PaidOrder } from '../domain/types.ts';
 import { canPrint, printReceipt } from '../services/printer.ts';
+import { shopHeader } from '../services/shop.ts';
 
 /**
  * /#receipt: the customer receipt as the XP-80T will print it, for the owner
@@ -28,7 +29,7 @@ export const samplePaid = (): PaidOrder => {
 export function ReceiptPreview() {
   const [paid] = useState(samplePaid);
   const [test, setTest] = useState<'idle' | 'printing' | 'printed' | 'failed'>('idle');
-  const lines = receipt(paid, { cashier: 'Nimal' });
+  const lines = receipt(paid, { shop: shopHeader(), cashier: 'Nimal' });
 
   const printTest = async () => {
     setTest('printing');

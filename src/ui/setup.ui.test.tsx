@@ -11,7 +11,7 @@ interface Person { id: string; name: string; role: string; pin: string; active: 
 
 /** The shop server's setup endpoints, remembering what they are told (and refusing as the real one does). */
 function fakeShopServer({ done = false, status = 200, newFails = false, updatesOff = false } = {}) {
-  const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string }, printer: null as string | null, staff: [] as Person[] };
+  const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string; footer: string }, printer: null as string | null, staff: [] as Person[] };
   const pub = () => s.staff.map(({ pin: _p, ...m }) => m);
   const ownerOk = (pin: unknown) => !s.done || s.staff.some((m) => m.active && m.role === 'owner' && m.pin === pin);
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -24,7 +24,8 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
     if (String(url) === '/api/v1/health') { if (s.down) throw new TypeError('fetch failed'); return ok({ ok: true, version: s.version }); }
     if (step === '') return ok({ done: s.done, shop: s.shop, printer: s.printer, printers: ['XP-80T'], cloud: s.cloud, ...(s.done ? {} : { staff: pub() }) });
     if (!ownerOk(body.ownerPin)) return no(401, "that is not the owner's PIN");
-    if (step === '/shop') { const first = !s.shop; s.shop = { id: 'cheesybeez-thalwila', name: body.name, place: body.place }; return ok({ shopId: s.shop.id, ...(first ? { counterToken: 'counter-token' } : {}) }); }
+    if (step === '/shop') { const first = !s.shop; s.shop = { id: 'cheesybeez-thalwila', name: body.name, place: body.place, footer: 'Thank you!' }; return ok({ shopId: s.shop.id, ...(first ? { counterToken: 'counter-token' } : {}) }); }
+    if (step === '/details') { s.shop = { ...s.shop!, name: body.name, place: body.place, footer: body.footer }; return ok({ shop: s.shop }); }
     if (step === '/printer') { s.printer = body.name; return ok({ printer: body.name }); }
     if (step === '/staff') {
       if (s.staff.some((m) => m.active && m.pin === body.pin)) return no(409, 'someone already has that PIN: choose another');
@@ -155,6 +156,29 @@ test("Shop setup → Updates: the owner's PIN, a newer version, Update now, back
   await vi.waitFor(() => expect(restartApp).toHaveBeenCalled(), { timeout: 3000 }); // the new version answered
 }, 25_000);
 
+test("Shop setup → Printer: the owner changes what the receipt says, and every screen's corner follows", async () => {
+  const server = fakeShopServer({ done: true });
+  server.shop = { id: 'rasikas-kitchen-kandy-ab12', name: "Rasika's Kitchen", place: 'Kandy', footer: 'Thank you!' };
+  server.staff.push({ id: 'o', name: 'Rasika', role: 'owner', pin: '1234', active: true });
+  const user = userEvent.setup();
+  render(<SetupWizard mode="manage" />);
+  await user.type(await screen.findByLabelText("The owner's PIN"), '1234{Enter}');
+  await user.click(await screen.findByRole('button', { name: 'Printer' }));
+  const form = await screen.findByRole('form', { name: 'On the receipt' });
+  const save = within(form).getByRole('button', { name: 'Save' });
+  expect((save as HTMLButtonElement).disabled).toBe(true); // nothing changed yet
+
+  const name = within(form).getByRole('textbox', { name: 'Shop name' });
+  await user.clear(name);
+  await user.type(name, "Rasika's Kitchen & Bakery");
+  await user.clear(within(form).getByRole('textbox', { name: 'Last line' }));
+  await user.type(within(form).getByRole('textbox', { name: 'Last line' }), 'Come again!');
+  await user.click(save);
+  await vi.waitFor(() => expect(server.shop?.footer).toBe('Come again!'));
+  expect(server.shop?.name).toBe("Rasika's Kitchen & Bakery");
+  expect(document.querySelector('.brand')?.textContent).toBe("Rasika's Kitchen & Bakery");
+});
+
 test('Shop setup → Updates during the beta: automatic updates are off, and how to update by hand', async () => {
   const server = fakeShopServer({ done: true, updatesOff: true });
   server.staff.push({ id: 'o', name: 'Nisal Vimukthi', role: 'owner', pin: '1234', active: true });
@@ -177,6 +201,6 @@ test('Update now, and the new version does not start: the owner is told it went 
   await user.click(await screen.findByRole('button', { name: 'Updates' }));
   await user.click(await screen.findByRole('button', { name: 'Update now' }));
   const alert = await screen.findByRole('alert', {}, { timeout: 12_000 });
-  expect(alert.textContent).toBe('Version 1.0.1 did not start on this PC, so CheesyBeez went back to 1.0.0. All sales are safe. Tell whoever looks after your POS.');
+  expect(alert.textContent).toBe('Version 1.0.1 did not start on this PC, so Lume POS went back to 1.0.0. All sales are safe. Tell whoever looks after your POS.');
   expect(restartApp).not.toHaveBeenCalled();
 }, 20_000);

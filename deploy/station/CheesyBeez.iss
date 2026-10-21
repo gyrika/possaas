@@ -1,4 +1,6 @@
-; CheesyBeez Station: one Setup.exe that puts the whole POS on a shop PC.
+; Lume POS (the Station): one Setup.exe that puts the whole POS on a shop PC.
+; What people see says Lume POS; the internal names (this file, the program folder, the tasks,
+; C:\ProgramData\CheesyBeez, CheesyBeezPOS.exe) stay, so installed shops update in place.
 ; Built by GitHub (.github/workflows/station.yml) from deploy/station/stage/ (see stage.ps1):
 ;   iscc /DAppVersion=1.2.3 CheesyBeez.iss
 ; Everything it needs is inside: its own Node.js, the POS, the built-in database. The shop's
@@ -9,19 +11,19 @@
 #endif
 ; iscc /DOffline ...: the offline Setup.exe, for a PC without internet. It also carries Microsoft's
 ; WebView2 (the counter app's web engine, ~200 MB), so it is a separate download: updates keep using
-; the small one (station-update.ps1 looks only for CheesyBeez-Setup-*.exe).
+; the small one (station-update.ps1 looks only for LumePOS-Setup-*.exe).
 #ifdef Offline
-  #define SetupName "CheesyBeez-Offline-Setup-" + AppVersion
+  #define SetupName "LumePOS-Offline-Setup-" + AppVersion
 #else
-  #define SetupName "CheesyBeez-Setup-" + AppVersion
+  #define SetupName "LumePOS-Setup-" + AppVersion
 #endif
 
 [Setup]
 AppId={{6B8E2C14-5A7D-4F39-9C21-CB3E5A1F0D42}
-AppName=CheesyBeez Station
+AppName=Lume POS
 AppVersion={#AppVersion}
-AppVerName=CheesyBeez Station {#AppVersion}
-AppPublisher=CheesyBeez POS team
+AppVerName=Lume POS {#AppVersion}
+AppPublisher=Lume
 AppPublisherURL=https://github.com/gyrika/ERP
 DefaultDirName={autopf}\CheesyBeez Station
 DisableDirPage=yes
@@ -45,15 +47,15 @@ OutputDir=Output
 OutputBaseFilename={#SetupName}
 Compression=lzma2/max
 SolidCompression=yes
-UninstallDisplayName=CheesyBeez Station
+UninstallDisplayName=Lume POS
 CloseApplications=no
 
 [Messages]
-WelcomeLabel1=Welcome to CheesyBeez
-WelcomeLabel2=This puts the CheesyBeez POS on this computer: the counter, the kitchen screen and everything they need.%n%nIt takes about a minute. Then the POS opens and asks a few questions about your shop.
-FinishedHeadingLabel=CheesyBeez is ready
+WelcomeLabel1=Welcome to Lume POS
+WelcomeLabel2=This puts Lume POS on this computer: the counter, the kitchen screen and everything they need.%n%nIt takes about a minute. Then the POS opens and asks a few questions about your shop.
+FinishedHeadingLabel=Lume POS is ready
 FinishedLabel=The POS starts by itself whenever this computer starts.
-WinVersionTooLowError=CheesyBeez needs Windows 10 (version 2004 or newer) or Windows 11, 64-bit. Please update Windows first.
+WinVersionTooLowError=Lume POS needs Windows 10 (version 2004 or newer) or Windows 11, 64-bit. Please update Windows first.
 
 [Dirs]
 Name: "{commonappdata}\CheesyBeez"
@@ -73,20 +75,26 @@ Source: "stage\version.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "stage\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 #endif
 
+[InstallDelete]
+; The shortcuts' old name (before Lume POS), so an updated PC does not show both.
+Type: files; Name: "{commondesktop}\CheesyBeez POS.lnk"
+Type: files; Name: "{autoprograms}\CheesyBeez POS.lnk"
+Type: files; Name: "{commonstartup}\CheesyBeez POS.lnk"
+
 [Icons]
 ; The counter's app (a real Windows program, not a browser): its own icon, full screen.
-Name: "{commondesktop}\CheesyBeez POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
-Name: "{autoprograms}\CheesyBeez POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
+Name: "{commondesktop}\Lume POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
+Name: "{autoprograms}\Lume POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
 ; Whoever logs in to Windows at the counter gets the POS.
-Name: "{commonstartup}\CheesyBeez POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
+Name: "{commonstartup}\Lume POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
 
 [Run]
 #ifdef Offline
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\station-install.ps1"" -WebView2Setup ""{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting CheesyBeez..."
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\station-install.ps1"" -WebView2Setup ""{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting Lume POS..."
 #else
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\station-install.ps1"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting CheesyBeez..."
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\station-install.ps1"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting Lume POS..."
 #endif
-Filename: "{app}\pos-app\CheesyBeezPOS.exe"; Description: "Open CheesyBeez now"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\pos-app\CheesyBeezPOS.exe"; Description: "Open Lume POS now"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\station-uninstall.ps1"""; Flags: runhidden waituntilterminated; RunOnceId: "StopStation"

@@ -12,7 +12,7 @@ import { OnlineError, type Online, type OnlineAnswer } from './online.ts';
 import type { RawPrinter } from './printer.ts';
 import type { ReplicaStatus } from './replicator.ts';
 import type { Fleet } from './fleet.ts';
-import { SetupError, isLocal, type SetupApi } from './setup.ts';
+import { SetupError, isLocal, type SetupApi, type ShopInfo } from './setup.ts';
 import type { Device, EventStore } from './store.ts';
 import { validatePush } from './validate.ts';
 
@@ -34,6 +34,8 @@ export interface AppOptions {
   online?: () => Online | null;
   /** The cloud copy's state, shown by the health check (null: no cloud copy set up). */
   cloudStatus?: () => ReplicaStatus | null;
+  /** The shop's name, town and receipt footer for every screen (null until the wizard names the shop). */
+  shop?: () => ShopInfo | null;
   /** The setup wizard's endpoints (server/setup.ts); answered for this PC only. */
   setup?: SetupApi;
   /** The installed version, shown by the health check (support from afar, Update now). */
@@ -114,7 +116,7 @@ interface Stream {
 
 const send = (ws: WebSocket, m: StreamMessage) => ws.send(JSON.stringify(m));
 
-export function createApp({ store, staticDir, printer, onStored, online, cloudStatus, setup, version, updating, fleet, now = Date.now }: AppOptions): Server {
+export function createApp({ store, staticDir, printer, onStored, online, cloudStatus, shop, setup, version, updating, fleet, now = Date.now }: AppOptions): Server {
   /** Open streams per shop. A shop's events never go to another shop's devices. */
   const streams = new Map<string, Set<Stream>>();
   /** Wrong PIN guesses per device. 10,000 PINs: without a brake, guessing would take minutes. */
@@ -157,6 +159,12 @@ export function createApp({ store, staticDir, printer, onStored, online, cloudSt
       json(res, 200, { ok: true, serverTime: now(), ...(version ? { version: version() } : {}), ...(cloud ? { cloud } : {}), ...(update ? { update } : {}) });
       return;
     }
+    if (url.pathname === '/api/v1/shop-details' && req.method === 'GET') {
+      const info = shop?.() ?? null;
+      if (!info) throw new HttpError(404, 'server', 'the shop is not set up yet');
+      json(res, 200, info);
+      return;
+    }
     if (url.pathname === '/api/v1/fleet' || url.pathname.startsWith('/api/v1/fleet/')) {
       // Only on the developer's laptop, and only from that computer itself (never a tablet on its Wi-Fi).
       if (!fleet || !isLocal(req)) throw new HttpError(404, 'server', 'no shops here');
@@ -186,7 +194,7 @@ export function createApp({ store, staticDir, printer, onStored, online, cloudSt
         if (req.method !== 'POST') throw new HttpError(405, 'server', 'method not allowed');
         const body = ((await readBody(req)) ?? {}) as Record<string, unknown>;
         const routes: Record<string, (b: Record<string, unknown>) => Promise<unknown>> = {
-          '/shop': setup.nameShop, '/printer': setup.setPrinter, '/staff': setup.addStaff, '/staff/list': setup.staff,
+          '/shop': setup.nameShop, '/details': setup.shopDetails, '/printer': setup.setPrinter, '/staff': setup.addStaff, '/staff/list': setup.staff,
           '/staff/remove': setup.removeStaff, '/pair': setup.pair, '/cloud': setup.connectCloud, '/finish': () => setup.finish(),
           '/update/check': setup.checkUpdate, '/update/install': setup.installUpdate, '/update/status': setup.updateStatus,
         };

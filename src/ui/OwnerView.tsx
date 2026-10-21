@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PRODUCT_NAME } from '../domain/brand.ts';
 import { rulesSuggestions, type Insight } from '../domain/insights.ts';
 import { fmt } from '../domain/money.ts';
 import { useInstall } from '../services/ownerApp.ts';
 import { adminShop } from '../services/pairing.ts';
 import { useShopEvents } from '../services/ownerData.ts';
 import { OwnerNav } from './OwnerNav.tsx';
+import { ShopBrand } from './Brand.tsx';
 
 /**
  * The Owner view. Serves the owner: they know the shop, not the screens, and
@@ -85,7 +87,7 @@ export function OwnerView({ phone = false, onBack, shop }: {
         </header>
       ) : phone ? (
         <header className="owner__head">
-          <span className="brand">CheesyBeez</span>
+          <ShopBrand />
           {data.state !== 'loading' && <span className="owner__updated">Updated {timeOf(at)}</span>}
         </header>
       ) : <OwnerNav current="owner" onRegister={onBack} />}
@@ -110,7 +112,7 @@ export function OwnerView({ phone = false, onBack, shop }: {
 
         {offerInstall && install.kind === 'button' && (
           <p className="owner__install">
-            <span>Put CheesyBeez on your home screen.</span>
+            <span>Put {PRODUCT_NAME} on your home screen.</span>
             <button type="button" className="insight__action" onClick={install.install}>Install app</button>
           </p>
         )}

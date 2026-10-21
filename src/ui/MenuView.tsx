@@ -248,7 +248,7 @@ function Editor({ item, onSaved, onClose }: { item: MenuItem; onSaved: (message:
           <section className="group">
             <label className="menued__check">
               <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
-              Hide from the menu <span>(the counter and cheesybeez.com stop offering it; old orders keep it)</span>
+              Hide from the menu <span>(the counter and online ordering stop offering it; old orders keep it)</span>
             </label>
           </section>
           {error && <p className="reason-msg" role="alert">{error}</p>}
@@ -293,7 +293,7 @@ export function MenuView({ owner, onBack }: { owner: boolean; onBack: () => void
       <main className="owner__main menuv" aria-label="Menu">
         <h1 className="menuv__title">Menu</h1>
         <p className="menuv__lead">
-          {owner ? 'Change a price, a name or what is on offer, or add something new. It reaches the counter, the kitchen and cheesybeez.com at once.'
+          {owner ? 'Change a price, a name or what is on offer, or add something new. It reaches the counter, the kitchen and online ordering at once.'
             : 'Mark something sold out for today. Prices and names are changed by the owner.'}
         </p>
         <nav className="cats" aria-label="Menu sections">

@@ -11,6 +11,8 @@ export interface ShopSettings {
   shopId?: string;
   shopName?: string;
   place?: string;
+  /** The receipt's last line; absent = DEFAULT_FOOTER, '' = none. */
+  receiptFooter?: string;
   /** Windows printer name; absent = no printer yet (dry run). */
   printer?: string;
   setupDone?: boolean;
