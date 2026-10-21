@@ -42,6 +42,7 @@ and every printer you can borrow (the XP-80T with its cash drawer, a 58 mm one).
 
 ## 6. When things go wrong
 - [ ] Restart the PC → the POS opens by itself, the sales are still there
+- [ ] Restart the PC 3 times: the Lume POS window opens and **stays open** every time (it closed by itself twice on Windows Server 2025 in CI; if it happens, save a support file)
 - [ ] Pull the power plug in the middle of an order → after restart, nothing sent or paid is lost
 - [ ] Unplug the printer, take a cash payment → the sale completes; plug it back in
 - [ ] Wi-Fi/internet off → selling, the kitchen screen on the PC and receipts still work
