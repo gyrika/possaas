@@ -7,6 +7,14 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
+; iscc /DOffline ...: the offline Setup.exe, for a PC without internet. It also carries Microsoft's
+; WebView2 (the counter app's web engine, ~200 MB), so it is a separate download: updates keep using
+; the small one (station-update.ps1 looks only for CheesyBeez-Setup-*.exe).
+#ifdef Offline
+  #define SetupName "CheesyBeez-Offline-Setup-" + AppVersion
+#else
+  #define SetupName "CheesyBeez-Setup-" + AppVersion
+#endif
 
 [Setup]
 AppId={{6B8E2C14-5A7D-4F39-9C21-CB3E5A1F0D42}
@@ -22,6 +30,10 @@ DisableReadyPage=yes
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+; Windows 10 version 2004 or newer, or Windows 11: the oldest Windows the bundled Node.js, .NET 4.8
+; and WebView2 are all tested on (station.yml). Older PCs get a clear message instead of a POS that
+; installs and then does not start.
+MinVersion=10.0.19041
 WizardStyle=modern
 ; The CheesyBeez honeycomb on the Setup.exe file, its pages, and in Windows' list of programs
 ; (pictures drawn by scripts/make-icons.mjs).
@@ -30,7 +42,7 @@ WizardImageFile=wizard.bmp,wizard-2x.bmp
 WizardSmallImageFile=wizard-small.bmp,wizard-small-2x.bmp
 UninstallDisplayIcon={app}\pos-app\CheesyBeezPOS.exe
 OutputDir=Output
-OutputBaseFilename=CheesyBeez-Setup-{#AppVersion}
+OutputBaseFilename={#SetupName}
 Compression=lzma2/max
 SolidCompression=yes
 UninstallDisplayName=CheesyBeez Station
@@ -41,6 +53,7 @@ WelcomeLabel1=Welcome to CheesyBeez
 WelcomeLabel2=This puts the CheesyBeez POS on this computer: the counter, the kitchen screen and everything they need.%n%nIt takes about a minute. Then the POS opens and asks a few questions about your shop.
 FinishedHeadingLabel=CheesyBeez is ready
 FinishedLabel=The POS starts by itself whenever this computer starts.
+WinVersionTooLowError=CheesyBeez needs Windows 10 (version 2004 or newer) or Windows 11, 64-bit. Please update Windows first.
 
 [Dirs]
 Name: "{commonappdata}\CheesyBeez"
@@ -56,6 +69,9 @@ Source: "station-install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "station-uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "station-update.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "stage\version.txt"; DestDir: "{app}"; Flags: ignoreversion
+#ifdef Offline
+Source: "stage\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+#endif
 
 [Icons]
 ; The counter's app (a real Windows program, not a browser): its own icon, full screen.
@@ -65,7 +81,11 @@ Name: "{autoprograms}\CheesyBeez POS"; Filename: "{app}\pos-app\CheesyBeezPOS.ex
 Name: "{commonstartup}\CheesyBeez POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
 
 [Run]
+#ifdef Offline
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\station-install.ps1"" -WebView2Setup ""{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting CheesyBeez..."
+#else
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\station-install.ps1"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting CheesyBeez..."
+#endif
 Filename: "{app}\pos-app\CheesyBeezPOS.exe"; Description: "Open CheesyBeez now"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]

@@ -167,6 +167,8 @@ test('the download page: always the newest installer, and a plain fallback if Gi
   const { downloadPage, latestRelease } = await import('./download.ts');
   const github = (async () => Response.json({ tag_name: 'v1.0.2', assets: [
     { name: 'notes.txt', size: 1, browser_download_url: 'https://x/notes.txt' },
+    // The offline one (with WebView2, ~200 MB) is never the download page's link.
+    { name: 'CheesyBeez-Offline-Setup-1.0.2.exe', size: 230_000_000, browser_download_url: 'https://x/offline.exe' },
     { name: 'CheesyBeez-Setup-1.0.2.exe', size: 25_931_228, browser_download_url: 'https://github.com/gyrika/ERP/releases/download/v1.0.2/CheesyBeez-Setup-1.0.2.exe' },
   ] })) as unknown as typeof fetch;
   const rel = await latestRelease(github);
