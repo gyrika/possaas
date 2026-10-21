@@ -5,7 +5,9 @@
 # - A pull request touching the Station, the server, the app or the cloud: built and tested on Windows
 #   (and the Setup.exe is downloadable from the run's page), nothing released.
 # - Actions tab > Run workflow: a test build, nothing released.
-# The cloud steps need two repository secrets: CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+# The cloud is deployed only when the repository variable DEPLOY_CLOUD is "true" (and the two secrets
+# CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are set). Off, a merge still tests and releases the
+# Setup.exe: possaas has no cloud of its own yet, and cloud/wrangler.toml still names CheesyBeez's.
 name: CheesyBeez Station
 
 on:
@@ -50,12 +52,14 @@ jobs:
         run: npm test
 
       - name: Cloud staging
+        if: vars.DEPLOY_CLOUD == 'true'
         run: |
           npm run migrate:staging --prefix cloud
           npm run deploy:staging --prefix cloud
           curl -fsS --retry 5 --retry-delay 3 https://cheesybeez-cloud-staging.cheesybeez-cloud.workers.dev/api/v1/health
 
       - name: Cloud live
+        if: vars.DEPLOY_CLOUD == 'true'
         run: |
           npm run migrate --prefix cloud
           npm run deploy --prefix cloud
@@ -91,11 +95,14 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          # A merge to main: the newest v* tag, one more (1.0.9 -> 1.0.10). Anything else: a test number.
+          # A merge to main: the newest v* tag, one more (0.1.9 -> 0.1.10); the first release is 0.1.0.
+          # Anything else: a test number.
           if ($env:GITHUB_EVENT_NAME -eq 'push') {
             $last = git tag --list 'v*' --sort=-v:refname | Select-Object -First 1
-            $p = [version]($last.TrimStart('v'))
-            $v = "$($p.Major).$($p.Minor).$($p.Build + 1)"
+            if ($last) {
+              $p = [version]($last.TrimStart('v'))
+              $v = "$($p.Major).$($p.Minor).$($p.Build + 1)"
+            } else { $v = '0.1.0' }
           } else { $v = "0.0.$env:GITHUB_RUN_NUMBER" }
           "value=$v" >> $env:GITHUB_OUTPUT
 
