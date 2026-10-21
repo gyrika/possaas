@@ -38,7 +38,7 @@ async function start(cloudFetch?: typeof fetch, preConnected = Boolean(cloudFetc
 test('a new shop: name it (this PC becomes the counter), add staff, finish only with an owner', async () => {
   const s = await start();
   // The printer list is whatever this PC has (and Windows may be slow to tell): not compared.
-  const { printers: _printers, ...fresh } = await s.state();
+  const { printers: _printers, usbPorts: _usb, ...fresh } = await s.state();
   assert.deepEqual(fresh, { done: false, shop: null, printer: null, cloud: false });
 
   const named = await s.post('/shop', { name: 'CheesyBeez', place: 'Thalwila' });
@@ -188,11 +188,14 @@ test("Shop setup → Printer: 58 mm paper for every screen's receipts; Windows' 
   const dir = mkdtempSync(join(tmpdir(), 'cb-setup-printer-'));
   const settings = settingsFile(join(dir, 'settings.json'));
   const cleared: string[] = [];
+  const usb = { added: '' };
   const setup = setupApi({
     store: memoryStore(), settings, usePrinter: () => {}, printsDir: join(dir, 'prints'), port: 8080, cloud: () => null, cloudUrl: 'https://cloud.test',
     queue: {
       state: async (name) => ({ status: name === 'XP-58' ? 'PaperOut' : 'Normal', jobs: 2, offline: false }),
       clear: async (name) => { cleared.push(name); return 2; },
+      freeUsbPorts: async () => (usb.added ? [] : ['USB001']),
+      addUsbPrinter: async (port) => { usb.added = port; return `Receipt printer (${port})`; },
     },
   });
   await setup.nameShop({ name: 'Shop', place: '' });
@@ -204,6 +207,14 @@ test("Shop setup → Printer: 58 mm paper for every screen's receipts; Windows' 
   await assert.rejects(setup.setPaper({ width: 76 }), /58 or 80/);
   assert.deepEqual(await setup.setPaper({ width: 58 }), { paper: 58 });
   assert.equal(setup.publicShop()?.paper, 58);
+  // A network printer by its address, no driver; a USB one without its driver, on Windows' own.
+  assert.deepEqual(await setup.setPrinter({ name: 'net:192.168.1.50' }), { printer: 'net:192.168.1.50' });
+  await assert.rejects(setup.setPrinter({ name: 'net:bad address!' }), /no printer called/);
+  assert.deepEqual((await setup.state()).usbPorts, ['USB001']);
+  await assert.rejects(setup.addUsbPrinter({ port: 'USB002' }), /no receipt printer waiting/);
+  assert.deepEqual(await setup.addUsbPrinter({ port: 'USB001' }), { printer: 'Receipt printer (USB001)' });
+  assert.equal(settings.get().printer, 'Receipt printer (USB001)');
+  assert.deepEqual((await setup.state()).usbPorts, []);
   await setup.addStaff({ name: 'Owner', role: 'owner', pin: '1234' });
   await setup.finish();
   await assert.rejects(setup.setPaper({ width: 80 }), /owner's PIN/);

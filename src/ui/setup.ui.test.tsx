@@ -11,7 +11,7 @@ interface Person { id: string; name: string; role: string; pin: string; active: 
 
 /** The shop server's setup endpoints, remembering what they are told (and refusing as the real one does). */
 function fakeShopServer({ done = false, status = 200, newFails = false, updatesOff = false, printer = { status: 'Normal', jobs: 0 } } = {}) {
-  const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string; footer: string; paper?: 58 | 80 }, printed: 0, cleared: 0, printers: ['XP-80T'], printer: null as string | null, staff: [] as Person[] };
+  const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string; footer: string; paper?: 58 | 80 }, printed: 0, cleared: 0, printers: ['XP-80T'], usbPorts: [] as string[], drives: [] as { letter: string; label: string; freeBytes: number }[], backups: [] as string[], printer: null as string | null, staff: [] as Person[] };
   const pub = () => s.staff.map(({ pin: _p, ...m }) => m);
   const ownerOk = (pin: unknown) => !s.done || s.staff.some((m) => m.active && m.role === 'owner' && m.pin === pin);
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -23,9 +23,10 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
     const no = (code: number, message: string) => Response.json({ message }, { status: code });
     if (String(url) === '/api/v1/print') { s.printed += 1; return ok({ ok: true }); }
     if (String(url) === '/api/v1/health') { if (s.down) throw new TypeError('fetch failed'); return ok({ ok: true, version: s.version }); }
-    if (step === '') return ok({ done: s.done, shop: s.shop, printer: s.printer, printers: s.printers, cloud: s.cloud, ...(s.done ? {} : { staff: pub() }) });
+    if (step === '') return ok({ done: s.done, shop: s.shop, printer: s.printer, printers: s.printers, usbPorts: s.usbPorts, cloud: s.cloud, ...(s.done ? {} : { staff: pub() }) });
     if (!ownerOk(body.ownerPin)) return no(401, "that is not the owner's PIN");
     if (step === '/shop') { const first = !s.shop; s.shop = { id: 'cheesybeez-thalwila', name: body.name, place: body.place, footer: 'Thank you!' }; return ok({ shopId: s.shop.id, ...(first ? { counterToken: 'counter-token' } : {}) }); }
+    if (step === '/printer/usb') { s.usbPorts = []; s.printers = [...s.printers, `Receipt printer (${body.port})`]; s.printer = `Receipt printer (${body.port})`; return ok({ printer: s.printer }); }
     if (step === '/paper') { s.shop = { ...s.shop!, paper: body.width }; return ok({ paper: body.width }); }
     if (step === '/printer/state') return ok({ state: { ...printer, jobs: printer.jobs - s.cleared, offline: false } });
     if (step === '/printer/clear') { s.cleared = printer.jobs; return ok({ cleared: printer.jobs }); }
@@ -42,6 +43,8 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
     if (step === '/finish') { s.done = true; return ok({ done: true }); }
     if (step === '/update/check') return ok(updatesOff ? { current: s.version, latest: null, newer: false, off: true } : { current: s.version, latest: '1.0.1', newer: s.version !== '1.0.1' });
     // What station-update.ps1 writes as it goes: downloading (real %), then backing up.
+    if (step === '/backup/drives') return ok({ drives: s.drives });
+    if (step === '/backup/usb') { s.backups.push(body.drive); return ok({ file: `${body.drive}:\\Lume POS backups\\pos.sqlite`, events: 1234 }); }
     if (step === '/support') return ok({ name: 'Lume POS support 2026-10-21 1432.zip', path: 'C:\\Users\\Public\\Desktop\\x.zip' });
     if (step === '/update/status') {
       const t = Date.now() - s.installedAt;
@@ -240,6 +243,46 @@ test("Shop setup → Printer: no printer yet says how to install one, and Look a
   server.printers = ['XP-58']; // plugged in and its driver installed
   await user.click(none.getByRole('button', { name: 'Look again' }));
   expect(await screen.findByRole('radio', { name: 'XP-58' })).toBeTruthy();
+});
+
+test('Shop setup → Printer: a USB receipt printer without its driver is set up in one tap; a network printer by its IP', async () => {
+  const server = fakeShopServer({ done: true });
+  server.printers = [];
+  server.usbPorts = ['USB001'];
+  server.staff.push({ id: 'o', name: 'Rasika', role: 'owner', pin: '1234', active: true });
+  const user = userEvent.setup();
+  render(<SetupWizard mode="manage" />);
+  await user.type(await screen.findByLabelText("The owner's PIN"), '1234{Enter}');
+  await user.click(await screen.findByRole('button', { name: 'Printer' }));
+  const usb = within(await screen.findByRole('region', { name: 'Printer on USB001' }));
+  expect(screen.queryByRole('region', { name: 'No printer found' })).toBeNull();
+  await user.click(usb.getByRole('button', { name: 'Set it up' }));
+  expect((await screen.findByRole('radio', { name: 'Receipt printer (USB001)' })).getAttribute('aria-checked')).toBe('true');
+  expect(server.printer).toBe('Receipt printer (USB001)');
+
+  const net = within(screen.getByRole('form', { name: 'Network printer' }));
+  await user.type(net.getByRole('textbox'), 'printer please');
+  await user.click(net.getByRole('button', { name: 'Use it' }));
+  expect(screen.getByRole('alert').textContent).toMatch(/IP address, like 192\.168\.1\.50/);
+  await user.clear(net.getByRole('textbox'));
+  await user.type(net.getByRole('textbox'), '192.168.1.50{Enter}');
+  expect((await screen.findByRole('radio', { name: 'Network printer 192.168.1.50' })).getAttribute('aria-checked')).toBe('true');
+  expect(server.printer).toBe('net:192.168.1.50');
+});
+
+test('Shop setup → Backup: plug in a USB stick, look again, save a copy on it', async () => {
+  const server = fakeShopServer({ done: true });
+  server.staff.push({ id: 'o', name: 'Rasika', role: 'owner', pin: '1234', active: true });
+  const user = userEvent.setup();
+  render(<SetupWizard mode="manage" />);
+  await user.type(await screen.findByLabelText("The owner's PIN"), '1234{Enter}');
+  await user.click(await screen.findByRole('button', { name: 'Backup' }));
+  expect(await screen.findByText('Plug in a USB stick.')).toBeTruthy();
+  server.drives = [{ letter: 'E', label: 'KINGSTON', freeBytes: 8e9 }];
+  await user.click(screen.getByRole('button', { name: 'Look again' }));
+  await user.click(await screen.findByRole('button', { name: 'Save a copy on KINGSTON (E:)' }));
+  expect((await screen.findByRole('status')).textContent).toMatch(/^Saved on KINGSTON \(E:\), in “Lume POS backups” \(1234 records\)/);
+  expect(server.backups).toEqual(['E']);
 });
 
 test('Shop setup → Updates during the beta: automatic updates are off, and how to update by hand', async () => {

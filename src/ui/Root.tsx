@@ -9,6 +9,7 @@ import { App } from './App.tsx';
 import { Kitchen } from './Kitchen.tsx';
 import { LockScreen } from './LockScreen.tsx';
 import { MenuView } from './MenuView.tsx';
+import { CloseDay } from './CloseDay.tsx';
 import { useMenu } from './menuStore.ts';
 import { menuIsEmpty } from '../domain/menu.ts';
 import { OwnerView } from './OwnerView.tsx';
@@ -166,6 +167,8 @@ export function Root() {
   if (owns && (buildingMenu || firstMenu) && (hash === '' || hash === '#menu')) {
     return <MenuView owner onBack={() => { setBuildingMenu(false); setMenuLater(true); go(''); }} />;
   }
+  // Closing the day: the owner or a manager counts the drawer.
+  if (hash === '#close' && seesOwner) return <CloseDay onBack={() => go('')} />;
   // The owner changes the menu; managers can mark items sold out during service.
   if (hash === '#menu' && (!needsLogin || (staff !== null && seesTakings(staff.role)))) {
     return <MenuView owner={!needsLogin || staff?.role === 'owner'} onBack={() => go('')} />;

@@ -5,8 +5,9 @@ import type { Role } from '../src/domain/auth.ts';
 import { DEFAULT_FOOTER } from '../src/domain/brand.ts';
 import type { PaperWidth } from '../src/domain/receipt.ts';
 import { isPin } from './pins.ts';
-import { dryRunPrinter, listPrinters, systemPrinter, type RawPrinter } from './printer.ts';
+import { dryRunPrinter, listPrinters, networkAddress, printerFor, type RawPrinter } from './printer.ts';
 import { printerQueue, type PrinterQueue } from './printerStatus.ts';
+import type { UsbBackup } from './usbBackup.ts';
 import type { Settings } from './settings.ts';
 import { PinTaken, type EventStore, type StaffMember } from './store.ts';
 import type { UpdatesApi } from './updates.ts';
@@ -34,6 +35,8 @@ export interface SetupContext {
   updates?: UpdatesApi;
   /** Windows' view of the printer, for "Did it print? No" (tests pass their own). */
   queue?: PrinterQueue;
+  /** Shop setup → Backup: a copy of the sales on a USB stick (server/usbBackup.ts). */
+  usb?: UsbBackup;
   /** Shop setup → Help: the support file on the desktop (server/supportFile.ts). */
   support?: () => Promise<{ path: string; name: string }>;
   fetch?: typeof fetch;
@@ -48,6 +51,8 @@ export interface SetupState {
   shop: ({ id: string } & ShopInfo) | null;
   printer: string | null;
   printers: string[];
+  /** USB printer ports with no printer on them: a receipt printer plugged in without its driver. */
+  usbPorts: string[];
   cloud: boolean;
   /** Only while the shop is new; afterwards the staff list needs the owner's PIN. */
   staff?: StaffMember[];
@@ -108,7 +113,7 @@ export function setupApi(ctx: SetupContext) {
   };
 
   const choosePrinter = (name: string | null) => {
-    ctx.usePrinter(name ? systemPrinter(name) : dryRunPrinter(ctx.printsDir));
+    ctx.usePrinter(name ? printerFor(name) : dryRunPrinter(ctx.printsDir));
     ctx.settings.set({ printer: name ?? undefined });
   };
 
@@ -129,6 +134,7 @@ export function setupApi(ctx: SetupContext) {
         shop: current,
         printer: s.printer ?? null,
         printers: await listPrinters(),
+        usbPorts: await queue.freeUsbPorts(),
         cloud: ctx.cloud() !== null,
         ...(!s.setupDone && current ? { staff: await ctx.store.listStaff(current.id) } : {}),
       };
@@ -177,6 +183,15 @@ export function setupApi(ctx: SetupContext) {
       return { state: await queue.state(name) };
     },
 
+    /** A USB receipt printer without its maker's driver: set up with Windows' own, and chosen. */
+    async addUsbPrinter(body: { port?: unknown; ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      if (typeof body.port !== 'string' || !(await queue.freeUsbPorts()).includes(body.port)) throw new SetupError(400, 'invalid', 'no receipt printer waiting on that USB port');
+      const name = await queue.addUsbPrinter(body.port);
+      choosePrinter(name);
+      return { printer: name };
+    },
+
     /** Clears receipts stuck in the chosen printer's queue. */
     async clearPrinter(body: { ownerPin?: unknown }) {
       await authorise(body.ownerPin);
@@ -188,7 +203,7 @@ export function setupApi(ctx: SetupContext) {
     async setPrinter(body: { name?: unknown; ownerPin?: unknown }) {
       await authorise(body.ownerPin);
       const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : null;
-      if (name && !(await listPrinters()).includes(name)) throw new SetupError(400, 'invalid', `no printer called ${name}`);
+      if (name && !networkAddress(name) && !(await listPrinters()).includes(name)) throw new SetupError(400, 'invalid', `no printer called ${name}`);
       choosePrinter(name);
       return { printer: name };
     },
@@ -285,6 +300,20 @@ export function setupApi(ctx: SetupContext) {
       ctx.settings.set({ cloudUrl: ctx.cloudUrl, cloudToken: token });
       ctx.onCloudConnected?.();
       return { cloud: true };
+    },
+
+    /** Shop setup → Backup: the USB sticks plugged in now. */
+    async backupDrives(body: { ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      return { drives: ctx.usb ? await ctx.usb.drives() : [] };
+    },
+
+    /** Copies the sales onto the chosen USB stick. */
+    async backupToUsb(body: { drive?: unknown; ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      if (!ctx.usb || typeof body.drive !== 'string') throw new SetupError(400, 'invalid', 'choose a USB stick');
+      try { return await ctx.usb.save(body.drive); }
+      catch (e) { throw new SetupError(409, 'not_ready', e instanceof Error ? e.message : String(e)); }
     },
 
     /** Shop setup → Help: saves the support file on this PC's desktop and says where. */

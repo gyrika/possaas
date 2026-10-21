@@ -6,11 +6,12 @@ import { ShopBrand } from './Brand.tsx';
  * in it, so nothing shifts between screens (F3 and Esc still work where they did).
  */
 
-export type Section = 'owner' | 'menu' | 'setup';
+export type Section = 'owner' | 'menu' | 'close' | 'setup';
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'owner', label: 'Owner' },
   { id: 'menu', label: 'Menu' },
+  { id: 'close', label: 'Close the day' },
   { id: 'setup', label: 'Shop setup' },
 ];
 

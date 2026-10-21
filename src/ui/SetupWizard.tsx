@@ -25,8 +25,8 @@ const FIRST: Step[] = ['shop', 'printer', 'staff', 'cloud', 'devices'];
 const TITLES: Record<Step, string> = {
   shop: 'Name your shop', printer: 'Your receipt printer', staff: 'Your staff', cloud: 'Connect to the cloud', devices: 'Connect your devices',
 };
-type Tab = Exclude<Step, 'shop'> | 'updates' | 'help';
-const TAB_LABEL: Record<Tab, string> = { staff: 'Staff', printer: 'Printer', cloud: 'Cloud', devices: 'Devices', updates: 'Updates', help: 'Help' };
+type Tab = Exclude<Step, 'shop'> | 'updates' | 'backup' | 'help';
+const TAB_LABEL: Record<Tab, string> = { staff: 'Staff', printer: 'Printer', cloud: 'Cloud', devices: 'Devices', updates: 'Updates', backup: 'Backup', help: 'Help' };
 const ROLES: { id: Role; label: string }[] = [
   { id: 'cashier', label: 'Cashier' }, { id: 'manager', label: 'Manager' }, { id: 'owner', label: 'Owner' }, { id: 'kitchen', label: 'Kitchen' },
 ];
@@ -170,17 +170,38 @@ function PrinterStep({ state, ownerPin, onNext, onRefresh }: { state: SetupState
     setTries((n) => n + 1);
   };
   const testDrawer = async () => setDrawer((await openDrawer()) === 'printed' ? 'sent' : 'failed');
-  const options: (string | null)[] = [...state.printers, null];
+  const [ip, setIp] = useState('');
+  /** A USB receipt printer without its driver: Windows' own driver, then chosen, then the list again. */
+  const setUpUsb = async (port: string) => {
+    setError('');
+    try { setChosen((await setupClient.addUsbPrinter(port, ownerPin)).printer); setTest(''); onRefresh?.(); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  const useNetwork = (e: FormEvent) => {
+    e.preventDefault();
+    const address = ip.trim();
+    if (!/^\d{1,3}(\.\d{1,3}){3}(:\d{1,5})?$/.test(address)) { setError('Type the printer\'s IP address, like 192.168.1.50 (printed on its self-test page).'); return; }
+    void choose(`net:${address}`);
+  };
+  const usb = state.usbPorts ?? [];
+  const options: (string | null)[] = [...state.printers, ...(chosen?.startsWith('net:') ? [chosen] : []), null];
   return (
     <div className="setup__form">
       <div className="setup__choices" role="radiogroup" aria-label="Receipt printer">
         {options.map((p) => (
           <button key={p ?? 'none'} type="button" role="radio" aria-checked={chosen === p} className="setup__choice" onClick={() => void choose(p)}>
-            {p ?? 'No printer yet (receipts are saved as files)'}
+            {p === null ? 'No printer yet (receipts are saved as files)' : p.startsWith('net:') ? `Network printer ${p.slice(4)}` : p}
           </button>
         ))}
       </div>
-      {state.printers.length === 0 && (
+      {usb.map((port) => (
+        <div key={port} className="printer-help" role="region" aria-label={`Printer on ${port}`}>
+          <p className="printer-help__title">A printer is plugged in on {port}, without its driver.</p>
+          <p className="setup__hint">If it is your receipt printer, it can print without the maker's driver: Windows' own simple driver passes the receipts through.</p>
+          <p className="setup__row"><button type="button" className="chip chip--solid" onClick={() => void setUpUsb(port)}>Set it up</button></p>
+        </div>
+      ))}
+      {state.printers.length === 0 && usb.length === 0 && (
         <div className="printer-help" role="region" aria-label="No printer found">
           <p className="printer-help__title">Windows does not know a printer yet.</p>
           <ol>
@@ -191,6 +212,11 @@ function PrinterStep({ state, ownerPin, onNext, onRefresh }: { state: SetupState
           {onRefresh && <p className="setup__row"><button type="button" className="chip chip--solid" onClick={onRefresh}>Look again</button></p>}
         </div>
       )}
+      <form className="setup__row" aria-label="Network printer" onSubmit={useNetwork}>
+        <label className="setup__field setup__field--inline"><span>Network printer (Ethernet or Wi-Fi)</span>
+          <input value={ip} inputMode="decimal" placeholder="IP address, like 192.168.1.50" onChange={(e) => setIp(e.target.value)} /></label>
+        <button type="submit" className="chip" disabled={!ip.trim()}>Use it</button>
+      </form>
       {chosen && (
         <div className="setup__choices" role="radiogroup" aria-label="Paper width">
           {([80, 58] as const).map((w) => (
@@ -469,6 +495,50 @@ function UpdatesTab({ ownerPin }: { ownerPin?: string }) {
 }
 
 /**
+ * Shop setup → Backup: the nightly copy stays on this computer; if its disk dies, so does it. A copy
+ * on a USB stick, kept away from the computer, is the one that survives (until the cloud keeps one).
+ */
+function BackupTab({ ownerPin }: { ownerPin?: string }) {
+  const [drives, setDrives] = useState<{ letter: string; label: string }[] | null>(null);
+  const [saving, setSaving] = useState('');
+  const [saved, setSaved] = useState<{ where: string; events: number } | null>(null);
+  const [error, setError] = useState('');
+  const look = useCallback(async () => {
+    setError('');
+    try { setDrives((await setupClient.backupDrives(ownerPin)).drives); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  }, [ownerPin]);
+  useEffect(() => { void look(); }, [look]);
+  const save = async (d: { letter: string; label: string }) => {
+    setSaving(d.letter); setSaved(null); setError('');
+    try { const r = await setupClient.backupToUsb(d.letter, ownerPin); setSaved({ where: `${d.label} (${d.letter}:)`, events: r.events }); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    setSaving('');
+  };
+  return (
+    <div className="setup__form">
+      <p className="setup__lead">Your sales are copied every night on this computer. Keep a copy away from it too: once a week, plug in a USB stick and save one.</p>
+      {drives === null ? <p className="setup__hint" aria-busy="true">Looking for USB sticks…</p> : drives.length === 0 ? (
+        <p className="setup__row">
+          <span>Plug in a USB stick.</span>
+          <button type="button" className="chip" onClick={() => void look()}>Look again</button>
+        </p>
+      ) : (
+        <p className="setup__row">
+          {drives.map((d) => (
+            <button key={d.letter} type="button" className="cta" disabled={saving !== ''} onClick={() => void save(d)}>
+              {saving === d.letter ? 'Saving…' : `Save a copy on ${d.label} (${d.letter}:)`}
+            </button>
+          ))}
+        </p>
+      )}
+      {saved && <p className="setup__done" role="status">Saved on {saved.where}, in “Lume POS backups” ({saved.events} records). Keep the stick away from this computer.</p>}
+      {error && <p className="setup__error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+/**
  * Shop setup → Help: something is wrong and the person who looks after the POS is far away.
  * One tap puts a support file on the desktop to send them (WhatsApp is fine).
  */
@@ -570,7 +640,7 @@ export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => voi
     body = (
       <>
         <nav className="cats setup__tabs" aria-label="Shop setup">
-          {(['staff', 'printer', 'cloud', 'devices', 'updates', 'help'] as const).map((t) => (
+          {(['staff', 'printer', 'cloud', 'devices', 'updates', 'backup', 'help'] as const).map((t) => (
             <button key={t} type="button" className="pill" aria-pressed={tab === t} onClick={() => setTab(t)}>{TAB_LABEL[t]}</button>
           ))}
         </nav>
@@ -579,6 +649,7 @@ export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => voi
         {tab === 'cloud' && <CloudStep connected={state.cloud} ownerPin={ownerPin} onConnected={connected} />}
         {tab === 'devices' && <DevicesStep state={state} ownerPin={ownerPin} />}
         {tab === 'updates' && <UpdatesTab ownerPin={ownerPin} />}
+        {tab === 'backup' && <BackupTab ownerPin={ownerPin} />}
         {tab === 'help' && <HelpTab ownerPin={ownerPin} />}
       </>
     );

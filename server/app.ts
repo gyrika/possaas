@@ -194,10 +194,10 @@ export function createApp({ store, staticDir, printer, onStored, online, cloudSt
         if (req.method !== 'POST') throw new HttpError(405, 'server', 'method not allowed');
         const body = ((await readBody(req)) ?? {}) as Record<string, unknown>;
         const routes: Record<string, (b: Record<string, unknown>) => Promise<unknown>> = {
-          '/shop': setup.nameShop, '/details': setup.shopDetails, '/printer': setup.setPrinter, '/printer/state': setup.printerState,
+          '/shop': setup.nameShop, '/details': setup.shopDetails, '/printer': setup.setPrinter, '/printer/state': setup.printerState, '/printer/usb': setup.addUsbPrinter,
           '/printer/clear': setup.clearPrinter, '/paper': setup.setPaper, '/staff': setup.addStaff, '/staff/list': setup.staff,
           '/staff/remove': setup.removeStaff, '/pair': setup.pair, '/cloud': setup.connectCloud, '/finish': () => setup.finish(),
-          '/support': setup.saveSupport, '/update/check': setup.checkUpdate, '/update/install': setup.installUpdate, '/update/status': setup.updateStatus,
+          '/support': setup.saveSupport, '/backup/drives': setup.backupDrives, '/backup/usb': setup.backupToUsb, '/update/check': setup.checkUpdate, '/update/install': setup.installUpdate, '/update/status': setup.updateStatus,
         };
         const route = routes[step];
         if (!route) throw new HttpError(404, 'server', 'no such setup step');

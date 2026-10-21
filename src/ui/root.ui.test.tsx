@@ -62,9 +62,9 @@ test('one nav bar on every owner screen: same links, the current one marked, Reg
   render(<Root />);
   const nav = () => within(screen.getByRole('navigation', { name: 'Owner sections' }));
   const current = () => nav().getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page').map((a) => a.textContent);
-  const links = ['Owner', 'Menu', 'Shop setup'];
+  const links = ['Owner', 'Menu', 'Close the day', 'Shop setup'];
 
-  for (const [link, main] of [['Owner', 'Owner'], ['Shop setup', 'Shop setup'], ['Menu', 'Menu']]) {
+  for (const [link, main] of [['Owner', 'Owner'], ['Shop setup', 'Shop setup'], ['Close the day', 'Close the day'], ['Menu', 'Menu']]) {
     await user.click(nav().getByRole('link', { name: link }));
     expect(await screen.findByRole('main', { name: main })).toBeTruthy();
     expect(nav().getAllByRole('link').map((a) => a.textContent)).toEqual(links);

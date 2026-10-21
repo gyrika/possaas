@@ -11,6 +11,8 @@ export interface SetupState {
   shop: { id: string; name: string; place: string; footer: string; paper: 58 | 80 } | null;
   printer: string | null;
   printers: string[];
+  /** USB printer ports with no printer: a receipt printer plugged in without its driver. */
+  usbPorts?: string[];
   cloud: boolean;
   staff?: StaffRow[];
 }
@@ -33,6 +35,7 @@ export const setupClient = {
     call<{ shop: { id: string; name: string; place: string; footer: string } }>('/details', { ...d, ownerPin }),
   setPaper: (width: 58 | 80, ownerPin?: string) => call<{ paper: 58 | 80 }>('/paper', { width, ownerPin }),
   printerState: (ownerPin?: string) => call<{ state: PrinterState }>('/printer/state', { ownerPin }),
+  addUsbPrinter: (port: string, ownerPin?: string) => call<{ printer: string }>('/printer/usb', { port, ownerPin }),
   clearPrinter: (ownerPin?: string) => call<{ cleared: number }>('/printer/clear', { ownerPin }),
   setPrinter: (name: string | null, ownerPin?: string) => call<{ printer: string | null }>('/printer', { name, ownerPin }),
   staff: (ownerPin?: string) => call<{ staff: StaffRow[] }>('/staff/list', { ownerPin }),
@@ -42,6 +45,8 @@ export const setupClient = {
   pairCounter: (ownerPin: string) => call<{ counterToken: string; shopId: string }>('/pair', { kind: 'counter', ownerPin }),
   connectCloud: (code: string, ownerPin?: string) => call<{ cloud: boolean }>('/cloud', { code, ownerPin }),
   finish: () => call<{ done: boolean }>('/finish', {}),
+  backupDrives: (ownerPin?: string) => call<{ drives: { letter: string; label: string; freeBytes: number }[] }>('/backup/drives', { ownerPin }),
+  backupToUsb: (drive: string, ownerPin?: string) => call<{ file: string; events: number }>('/backup/usb', { drive, ownerPin }),
   saveSupport: (ownerPin?: string) => call<{ name: string; path: string }>('/support', { ownerPin }),
   checkUpdate: (ownerPin?: string) => call<{ current: string; latest: string | null; newer: boolean; off?: boolean }>('/update/check', { ownerPin }),
   installUpdate: (ownerPin?: string) => call<{ started: boolean; from: string }>('/update/install', { ownerPin }),

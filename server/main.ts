@@ -2,7 +2,7 @@ import { networkInterfaces } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createPool } from 'mysql2/promise';
 import { createApp } from './app.ts';
-import { dryRunPrinter, switchablePrinter, systemPrinter } from './printer.ts';
+import { dryRunPrinter, printerFor, switchablePrinter } from './printer.ts';
 import { startOnline, type Online } from './online.ts';
 import { createFleet } from './fleet.ts';
 import { startReplicator } from './replicator.ts';
@@ -12,6 +12,7 @@ import { sqliteStore } from './sqliteStore.ts';
 import { memoryStore, mysqlStore, type EventStore } from './store.ts';
 import { activeUpdate } from '../src/domain/updating.ts';
 import { saveSupportFile } from './supportFile.ts';
+import { usbBackup } from './usbBackup.ts';
 import { updatesApi } from './updates.ts';
 
 /**
@@ -46,7 +47,7 @@ if (process.env.DATABASE_URL) {
 
 const settings = settingsFile(`${dataDir}/settings.json`);
 const chosen = settings.get().printer ?? process.env.PRINTER;
-const printer = switchablePrinter(chosen ? systemPrinter(chosen) : dryRunPrinter(printsDir));
+const printer = switchablePrinter(chosen ? printerFor(chosen) : dryRunPrinter(printsDir));
 
 /** The CheesyBeez cloud copy (docs/cloud.md); a new shop joins it from the setup wizard. */
 const DEFAULT_CLOUD_URL = 'https://cheesybeez-cloud.cheesybeez-cloud.workers.dev';
@@ -91,6 +92,7 @@ const fleet = process.env.CLOUD_ADMIN_KEY
 const setup = setupApi({
   store, settings, usePrinter: printer.use, printsDir, port, cloud: cloudLink, cloudUrl, onCloudConnected: startCloud, updates,
   support: () => saveSupportFile({ dataDir, version: updates.current(), port }),
+  usb: usbBackup({ dataDir }),
 });
 const server = createApp({
   store,
