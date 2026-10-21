@@ -60,12 +60,13 @@ test('when the POS will not start, the file says so; on Windows it asks Windows 
     const r = await saveSupportFile({
       dataDir: pc.data, outDir: pc.dir, version: '1.0.3', port: 8081, now: () => when, platform: 'win32',
       fetch: (async () => { throw new TypeError('fetch failed'); }) as unknown as typeof fetch,
-      run: async (command, args) => { asked.push(`${command} ${args.at(-1)}`); return `answer ${asked.length}`; },
+      run: async (command, args) => { asked.push(`${command} ${args.at(-1)}`); return args.at(-1)!.includes('AntivirusProduct') ? '' : `answer ${asked.length}`; },
     });
     const about = unzip(readFileSync(r.path))['about.txt'];
     assert.match(about, /Shop server: +NOT answering \(fetch failed\)/);
     for (const part of ['Windows', 'Printers', 'Scheduled tasks', 'WebView2', 'Firewall', 'Network', 'Antivirus']) assert.match(about, new RegExp(`----- ${part} -----`));
     assert.ok(asked.some((a) => a.includes('Get-Printer')) && asked.some((a) => a.startsWith('reg.exe')));
+    assert.match(about, /----- Antivirus -----\r\n\(nothing reported\)/, 'Windows Server has no antivirus list: said, not blank');
   } finally {
     pc.done();
   }

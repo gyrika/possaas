@@ -3,8 +3,10 @@ import { randomBytes } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import type { Role } from '../src/domain/auth.ts';
 import { DEFAULT_FOOTER } from '../src/domain/brand.ts';
+import type { PaperWidth } from '../src/domain/receipt.ts';
 import { isPin } from './pins.ts';
 import { dryRunPrinter, listPrinters, systemPrinter, type RawPrinter } from './printer.ts';
+import { printerQueue, type PrinterQueue } from './printerStatus.ts';
 import type { Settings } from './settings.ts';
 import { PinTaken, type EventStore, type StaffMember } from './store.ts';
 import type { UpdatesApi } from './updates.ts';
@@ -30,6 +32,8 @@ export interface SetupContext {
   onCloudConnected?: () => void;
   /** The Station's versions ("Update now"). */
   updates?: UpdatesApi;
+  /** Windows' view of the printer, for "Did it print? No" (tests pass their own). */
+  queue?: PrinterQueue;
   /** Shop setup → Help: the support file on the desktop (server/supportFile.ts). */
   support?: () => Promise<{ path: string; name: string }>;
   fetch?: typeof fetch;
@@ -37,7 +41,7 @@ export interface SetupContext {
 }
 
 /** What every screen and the receipt show (GET /api/v1/shop-details): the shop's own name, never the product's. */
-export interface ShopInfo { name: string; place: string; footer: string }
+export interface ShopInfo { name: string; place: string; footer: string; paper: PaperWidth }
 
 export interface SetupState {
   done: boolean;
@@ -75,10 +79,13 @@ export function setupApi(ctx: SetupContext) {
   const now = ctx.now ?? Date.now;
   const http = ctx.fetch ?? fetch;
   const wrong = { count: 0, until: 0 };
+  const queue = ctx.queue ?? printerQueue();
 
   const shop = () => {
     const s = ctx.settings.get();
-    return s.shopId ? { id: s.shopId, name: s.shopName ?? s.shopId, place: s.place ?? '', footer: s.receiptFooter ?? DEFAULT_FOOTER } : null;
+    return s.shopId
+      ? { id: s.shopId, name: s.shopName ?? s.shopId, place: s.place ?? '', footer: s.receiptFooter ?? DEFAULT_FOOTER, paper: s.paperWidth ?? 80 }
+      : null;
   };
   const requireShop = () => {
     const s = shop();
@@ -111,7 +118,7 @@ export function setupApi(ctx: SetupContext) {
     /** For every screen on the shop's network (no PIN: it is printed on every receipt anyway). */
     publicShop(): ShopInfo | null {
       const s = shop();
-      return s ? { name: s.name, place: s.place, footer: s.footer } : null;
+      return s ? { name: s.name, place: s.place, footer: s.footer, paper: s.paper } : null;
     },
 
     async state(): Promise<SetupState> {
@@ -152,6 +159,30 @@ export function setupApi(ctx: SetupContext) {
       const footer = typeof body.footer === 'string' ? body.footer.trim().slice(0, 120) : DEFAULT_FOOTER;
       ctx.settings.set({ shopName: name, place, receiptFooter: footer });
       return { shop: shop() };
+    },
+
+    /** Shop setup → Printer: 80 mm or 58 mm paper; the receipt is laid out for it. */
+    async setPaper(body: { width?: unknown; ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      if (body.width !== 58 && body.width !== 80) throw new SetupError(400, 'invalid', 'the paper is 58 or 80 mm');
+      ctx.settings.set({ paperWidth: body.width });
+      return { paper: body.width };
+    },
+
+    /** "Did it print? No": what Windows knows about the chosen printer. */
+    async printerState(body: { ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      const name = ctx.settings.get().printer;
+      if (!name) throw new SetupError(409, 'not_ready', 'choose a printer first');
+      return { state: await queue.state(name) };
+    },
+
+    /** Clears receipts stuck in the chosen printer's queue. */
+    async clearPrinter(body: { ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      const name = ctx.settings.get().printer;
+      if (!name) throw new SetupError(409, 'not_ready', 'choose a printer first');
+      return { cleared: await queue.clear(name) };
     },
 
     async setPrinter(body: { name?: unknown; ownerPin?: unknown }) {

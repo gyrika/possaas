@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { PIN_LENGTH, type Role } from '../domain/auth.ts';
 import { DEFAULT_FOOTER, PRODUCT_NAME } from '../domain/brand.ts';
+import { printerAdvice, type Advice } from '../domain/printerHelp.ts';
 import { pairAsCounter } from '../services/pairing.ts';
-import { printReceipt } from '../services/printer.ts';
+import { openDrawer, printReceipt } from '../services/printer.ts';
 import { setupClient, type SetupState, type StaffRow } from '../services/setupClient.ts';
-import { setShopDetails } from '../services/shop.ts';
+import { setShopDetails, shopDetails } from '../services/shop.ts';
 import { QrCode } from './QrCode.tsx';
 import { samplePaid } from './ReceiptPreview.tsx';
 import { restartApp } from './restart.ts';
@@ -97,6 +98,7 @@ function ReceiptDetails({ shop, ownerPin }: { shop: NonNullable<SetupState['shop
   );
   return (
     <form className="setup__form" aria-label="On the receipt" onSubmit={(e) => void save(e)}>
+      <h2 className="setup__subhead">On the receipt</h2>
       {field('name', 'Shop name', "e.g. Rasika's Kitchen")}
       {field('place', 'Under the name', 'e.g. 12 Temple Road, Kandy · 077 123 4567')}
       {field('footer', 'Last line', 'e.g. Thank you! Come again.')}
@@ -108,20 +110,66 @@ function ReceiptDetails({ shop, ownerPin }: { shop: NonNullable<SetupState['shop
   );
 }
 
-function PrinterStep({ state, ownerPin, onNext }: { state: SetupState; ownerPin?: string; onNext?: () => void }) {
+/** "Did it come out? No": the most likely cause from what Windows knows, and clearing stuck receipts. */
+function PrinterTrouble({ ownerPin, onRetry }: { ownerPin?: string; onRetry: () => void }) {
+  const [advice, setAdvice] = useState<Advice | null>(null);
+  const [cleared, setCleared] = useState<number | null>(null);
+  const [error, setError] = useState('');
+  const look = useCallback(async () => {
+    setError('');
+    try { setAdvice(printerAdvice((await setupClient.printerState(ownerPin)).state)); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  }, [ownerPin]);
+  useEffect(() => { void look(); }, [look]);
+  const clear = async () => {
+    try { setCleared((await setupClient.clearPrinter(ownerPin)).cleared); await look(); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  if (error) return <p className="setup__error" role="alert">{error}</p>;
+  if (!advice) return <p className="setup__hint" aria-busy="true">Asking Windows about the printer…</p>;
+  return (
+    <div className="printer-help" role="region" aria-label="Printer help">
+      <p className="printer-help__title">{advice.title}</p>
+      <ol>{advice.steps.map((step) => <li key={step}>{step}</li>)}</ol>
+      {cleared !== null && <p className="setup__done" role="status">{cleared === 1 ? '1 waiting receipt cleared.' : `${cleared} waiting receipts cleared.`}</p>}
+      <p className="setup__row">
+        {advice.clearJobs && <button type="button" className="chip" onClick={() => void clear()}>Clear the waiting receipts</button>}
+        <button type="button" className="chip chip--solid" onClick={onRetry}>Try again</button>
+      </p>
+    </div>
+  );
+}
+
+function PrinterStep({ state, ownerPin, onNext, onRefresh }: { state: SetupState; ownerPin?: string; onNext?: () => void; onRefresh?: () => void }) {
   const [chosen, setChosen] = useState<string | null>(state.printer);
-  const [test, setTest] = useState<'' | 'printing' | 'printed' | 'failed'>('');
+  const [paper, setPaper] = useState<58 | 80>(state.shop?.paper ?? 80);
+  /** sent: Windows took it, but only a person can see whether paper came out. */
+  const [test, setTest] = useState<'' | 'printing' | 'sent' | 'ok' | 'trouble'>('');
+  const [tries, setTries] = useState(0);
+  const [drawer, setDrawer] = useState<'' | 'sent' | 'failed'>('');
   const [error, setError] = useState('');
   const choose = async (name: string | null) => {
     setError('');
-    try { await setupClient.setPrinter(name, ownerPin); setChosen(name); setTest(''); }
+    try { await setupClient.setPrinter(name, ownerPin); setChosen(name); setTest(''); setDrawer(''); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  const pickPaper = async (width: 58 | 80) => {
+    setError('');
+    try {
+      await setupClient.setPaper(width, ownerPin);
+      setPaper(width);
+      setTest('');
+      const now = shopDetails();
+      if (now) setShopDetails({ ...now, paper: width }); // the test receipt is laid out for it at once
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
   const printTest = async () => {
     setTest('printing');
     const r = await printReceipt(samplePaid(), 'Setup', { reprint: true }); // marked COPY, never opens the drawer
-    setTest(r === 'printed' ? 'printed' : 'failed');
+    setTest(r === 'printed' ? 'sent' : 'trouble');
+    setTries((n) => n + 1);
   };
+  const testDrawer = async () => setDrawer((await openDrawer()) === 'printed' ? 'sent' : 'failed');
   const options: (string | null)[] = [...state.printers, null];
   return (
     <div className="setup__form">
@@ -132,13 +180,50 @@ function PrinterStep({ state, ownerPin, onNext }: { state: SetupState; ownerPin?
           </button>
         ))}
       </div>
-      {state.printers.length === 0 && <p className="setup__hint">No printer found. Plug it in, install its Windows driver, then come back here.</p>}
+      {state.printers.length === 0 && (
+        <div className="printer-help" role="region" aria-label="No printer found">
+          <p className="printer-help__title">Windows does not know a printer yet.</p>
+          <ol>
+            <li>Plug the printer into this computer with its USB cable, and switch it on.</li>
+            <li>Install its Windows driver: from the CD that came with it, or the maker's website (search for its model, like "XP-80 driver").</li>
+            <li>Then choose Look again.</li>
+          </ol>
+          {onRefresh && <p className="setup__row"><button type="button" className="chip chip--solid" onClick={onRefresh}>Look again</button></p>}
+        </div>
+      )}
+      {chosen && (
+        <div className="setup__choices" role="radiogroup" aria-label="Paper width">
+          {([80, 58] as const).map((w) => (
+            <button key={w} type="button" role="radio" aria-checked={paper === w} className="setup__choice" onClick={() => void pickPaper(w)}>
+              {w} mm paper{w === 58 ? ' (narrow rolls)' : ''}
+            </button>
+          ))}
+        </div>
+      )}
       {state.shop && <ReceiptDetails shop={state.shop} ownerPin={ownerPin} />}
       {chosen && (
-        <p className="setup__row">
-          <button type="button" className="chip" onClick={() => void printTest()} disabled={test === 'printing'}>Print a test receipt</button>
-          <span role="status">{test === 'printed' ? 'Sent to the printer.' : test === 'failed' ? 'The printer did not take it.' : ''}</span>
-        </p>
+        <>
+          <p className="setup__row">
+            <button type="button" className="chip" onClick={() => void printTest()} disabled={test === 'printing'}>
+              {test === 'printing' ? 'Printing…' : 'Print a test receipt'}
+            </button>
+            <button type="button" className="chip" onClick={() => void testDrawer()}>Open the cash drawer</button>
+          </p>
+          {test === 'sent' && (
+            <div className="printer-help" role="region" aria-label="Did it print">
+              <p className="printer-help__title">Did a receipt come out?</p>
+              <p className="setup__hint">Its dashed lines should reach from one edge of the paper to the other. If they stop short or wrap, choose the other paper width.</p>
+              <p className="setup__row">
+                <button type="button" className="chip chip--solid" onClick={() => setTest('ok')}>Yes, it printed</button>
+                <button type="button" className="chip" onClick={() => setTest('trouble')}>No</button>
+              </p>
+            </div>
+          )}
+          {test === 'ok' && <p className="setup__done" role="status">The printer is ready.</p>}
+          {test === 'trouble' && <PrinterTrouble key={tries} ownerPin={ownerPin} onRetry={() => void printTest()} />}
+          {drawer === 'sent' && <p className="setup__hint" role="status">Sent to the drawer. If it did not open, check its cable is in the printer's socket marked DK or Drawer (not the computer).</p>}
+          {drawer === 'failed' && <p className="setup__error" role="alert">The printer did not take it. Print a test receipt first to find out why.</p>}
+        </>
       )}
       {error && <p className="setup__error" role="alert">{error}</p>}
       {onNext && <div className="setup__foot"><button type="button" className="cta" onClick={onNext}>Next</button></div>}
@@ -490,7 +575,7 @@ export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => voi
           ))}
         </nav>
         {tab === 'staff' && <StaffStep initial={staff ?? []} ownerPin={ownerPin} />}
-        {tab === 'printer' && <PrinterStep state={state} ownerPin={ownerPin} />}
+        {tab === 'printer' && <PrinterStep state={state} ownerPin={ownerPin} onRefresh={() => void reload()} />}
         {tab === 'cloud' && <CloudStep connected={state.cloud} ownerPin={ownerPin} onConnected={connected} />}
         {tab === 'devices' && <DevicesStep state={state} ownerPin={ownerPin} />}
         {tab === 'updates' && <UpdatesTab ownerPin={ownerPin} />}
@@ -505,7 +590,7 @@ export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => voi
         <p className="setup__step">Step {i + 1} of {FIRST.length}</p>
         <h1>{TITLES[step]}</h1>
         {step === 'shop' && <ShopStep state={state} onDone={next} />}
-        {step === 'printer' && <PrinterStep state={state} onNext={next} />}
+        {step === 'printer' && <PrinterStep state={state} onNext={next} onRefresh={() => void reload()} />}
         {step === 'staff' && <StaffStep initial={state.staff ?? []} onNext={next} />}
         {step === 'cloud' && <CloudStep connected={state.cloud} onConnected={connected} onNext={next} />}
         {step === 'devices' && <DevicesStep state={state} onFinish={() => void finish()} />}

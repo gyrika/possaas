@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { DEFAULT_FOOTER, PRODUCT_NAME } from '../domain/brand.ts';
-import type { ShopHeader } from '../domain/receipt.ts';
+import { PAPER_CHARS, type PaperWidth, type ShopHeader } from '../domain/receipt.ts';
 import { FAKE_SHOP_DETAILS } from '../fake/data.ts';
 import { isDemo, storageKey } from '../ui/storage.ts';
 
@@ -10,7 +10,7 @@ import { isDemo, storageKey } from '../ui/storage.ts';
  * shop's name while the server restarts. Before a shop is named (development, a fresh install)
  * the product's name stands in; the demo shows its fake shop.
  */
-export interface ShopDetails { name: string; place: string; footer: string }
+export interface ShopDetails { name: string; place: string; footer: string; paper?: PaperWidth }
 
 const KEY = () => storageKey('shop.v1');
 const listeners = new Set<() => void>();
@@ -38,8 +38,12 @@ export const shopHeader = (): ShopHeader => ({
   footer: current ? current.footer : DEFAULT_FOOTER,
 });
 
+/** Characters a receipt line: the shop's paper (80 mm unless set to 58 mm). */
+export const receiptWidth = (): number => PAPER_CHARS[current?.paper ?? 80];
+
+/** What the screens show; anything not given (the paper) stays as it was. */
 export function setShopDetails(next: ShopDetails): void {
-  current = next;
+  current = { ...next, paper: next.paper ?? current?.paper };
   try { localStorage.setItem(KEY(), JSON.stringify(next)); } catch { /* blocked: this session still has it */ }
   listeners.forEach((l) => l());
 }
@@ -51,7 +55,9 @@ export async function loadShopDetails(): Promise<void> {
     const r = await fetch('/api/v1/shop-details', { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return;
     const s = (await r.json()) as Partial<ShopDetails>;
-    if (typeof s.name === 'string' && s.name) setShopDetails({ name: s.name, place: s.place ?? '', footer: s.footer ?? DEFAULT_FOOTER });
+    if (typeof s.name === 'string' && s.name) {
+      setShopDetails({ name: s.name, place: s.place ?? '', footer: s.footer ?? DEFAULT_FOOTER, paper: s.paper === 58 ? 58 : 80 });
+    }
   } catch { /* the server is away: the cached copy stands */ }
 }
 

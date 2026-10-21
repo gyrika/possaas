@@ -149,7 +149,7 @@ test("the shop's own name, town and receipt footer: for every screen, changed la
   const s = await start();
   assert.equal((await s.shop()).status, 404, 'nothing until the wizard names the shop');
   await s.post('/shop', { name: "Rasika's Kitchen", place: 'Kandy' });
-  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen", place: 'Kandy', footer: 'Thank you!' });
+  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen", place: 'Kandy', footer: 'Thank you!', paper: 80 });
   await s.post('/staff', { name: 'Rasika', role: 'owner', pin: '1234' });
   await s.post('/finish');
   const id = (await s.state()).shop.id;
@@ -158,7 +158,7 @@ test("the shop's own name, town and receipt footer: for every screen, changed la
   assert.equal((await s.post('/details', { name: ' ', ownerPin: '1234' })).status, 400, 'never without a name');
   const saved = await s.post('/details', { name: "Rasika's Kitchen & Bakery", place: '12 Temple Road, Kandy', footer: '  Come again!  ', ownerPin: '1234' });
   assert.equal(saved.status, 200);
-  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen & Bakery", place: '12 Temple Road, Kandy', footer: 'Come again!' });
+  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen & Bakery", place: '12 Temple Road, Kandy', footer: 'Come again!', paper: 80 });
   assert.equal((await s.state()).shop.id, id, 'the id (and the cloud copy) never changes with the name');
   await s.post('/details', { name: "Rasika's Kitchen", place: 'Kandy', footer: '', ownerPin: '1234' });
   assert.equal((await s.shop()).body.footer, '', 'an empty footer stays empty');
@@ -181,5 +181,32 @@ test("Shop setup → Help: the support file on the desktop, with the owner's PIN
   await assert.rejects(setup.saveSupport({}), /owner's PIN/);
   assert.equal((await setup.saveSupport({ ownerPin: '1234' })).name, 'Lume POS support 2026-10-21 1432.zip');
   assert.equal(made, 2);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("Shop setup → Printer: 58 mm paper for every screen's receipts; Windows' view of the printer and clearing its queue", async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cb-setup-printer-'));
+  const settings = settingsFile(join(dir, 'settings.json'));
+  const cleared: string[] = [];
+  const setup = setupApi({
+    store: memoryStore(), settings, usePrinter: () => {}, printsDir: join(dir, 'prints'), port: 8080, cloud: () => null, cloudUrl: 'https://cloud.test',
+    queue: {
+      state: async (name) => ({ status: name === 'XP-58' ? 'PaperOut' : 'Normal', jobs: 2, offline: false }),
+      clear: async (name) => { cleared.push(name); return 2; },
+    },
+  });
+  await setup.nameShop({ name: 'Shop', place: '' });
+  await assert.rejects(setup.printerState({}), /choose a printer first/);
+  settings.set({ printer: 'XP-58' });
+  assert.deepEqual(await setup.printerState({}), { state: { status: 'PaperOut', jobs: 2, offline: false } });
+  assert.deepEqual(await setup.clearPrinter({}), { cleared: 2 });
+  assert.deepEqual(cleared, ['XP-58']);
+  await assert.rejects(setup.setPaper({ width: 76 }), /58 or 80/);
+  assert.deepEqual(await setup.setPaper({ width: 58 }), { paper: 58 });
+  assert.equal(setup.publicShop()?.paper, 58);
+  await setup.addStaff({ name: 'Owner', role: 'owner', pin: '1234' });
+  await setup.finish();
+  await assert.rejects(setup.setPaper({ width: 80 }), /owner's PIN/);
+  await assert.rejects(setup.clearPrinter({}), /owner's PIN/);
   rmSync(dir, { recursive: true, force: true });
 });

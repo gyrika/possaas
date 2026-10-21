@@ -1,7 +1,7 @@
-import { escpos, opensDrawer, receipt } from '../domain/receipt.ts';
+import { drawerOnly, escpos, opensDrawer, receipt } from '../domain/receipt.ts';
 import type { PaidOrder } from '../domain/types.ts';
 import { syncToken } from './pairing.ts';
-import { shopHeader } from './shop.ts';
+import { receiptWidth, shopHeader } from './shop.ts';
 
 /**
  * Prints the customer receipt through the server on the counter PC, which
@@ -26,9 +26,15 @@ const base64 = (bytes: Uint8Array): string => {
  * never opens the drawer and is marked COPY.
  */
 export async function printReceipt(paid: PaidOrder, cashier: string, { reprint = false } = {}): Promise<PrintResult> {
+  return send(escpos(receipt(paid, { shop: shopHeader(), cashier, copy: reprint, width: receiptWidth() }), { openDrawer: !reprint && opensDrawer(paid) }));
+}
+
+/** Shop setup → Printer: opens the cash drawer (plugged into the printer) without printing anything. */
+export const openDrawer = (): Promise<PrintResult> => send(drawerOnly());
+
+async function send(bytes: Uint8Array): Promise<PrintResult> {
   const token = syncToken();
   if (!token) return 'unavailable';
-  const bytes = escpos(receipt(paid, { shop: shopHeader(), cashier, copy: reprint }), { openDrawer: !reprint && opensDrawer(paid) });
   try {
     const r = await fetch('/api/v1/print', {
       method: 'POST',

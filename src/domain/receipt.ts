@@ -15,6 +15,11 @@ import { lineItemName } from './halves.ts';
 /** Font A on 80 mm paper: 48 characters a line (24 when printed double width). */
 export const RECEIPT_WIDTH = 48;
 
+/** Receipt paper the shop's printer takes (Shop setup → Printer). Many small printers take 58 mm. */
+export type PaperWidth = 58 | 80;
+/** Characters a line in Font A: 48 on 80 mm, 32 on 58 mm. */
+export const PAPER_CHARS: Record<PaperWidth, number> = { 80: 48, 58: 32 };
+
 /** The shop's own header and footer, from its setup (src/services/shop.ts). */
 export interface ShopHeader {
   name: string;
@@ -167,6 +172,9 @@ export const escpos = (lines: ReceiptLine[], { openDrawer = false } = {}): Uint8
   out.push(...CMD.left, ...CMD.feedCut);
   return Uint8Array.from(out);
 };
+
+/** Opens the cash drawer and nothing else: no paper (Shop setup → Printer → "Open the cash drawer"). */
+export const drawerOnly = (): Uint8Array => Uint8Array.from([...CMD.init, ...CMD.kick]);
 
 /** Cash in the drawer changes only for cash; everything else prints without opening it. */
 export const opensDrawer = (paid: PaidOrder): boolean => paid.tender === 'cash';
