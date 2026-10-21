@@ -38,6 +38,7 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
     if (step === '/finish') { s.done = true; return ok({ done: true }); }
     if (step === '/update/check') return ok(updatesOff ? { current: s.version, latest: null, newer: false, off: true } : { current: s.version, latest: '1.0.1', newer: s.version !== '1.0.1' });
     // What station-update.ps1 writes as it goes: downloading (real %), then backing up.
+    if (step === '/support') return ok({ name: 'Lume POS support 2026-10-21 1432.zip', path: 'C:\\Users\\Public\\Desktop\\x.zip' });
     if (step === '/update/status') {
       const t = Date.now() - s.installedAt;
       return ok({ status: s.installedAt ? { phase: t < 1500 ? 'downloading' : 'backup', percent: t < 1500 ? 30 : 61, version: '1.0.1', at: Date.now() } : null });
@@ -177,6 +178,18 @@ test("Shop setup → Printer: the owner changes what the receipt says, and every
   await vi.waitFor(() => expect(server.shop?.footer).toBe('Come again!'));
   expect(server.shop?.name).toBe("Rasika's Kitchen & Bakery");
   expect(document.querySelector('.brand')?.textContent).toBe("Rasika's Kitchen & Bakery");
+});
+
+test('Shop setup → Help: one tap puts the support file on the desktop, and says what is (not) in it', async () => {
+  const server = fakeShopServer({ done: true });
+  server.staff.push({ id: 'o', name: 'Rasika', role: 'owner', pin: '1234', active: true });
+  const user = userEvent.setup();
+  render(<SetupWizard mode="manage" />);
+  await user.type(await screen.findByLabelText("The owner's PIN"), '1234{Enter}');
+  await user.click(await screen.findByRole('button', { name: 'Help' }));
+  expect(screen.getByText(/Never your sales, staff, PINs or passwords/)).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Save support file' }));
+  expect((await screen.findByRole('status')).textContent).toBe('Saved on the desktop: Lume POS support 2026-10-21 1432.zip');
 });
 
 test('Shop setup → Updates during the beta: automatic updates are off, and how to update by hand', async () => {

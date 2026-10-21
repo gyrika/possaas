@@ -38,6 +38,7 @@ export const setupClient = {
   pairCounter: (ownerPin: string) => call<{ counterToken: string; shopId: string }>('/pair', { kind: 'counter', ownerPin }),
   connectCloud: (code: string, ownerPin?: string) => call<{ cloud: boolean }>('/cloud', { code, ownerPin }),
   finish: () => call<{ done: boolean }>('/finish', {}),
+  saveSupport: (ownerPin?: string) => call<{ name: string; path: string }>('/support', { ownerPin }),
   checkUpdate: (ownerPin?: string) => call<{ current: string; latest: string | null; newer: boolean; off?: boolean }>('/update/check', { ownerPin }),
   installUpdate: (ownerPin?: string) => call<{ started: boolean; from: string }>('/update/install', { ownerPin }),
   updateStatus: (ownerPin?: string) =>

@@ -11,6 +11,7 @@ import { setupApi } from './setup.ts';
 import { sqliteStore } from './sqliteStore.ts';
 import { memoryStore, mysqlStore, type EventStore } from './store.ts';
 import { activeUpdate } from '../src/domain/updating.ts';
+import { saveSupportFile } from './supportFile.ts';
 import { updatesApi } from './updates.ts';
 
 /**
@@ -87,7 +88,10 @@ const fleet = process.env.CLOUD_ADMIN_KEY
   ? createFleet({ url: process.env.CLOUD_ADMIN_URL || 'https://cheesybeez-cloud.cheesybeez-cloud.workers.dev', key: process.env.CLOUD_ADMIN_KEY })
   : null;
 
-const setup = setupApi({ store, settings, usePrinter: printer.use, printsDir, port, cloud: cloudLink, cloudUrl, onCloudConnected: startCloud, updates });
+const setup = setupApi({
+  store, settings, usePrinter: printer.use, printsDir, port, cloud: cloudLink, cloudUrl, onCloudConnected: startCloud, updates,
+  support: () => saveSupportFile({ dataDir, version: updates.current(), port }),
+});
 const server = createApp({
   store,
   staticDir: fileURLToPath(new URL('../dist', import.meta.url)),
