@@ -97,3 +97,19 @@ test("the owner's own sections: made, changed and taken off; the shape is checke
     assert.ok('reason' in validatePush({ events: [{ ...owner, type: 'menu.section_set', ...bad }] }, 'shop-1'), JSON.stringify(bad));
   }
 });
+
+test("a close of the day is accepted only whole: the cash in cents and the day's count", () => {
+  const tally = { cents: 0, orders: 0 };
+  const count = { from: 100, to: 200, orders: 1, total: 150000, voids: 0, discounts: 0, byTender: { cash: { cents: 150000, orders: 1 }, transfer: tally, card: tally, qr: tally, comp: tally } };
+  const close = { ...base, type: 'day.closed', from: 100, to: 200, float: 500000, counted: 630000, count };
+  assert.ok('events' in validatePush({ events: [close] }, 'shop-1'));
+  for (const bad of [
+    { ...close, counted: 12.5 },
+    { ...close, float: -1 },
+    { ...close, orderNumber: 7 },
+    { ...close, to: 50 },
+    { ...close, count: { ...count, from: 99 } },
+    { ...close, count: { ...count, byTender: { cash: tally } } },
+    { ...close, actor: undefined },
+  ]) assert.ok('reason' in validatePush({ events: [bad] }, 'shop-1'), JSON.stringify(bad));
+});

@@ -13,8 +13,10 @@ const paid = (orderNumber: number, at: number, total: number): SyncEvent =>
 
 test('the demo Friday: every kind of card, things needing a decision first, good news last', () => {
   const insights = rulesSuggestions.insights({ events: demoHistory(friday), now: friday });
-  assert.deepEqual(insights.map((i) => i.id), ['sales-vs-usual', 'voids', 'kitchen-slow', 'not-selling', 'best-seller']);
-  const [sales, voids, kitchen, idle] = insights;
+  assert.deepEqual(insights.map((i) => i.id), ['day-closed', 'sales-vs-usual', 'voids', 'kitchen-slow', 'not-selling', 'best-seller']);
+  const [closed, sales, voids, kitchen, idle] = insights;
+  assert.match(closed.title, /^Thursday closed: cash Rs [\d,]+ short$/);
+  assert.match(closed.detail, /Closed by Ravi at 22:45\.$/);
   assert.match(sales.title, /^Sales \d+% below a usual Friday$/);
   assert.match(voids.title, /voids today, \d+ by Ravi$/);
   assert.ok(voids.action.items.every((i) => i.secondary?.startsWith('Ravi')), 'each void says who and why');

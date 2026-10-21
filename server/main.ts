@@ -5,6 +5,7 @@ import { createApp } from './app.ts';
 import { dryRunPrinter, printerFor, switchablePrinter } from './printer.ts';
 import { startOnline, type Online } from './online.ts';
 import { createFleet } from './fleet.ts';
+import { dailyReports, defaultReportsDir } from './dailyReport.ts';
 import { startReplicator } from './replicator.ts';
 import { settingsFile } from './settings.ts';
 import { setupApi } from './setup.ts';
@@ -24,6 +25,7 @@ import { updatesApi } from './updates.ts';
  *   MEMORY=1      keep nothing (tests, a quick look)
  *   PORT          default 8080
  *   PRINTER       a printer name, if the wizard has not chosen one
+ *   REPORTS_DIR   where the daily report PDFs go (default: Public Documents\Lume POS daily reports on Windows)
  *   CLOUD_URL, CLOUD_TOKEN, CLOUD_SHOP  the cloud copy by hand (docs/cloud.md); normally the
  *                 wizard connects it with the shop code, and these are not needed
  */
@@ -89,6 +91,13 @@ const fleet = process.env.CLOUD_ADMIN_KEY
   ? createFleet({ url: process.env.CLOUD_ADMIN_URL || 'https://cheesybeez-cloud.cheesybeez-cloud.workers.dev', key: process.env.CLOUD_ADMIN_KEY })
   : null;
 
+const reports = dailyReports({
+  store,
+  dir: process.env.REPORTS_DIR || defaultReportsDir(dataDir),
+  tenantId: () => settings.get().shopId,
+  shop: () => { const s = settings.get(); return s.shopName ? { name: s.shopName, place: s.place ?? '' } : null; },
+});
+
 const setup = setupApi({
   store, settings, usePrinter: printer.use, printsDir, port, cloud: cloudLink, cloudUrl, onCloudConnected: startCloud, updates,
   support: () => saveSupportFile({ dataDir, version: updates.current(), port }),
@@ -98,7 +107,10 @@ const server = createApp({
   store,
   staticDir: fileURLToPath(new URL('../dist', import.meta.url)),
   printer,
-  onStored: (tenantId, events) => { if (tenantId === cloudShop()) { replicator?.nudge(); online?.onEvents(events); } },
+  onStored: (tenantId, events) => {
+    if (tenantId === settings.get().shopId) reports.onEvents(events);
+    if (tenantId === cloudShop()) { replicator?.nudge(); online?.onEvents(events); }
+  },
   online: () => online,
   cloudStatus: () => replicator?.status() ?? null,
   shop: setup.publicShop,
@@ -108,6 +120,7 @@ const server = createApp({
   fleet,
 });
 startCloud();
+reports.start();
 
 server.listen(port, '0.0.0.0', () => {
   const s = settings.get();
@@ -117,10 +130,11 @@ server.listen(port, '0.0.0.0', () => {
   console.log(`  version: ${updates.current()}`);
   console.log(`  database: ${storeName}`);
   console.log(`  receipt printer: ${printer.name}`);
+  console.log(`  daily reports: ${reports.dir}`);
   if (fleet) console.log('  shops screen: on (CLOUD_ADMIN_KEY), on this computer only');
   console.log(`  cloud copy: ${replicator ? `${cloudShop()} -> ${cloudLink()!.url}` : 'not connected (the setup wizard connects it)'}`);
 });
 
-const stop = () => { replicator?.stop(); online?.stop(); server.close(() => { void store.close().then(() => process.exit(0)); }); };
+const stop = () => { reports.stop(); replicator?.stop(); online?.stop(); server.close(() => { void store.close().then(() => process.exit(0)); }); };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);

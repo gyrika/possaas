@@ -6,6 +6,7 @@ import { useInstall } from '../services/ownerApp.ts';
 import { adminShop } from '../services/pairing.ts';
 import { useShopEvents } from '../services/ownerData.ts';
 import { OwnerNav } from './OwnerNav.tsx';
+import { PastDays } from './PastDays.tsx';
 import { ShopBrand } from './Brand.tsx';
 
 /**
@@ -43,6 +44,7 @@ function Detail({ insight, onClose }: { insight: Insight; onClose: () => void })
                   )}
                 </span>
                 {item.amount !== undefined && <span className="owner-list__amount num">{fmt(item.amount)}</span>}
+                {item.value !== undefined && <span className="owner-list__amount num">{item.value}</span>}
               </li>
             ))}
           </ul>
@@ -67,6 +69,7 @@ export function OwnerView({ phone = false, onBack, shop }: {
   /** The developer's admin view of a shop: not an owner's phone, so no home-screen offer. */
   const offerInstall = phone && !adminShop();
   const [open, setOpen] = useState<string | null>(null);
+  const [past, setPast] = useState(false);
   const events = data.state === 'ready' ? data.events : data.state === 'error' ? data.events : undefined;
   const at = (data.state === 'loading' ? undefined : data.at) ?? Date.now();
 
@@ -141,9 +144,12 @@ export function OwnerView({ phone = false, onBack, shop }: {
             </article>
           ))}
         </section>
+
+        {events && <button type="button" className="linkbtn owner__past" onClick={() => setPast(true)}>Past days</button>}
       </main>
 
       {opened && <Detail insight={opened} onClose={() => setOpen(null)} />}
+      {past && events && <PastDays events={events} now={at} onClose={() => setPast(false)} />}
     </div>
   );
 }

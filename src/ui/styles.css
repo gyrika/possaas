@@ -501,6 +501,13 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
 .owner-list__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 16px; }
 .owner-list__sub { font-size: 14px; color: var(--ink-2); }
 .owner-list__amount { font-size: 16px; font-weight: 500; }
+.owner__past { align-self: center; margin-top: 8px; }
+.owner-list li:has(> .pastdays__day) { padding: 0; }
+.pastdays__day { flex: 1; display: flex; align-items: center; gap: 16px; min-height: 48px; padding: 14px 0; text-align: left; color: inherit; }
+.pastdays__day:hover .owner-list__main > span:first-child { text-decoration: underline; text-underline-offset: 3px; }
+.pastdays__off { color: var(--bad); }
+.pastdays__head { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.pastdays__strong { font-weight: 600; }
 @media (max-width: 520px) {
   .owner__head, .owner__main { padding-left: 16px; padding-right: 16px; }
   .owner__head { gap: 8px; }
@@ -692,3 +699,4 @@ form.setup__row { align-items: flex-end; flex-wrap: wrap; }
 .closeday__diff--ok { color: var(--ok-ink); }
 .closeday__diff--off { color: var(--bad); }
 .closeday__print { flex: none; width: auto; min-width: 200px; padding: 0 32px; }
+.closeday__done { margin: 0; font-size: 15px; color: var(--ink-2); }

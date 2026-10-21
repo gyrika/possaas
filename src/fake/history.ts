@@ -1,4 +1,5 @@
 import type { Actor } from '../domain/auth.ts';
+import { dayCount, expectedCash } from '../domain/cashUp.ts';
 import { MENU } from '../domain/menu.ts';
 import type { SyncEvent } from '../domain/sync.ts';
 import { lineGross, percentOf } from '../domain/totals.ts';
@@ -13,6 +14,8 @@ import { FAKE_SHOP_ID, FAKE_STAFF } from './data.ts';
  * insight has something to show: fewer sales than a usual same weekday, a
  * burst of voids by one manager, a slow kitchen in the last two hours, two
  * items running low, and one pizza nobody has ordered for three weeks.
+ * Ravi closes most past days at 10:45 pm (Owner view → Past days): usually exact, now and then
+ * a little short or over, and one day in seven nobody closes.
  * Nothing here is real, and none of it is ever synced.
  */
 
@@ -118,6 +121,16 @@ export function demoHistory(now: number, shopId = FAKE_SHOP_ID): SyncEvent[] {
           total, tender: cash ? 'cash' : 'transfer', tendered,
         });
       }
+    }
+
+    const closeAt = dayStart + (22 * 60 + 45) * MIN;
+    if (!isToday && rand() > 1 / 7) {
+      const from = dayStart + 5 * 60 * MIN;
+      const count = dayCount(events, from, closeAt);
+      const float = 500000;
+      const off = rand();
+      const counted = expectedCash(count, float) + (off < 0.15 ? -Math.ceil(rand() * 5) * 10000 : off > 0.95 ? 5000 : 0);
+      events.push({ type: 'day.closed', id: id('close'), shopId, at: closeAt, actor: ravi, orderNumber: 0, from, to: closeAt, float, counted, count });
     }
   }
 

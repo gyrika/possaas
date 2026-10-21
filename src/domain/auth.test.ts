@@ -37,3 +37,9 @@ test('who may record what: the same rule the server enforces', () => {
 test('only managers and owners see the takings', () => {
   assert.deepEqual((['cashier', 'kitchen', 'manager', 'owner'] as const).map(seesTakings), [false, false, true, true]);
 });
+
+test('closing the day is for a manager or the owner, not the cashier who took the cash', () => {
+  assert.equal(mayRecord('cashier', 'day.closed'), false);
+  assert.equal(mayRecord('manager', 'day.closed'), true);
+  assert.equal(mayRecord('owner', 'day.closed'), true);
+});

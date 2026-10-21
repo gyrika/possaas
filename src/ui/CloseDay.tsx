@@ -1,18 +1,20 @@
 import { useMemo, useState } from 'react';
 import { TENDER_NAMES, businessDayStart, cashUpLines, dayCount, difference, expectedCash } from '../domain/cashUp.ts';
+import { canManage, type Actor } from '../domain/auth.ts';
 import { fmt } from '../domain/money.ts';
 import type { Cents } from '../domain/types.ts';
 import { currentCashier } from '../services/auth.ts';
 import { canPrint, printLines } from '../services/printer.ts';
 import { receiptWidth, shopHeader } from '../services/shop.ts';
-import { readAll } from './eventLog.ts';
+import { appendEvent, readAll } from './eventLog.ts';
 import { OwnerNav } from './OwnerNav.tsx';
+import { PinSheet } from './PinSheet.tsx';
 
 /**
  * Close the day (#close). Serves the owner or manager at closing, counting the drawer: they know
  * the cash they started with; the single next thing is to type what they counted and see short,
- * over or exact, then print it to keep with the cash. Nothing is recorded: it reads the day's
- * sales from the events, which already are.
+ * over or exact, then close the day: the close is kept (a `day.closed` event), the owner sees the
+ * report in the Owner view and the shop PC saves it as a PDF. Closing again replaces it.
  */
 const toCents = (text: string): Cents | null => {
   const t = text.replace(/[,\s]/g, '');
@@ -26,10 +28,22 @@ export function CloseDay({ onBack }: { onBack: () => void }) {
   const [float, setFloat] = useState('');
   const [counted, setCounted] = useState('');
   const [printed, setPrinted] = useState<'' | 'printed' | 'failed'>('');
+  const [closedAt, setClosedAt] = useState<number | null>(null);
+  const [askPin, setAskPin] = useState(false);
   const floatCents = toCents(float);
   const countedCents = counted.trim() ? toCents(counted) : null;
   const expected = expectedCash(day, floatCents ?? 0);
   const paidWays = (['cash', 'transfer', 'card', 'qr', 'comp'] as const).filter((t) => day.byTender[t].orders);
+
+  const canClose = floatCents !== null && countedCents !== null;
+  /** A manager or the owner signs the close; anyone else at the screen is asked for one's PIN. */
+  const close = (by: Actor = currentCashier()) => {
+    if (floatCents === null || countedCents === null) return;
+    if (!canManage(by)) { setAskPin(true); return; }
+    const at = Date.now();
+    appendEvent({ type: 'day.closed', at, actor: by, orderNumber: 0, from: day.from, to: day.to, float: floatCents, counted: countedCents, count: day });
+    setClosedAt(at);
+  };
 
   const print = async () => {
     const lines = cashUpLines(day, { shop: shopHeader(), float: floatCents ?? 0, counted: countedCents, by: currentCashier().name, width: receiptWidth() });
@@ -66,13 +80,18 @@ export function CloseDay({ onBack }: { onBack: () => void }) {
           )}
         </section>
 
-        {canPrint() && (
-          <p className="setup__row">
-            <button type="button" className="cta closeday__print" onClick={() => void print()}>Print it</button>
-            {printed && <span role="status">{printed === 'printed' ? 'Sent to the printer.' : 'The printer did not take it.'}</span>}
+        <p className="setup__row">
+          <button type="button" className="cta closeday__print" disabled={!canClose} onClick={() => close()}>{closedAt ? 'Close again' : 'Close the day'}</button>
+          {canPrint() && <button type="button" className="insight__action" onClick={() => void print()}>Print it</button>}
+        </p>
+        {closedAt && (
+          <p className="closeday__done" role="status">
+            Closed at {new Date(closedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. The owner sees the report in the Owner view, and a PDF is saved on the shop PC.
           </p>
         )}
+        {printed && <p className="closeday__done" role="status">{printed === 'printed' ? 'Sent to the printer.' : 'The printer did not take it.'}</p>}
       </main>
+      {askPin && <PinSheet purpose="A manager signs off the cash" onClose={() => setAskPin(false)} onUnlock={(manager) => { setAskPin(false); close(manager); }} />}
     </div>
   );
 }

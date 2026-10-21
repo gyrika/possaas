@@ -1,3 +1,4 @@
+import { closesFrom, dayReport, difference, expectedCash } from './cashUp.ts';
 import { MENU, itemById } from './menu.ts';
 import { fmt } from './money.ts';
 import type { SyncEvent } from './sync.ts';
@@ -20,6 +21,8 @@ export interface InsightItem {
   primary: string;
   secondary?: string;
   amount?: Cents;
+  /** Shown where an amount would be, when it is not one ("Rs 200 short", "3"). */
+  value?: string;
   at?: number;
 }
 
@@ -278,6 +281,27 @@ const bestSeller = (events: readonly SyncEvent[], now: number): Insight | null =
   };
 };
 
+/**
+ * The day's close (Close the day), for the day just gone or today: the full report behind one
+ * card. Cash short or over needs the owner; exact is just news.
+ */
+const dayClosed = (events: readonly SyncEvent[], now: number): Insight | null => {
+  const c = closesFrom(events)[0];
+  if (!c || now - c.at > 1.5 * DAY_MS) return null;
+  const report = dayReport(c.count, { float: c.float, counted: c.counted, by: c.actor.name, closedAt: c.at });
+  const diff = difference(c.counted, expectedCash(c.count, c.float));
+  return {
+    id: 'day-closed',
+    tone: diff === 'Exact' ? 'info' : 'attention',
+    title: `${WEEKDAYS[new Date(c.from).getDay()]} closed: ${diff === 'Exact' ? 'cash exact' : `cash ${diff}`}`,
+    detail: `${rs(c.count.total)} taken in ${plural(c.count.orders, 'order')}. ${report.closed}.`,
+    action: {
+      label: 'See the report',
+      items: report.sections.flatMap((s) => s.rows.map((r) => ({ primary: r.label, secondary: s.title, value: r.value }))),
+    },
+  };
+};
+
 const ORDER: Record<Tone, number> = { attention: 0, info: 1, good: 2 };
 
 /** The rules engine. Cards needing a decision come first, good news last. */
@@ -291,6 +315,7 @@ export const rulesSuggestions: SuggestionsService = {
   insights({ events, now }) {
     const sales = salesFrom(events);
     return [
+      dayClosed(events, now),
       salesVsUsual(sales, now),
       voidsToday(events, sales, now),
       discountsToday(events, sales, now),

@@ -1,3 +1,4 @@
+import { DAY_EVENT_TYPES } from '../src/domain/cashUp.ts';
 import { MENU } from '../src/domain/menu.ts';
 import {
   checkNewItem, checkOverride, checkSection, MENU_EVENT_TYPES, NEW_ITEM_ID, NEW_SECTION_ID, OPTION_ID, SIZE_KEY, type ItemOverride, type NewItem, type SectionDef,
@@ -8,8 +9,14 @@ import {
 } from '../src/domain/sync.ts';
 
 const TYPES = new Set<string>([
-  ...ORDER_EVENT_TYPES, ...KITCHEN_EVENT_TYPES, ...MENU_EVENT_TYPES,
+  ...ORDER_EVENT_TYPES, ...KITCHEN_EVENT_TYPES, ...MENU_EVENT_TYPES, ...DAY_EVENT_TYPES,
 ]);
+const cents = (v: unknown): boolean => Number.isSafeInteger(v) && (v as number) >= 0;
+const tally = (v: unknown): boolean => isObj(v) && cents(v.cents) && cents(v.orders);
+/** The count a close carries: whole numbers only, every way of paying there. */
+const validCount = (v: unknown, from: unknown, to: unknown): boolean =>
+  isObj(v) && v.from === from && v.to === to && cents(v.orders) && cents(v.total) && cents(v.voids) && cents(v.discounts) &&
+  isObj(v.byTender) && ['cash', 'transfer', 'card', 'qr', 'comp'].every((t) => tally((v.byTender as Record<string, unknown>)[t]));
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const shortString = (v: unknown, max = 64): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
 const isAddedId = (v: unknown): v is string => typeof v === 'string' && NEW_ITEM_ID.test(v);
@@ -70,13 +77,18 @@ export const validatePush = (body: unknown, tenantId: string): { events: SyncEve
     if (!Number.isSafeInteger(e.orderNumber) || (e.orderNumber as number) < 0) return { reason: `event ${e.id} has no orderNumber` };
     if (!Number.isSafeInteger(e.at)) return { reason: `event ${e.id} has no time` };
     if (e.shopId !== tenantId) return { reason: `event ${e.id} belongs to another shop`, wrongShop: true };
-    if (e.type.startsWith('order.') || e.type.startsWith('menu.')) {
+    if (e.type.startsWith('order.') || e.type.startsWith('menu.') || e.type.startsWith('day.')) {
       const a = e.actor;
       if (!isObj(a) || !shortString(a.id) || !shortString(a.name, 80) || !shortString(a.role, 16)) {
         return { reason: `event ${e.id} does not say who did it` };
       }
     }
     if (e.type.startsWith('menu.') && e.orderNumber !== 0) return { reason: `event ${e.id} has an invalid menu order number` };
+    if (e.type === 'day.closed' &&
+        (e.orderNumber !== 0 || !Number.isSafeInteger(e.from) || !Number.isSafeInteger(e.to) || (e.from as number) >= (e.to as number) ||
+          !cents(e.float) || !cents(e.counted) || !validCount(e.count, e.from, e.to))) {
+      return { reason: `event ${e.id} has an invalid close of the day` };
+    }
     if (e.type === 'menu.item_set' &&
         (!shortString(e.itemId) || !validOverride(e.itemId, e.before) || !validOverride(e.itemId, e.after))) {
       return { reason: `event ${e.id} has an invalid menu change` };

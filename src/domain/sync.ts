@@ -1,4 +1,5 @@
 import type { Actor } from './auth.ts';
+import type { DayClosedEvent } from './cashUp.ts';
 import type { OrderEvent } from './events.ts';
 import type { MenuEvent } from './menuEdits.ts';
 
@@ -24,8 +25,8 @@ export type KitchenEvent =
   | (KitchenBase & { type: 'kitchen.bumped' })
   | (KitchenBase & { type: 'kitchen.unbumped' });
 
-/** Everything that syncs. Menu changes: src/domain/menuEdits.ts. */
-export type SyncEvent = OrderEvent | KitchenEvent | MenuEvent;
+/** Everything that syncs. Menu changes: src/domain/menuEdits.ts; the day's close: src/domain/cashUp.ts. */
+export type SyncEvent = OrderEvent | KitchenEvent | MenuEvent | DayClosedEvent;
 
 /** An event before the log gives it an id and stamps the shop. */
 export type NewSyncEvent = SyncEvent extends infer E ? (E extends SyncEvent ? Omit<E, 'id' | 'shopId'> : never) : never;

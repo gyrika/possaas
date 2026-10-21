@@ -22,6 +22,7 @@ test('the demo owner feed: today in one line, then cards with one tap each', asy
   const feed = within(await screen.findByRole('region', { name: 'Needs your attention' }));
   const cards = await feed.findAllByRole('article');
   expect(cards.map((c) => c.getAttribute('aria-label'))).toEqual([
+    expect.stringMatching(/^Thursday closed: cash /),
     expect.stringMatching(/^Sales \d+% below a usual Friday$/),
     expect.stringMatching(/voids today, \d+ by Ravi$/),
     expect.stringMatching(/^Kitchen slow/),
@@ -30,7 +31,7 @@ test('the demo owner feed: today in one line, then cards with one tap each', asy
   ]);
   expect(within(screen.getByRole('region', { name: 'Today' })).getByText(/^Rs [\d,]+$/)).toBeTruthy();
 
-  const voids = cards[1].getAttribute('aria-label')!;
+  const voids = cards[2].getAttribute('aria-label')!;
   await user.click(within(feed.getByRole('article', { name: voids })).getByRole('button', { name: 'See them' }));
   const sheet = within(screen.getByRole('dialog', { name: voids }));
   expect(sheet.getAllByText(/^Ravi · /).length).toBeGreaterThan(0);

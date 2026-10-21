@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { businessDayStart, cashUpLines, dayCount, difference, expectedCash } from './cashUp.ts';
+import { businessDayStart, cashUpLines, closesFrom, dayCount, dayReport, difference, expectedCash, pastDays } from './cashUp.ts';
 
 const at = (h: number, m = 0, day = 21) => new Date(2026, 9, day, h, m).getTime();
 const actor = { id: 'm', name: 'Ravi', role: 'manager' };
@@ -52,4 +52,38 @@ test("the day's count: payments by how they were paid, an undone payment not cou
   assert.match(text, /Difference +Rs 200 short/);
   assert.match(text, /Total \(4 orders\)/);
   assert.match(cashUpLines({ ...d, orders: 1 }, { shop: { name: 'S', lines: [], footer: '' }, float: 0, counted: null, by: 'R', width: 48 }).map((l) => l.text).join('\n'), /Total \(1 order\) /);
+});
+
+test("the day's report: the close's count and cash in one shape; closing again replaces that day's close", () => {
+  const d = dayCount([ev('order.paid', at(12), { total: 150000, tender: 'cash' })], at(5), at(22));
+  const closed = dayReport(d, { float: 500000, counted: 630000, by: 'Ravi', closedAt: at(22, 41) });
+  assert.equal(closed.day, 'Wednesday 21 October 2026');
+  assert.deepEqual(closed.sections.map((s) => s.title), ['Sales', 'Changes', 'Cash']);
+  assert.deepEqual(closed.sections[2].rows.at(-1), { label: 'Difference', value: 'Rs 200 short', strong: true });
+  assert.equal(closed.closed, 'Closed by Ravi at 22:41');
+  const nobody = dayReport(d, { float: null, counted: null, by: null, closedAt: null });
+  assert.deepEqual(nobody.sections[2].rows.map((r) => r.value), ['1,500', 'Not counted']);
+  assert.match(nobody.closed, /Nobody closed the day/);
+
+  const close = (id: string, when: number, counted: number, from = at(5)) =>
+    ({ id, shopId: 's', type: 'day.closed', at: when, actor, orderNumber: 0, from, to: when, float: 0, counted, count: d });
+  const days = closesFrom([close('a', at(22), 100), close('b', at(22, 30), 200), close('c', at(23, 0, 20), 300, at(5, 0, 20))]);
+  assert.deepEqual(days.map((c) => c.id), ['b', 'c']);
+});
+
+test('past days: closed days with their difference, unclosed days from their sales, today only once closed', () => {
+  const sale = (h: number, day: number) => ev('order.paid', at(h, 0, day), { total: 100000, tender: 'cash' });
+  const count = dayCount([sale(12, 19)], at(5, 0, 19), at(22, 0, 19));
+  const events = [
+    sale(12, 19), { id: 'c19', shopId: 's', type: 'day.closed', at: at(22, 0, 19), actor, orderNumber: 0, from: at(5, 0, 19), to: at(22, 0, 19), float: 0, counted: 80000, count },
+    sale(12, 20), sale(2, 21), // the 20th: nobody closed; its 2 am sale belongs to it
+    sale(12, 21), // today, still selling
+  ];
+  const days = pastDays(events, at(15, 0, 21));
+  assert.deepEqual(days.map((d) => d.from), [at(5, 0, 20), at(5, 0, 19)]);
+  assert.equal(days[0].close, null);
+  assert.equal(days[0].count.orders, 2);
+  assert.equal(days[0].difference, null);
+  assert.equal(days[1].difference, 'Rs 200 short');
+  assert.equal(days[1].report.closed, 'Closed by Ravi at 22:00');
 });
