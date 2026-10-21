@@ -240,7 +240,7 @@ function UpdateProgress({ percent, label }: { percent: number; label: string }) 
 const ease = (from: number, to: number, ms: number, over: number) => from + (to - from) * (1 - Math.exp(-ms / over));
 
 function UpdatesTab({ ownerPin }: { ownerPin?: string }) {
-  const [info, setInfo] = useState<{ current: string; latest: string | null; newer: boolean } | null>(null);
+  const [info, setInfo] = useState<{ current: string; latest: string | null; newer: boolean; off?: boolean } | null>(null);
   const [phase, setPhase] = useState<'checking' | 'idle' | 'updating' | 'slow' | 'back'>('checking');
   const [progress, setProgress] = useState({ percent: 0, label: STEP_LABEL.checking });
   const [error, setError] = useState('');
@@ -306,6 +306,15 @@ function UpdatesTab({ ownerPin }: { ownerPin?: string }) {
     setProgress({ percent: 2, label: STEP_LABEL.checking });
     setTimeout(() => void wait(), 800);
   };
+
+  if (info?.off) {
+    return (
+      <div className="setup__form">
+        <p className="setup__lead">Installed: <b>{info.current}</b>.</p>
+        <p className="setup__done" role="status">Automatic updates are off during the beta. To update, run the new Setup.exe on this PC: your sales, menu and staff are kept.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="setup__form">

@@ -14,10 +14,19 @@ export { isNewer };
  */
 const LATEST = 'https://api.github.com/repos/gyrika/ERP/releases/latest';
 
+/**
+ * Off during the possaas beta: LATEST is still the CheesyBeez ERP's releases, which would replace
+ * this POS. New versions are installed by hand (run the new Setup.exe). Turn on together with
+ * $UpdatesOn in deploy/station/station-update.ps1, once LATEST points at possaas' own releases.
+ */
+export const AUTO_UPDATES = false;
+
 export interface UpdateCheck {
   current: string;
   latest: string | null;
   newer: boolean;
+  /** Automatic updates are off (AUTO_UPDATES): nothing was asked of GitHub. */
+  off?: true;
 }
 
 /** Where an update is (station-update.ps1 writes it), for the progress bars. */
@@ -28,6 +37,8 @@ export interface UpdatesOptions {
   updaterScript: string;
   /** update-status.json beside the shop's data. */
   statusFile?: string;
+  /** Defaults to AUTO_UPDATES. */
+  enabled?: boolean;
   fetch?: typeof fetch;
   platform?: NodeJS.Platform;
   run?: (command: string, args: string[]) => void;
@@ -36,6 +47,7 @@ export interface UpdatesOptions {
 export function updatesApi(o: UpdatesOptions) {
   const http = o.fetch ?? fetch;
   const platform = o.platform ?? process.platform;
+  const enabled = o.enabled ?? AUTO_UPDATES;
   const run = o.run ?? ((command, args) => {
     // Detached: the installer stops this very server while it replaces the files.
     spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
@@ -50,6 +62,7 @@ export function updatesApi(o: UpdatesOptions) {
     current,
 
     async check(): Promise<UpdateCheck> {
+      if (!enabled) return { current: current(), latest: null, newer: false, off: true };
       const r = await http(LATEST, { headers: { 'user-agent': 'CheesyBeez-Station', accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15_000) });
       if (!r.ok) throw new Error(`GitHub answered ${r.status}`);
       const latest = String(((await r.json()) as { tag_name?: string }).tag_name ?? '').replace(/^v/, '') || null;
@@ -70,6 +83,7 @@ export function updatesApi(o: UpdatesOptions) {
 
     /** Starts the updater now (it downloads the latest release and installs it quietly). */
     install(): void {
+      if (!enabled) throw new Error('automatic updates are off: run the new Setup.exe on this PC');
       if (!installable()) throw new Error('updates are installed by CheesyBeez Station on Windows');
       // A moment later, so the reply reaches the screen before the installer stops this server.
       setTimeout(() => run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', o.updaterScript, '-Force']), 500);
