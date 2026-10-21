@@ -15,7 +15,7 @@ migrations_dir = "migrations"
 directory = "../dist-cloud"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/", "/api/*", "/admin", "/admin/*", "/owner.webmanifest", "/manager.webmanifest", "/order.webmanifest", "/questions", "/get", "/download"]
+run_worker_first = ["/", "/api/*", "/admin", "/admin/*", "/owner.webmanifest", "/manager.webmanifest", "/order", "/order/", "/order.html", "/order.webmanifest", "/questions", "/get", "/download"]
 
 # Online ordering stays off: no shop takes orders through this cloud yet (ORDER_SHOP, ORDER_PHONE,
 # ORDER_HOURS, ORDER_ADDRESS go under [vars] once one does).

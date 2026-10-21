@@ -1,5 +1,7 @@
+import { PRODUCT_NAME } from '../../src/domain/brand.ts';
+
 /**
- * /get: the page a shop owner opens to install CheesyBeez. One button, always the newest
+ * /get: the page a shop owner opens to install Lume POS. One button, always the newest
  * release (read from GitHub, cached by Cloudflare for 10 minutes), the three steps that
  * avoid surprises, and on a phone, a nudge to open it on the shop's computer instead.
  */
@@ -11,7 +13,7 @@ export interface Release { version: string; url: string; sizeMb: number }
 export const latestRelease = async (http: typeof fetch = fetch): Promise<Release | null> => {
   try {
     const r = await http(LATEST, {
-      headers: { 'user-agent': 'CheesyBeez-Cloud', accept: 'application/vnd.github+json' },
+      headers: { 'user-agent': 'Lume-POS-Cloud', accept: 'application/vnd.github+json' },
       // Cloudflare keeps GitHub's answer for 10 minutes: fast for the owner, gentle on GitHub.
       cf: { cacheTtl: 600, cacheEverything: true },
     } as RequestInit);
@@ -32,9 +34,9 @@ export const downloadPage = (rel: Release | null): string => {
   const meta = rel ? `Windows 10 or 11 · ${rel.sizeMb} MB · version ${esc(rel.version)}` : 'Windows 10 or 11';
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Get CheesyBeez</title>
+<title>Get ${PRODUCT_NAME}</title>
 <meta name="description" content="The POS for your shop: counter, kitchen and your phone, in one.">
-<meta property="og:title" content="CheesyBeez for your shop">
+<meta property="og:title" content="${PRODUCT_NAME} for your shop">
 <meta property="og:description" content="Counter, kitchen and your phone, in one. Download for Windows.">
 <meta property="og:image" content="/icons/icon-512.png">
 <link rel="icon" type="image/png" href="/icons/favicon-32.png">
@@ -72,18 +74,18 @@ h1 span{color:var(--honey-ink)}
 @media (prefers-reduced-motion:reduce){.get{transition:none}}
 </style></head><body>
 <div class="wrap">
-  <div class="brand"><img src="/icons/icon-192.png" alt="">CheesyBeez</div>
+  <div class="brand"><img src="/icons/icon-192.png" alt="">${PRODUCT_NAME}</div>
   <section class="hero">
     <div>
       <h1>The POS for your shop. <span>Counter, kitchen and your phone, in one.</span></h1>
       <p class="lead">Take orders in seconds, send them to the kitchen screen, print the receipt, and see your day on your phone from anywhere.</p>
       <div id="pc"><a class="get" href="${href}">Download for Windows</a><p class="meta">${meta}</p></div>
       <div class="phone" id="phone">
-        <p><b>Open this page on the shop's computer.</b> CheesyBeez is installed there; your phone app comes from the QR code at the end of setup.</p>
+        <p><b>Open this page on the shop's computer.</b> ${PRODUCT_NAME} is installed there; your phone app comes from the QR code at the end of setup.</p>
         <button class="copy" id="copy" type="button">Copy the link</button>
       </div>
     </div>
-    <img class="big" src="/icons/icon-512.png" alt="CheesyBeez">
+    <img class="big" src="/icons/icon-512.png" alt="${PRODUCT_NAME}">
   </section>
   <ol class="steps">
     <li><b>Download</b><span>Open the file when it has downloaded.</span></li>
@@ -92,7 +94,7 @@ h1 span{color:var(--honey-ink)}
   </ol>
   <div class="foot">
     <div><b>Works without internet</b>Selling never stops when the connection does.</div>
-    <div><b>Keeps itself up to date</b>New versions install by themselves at night.</div>
+    <div><b>Set up in minutes</b>Your shop, printer, staff and menu, without a technician.</div>
     <div><b>Your sales, kept safe</b>A copy goes to the cloud whenever the internet is up.</div>
   </div>
 </div>

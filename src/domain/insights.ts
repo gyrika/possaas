@@ -1,5 +1,5 @@
 import { closesFrom, dayReport, difference, expectedCash } from './cashUp.ts';
-import { MENU, itemById } from './menu.ts';
+import { itemById, menuItems } from './menu.ts';
 import { fmt } from './money.ts';
 import type { SyncEvent } from './sync.ts';
 import type { Cents, OrderLine } from './types.ts';
@@ -257,7 +257,8 @@ const notSelling = (events: readonly SyncEvent[], sales: Sale[], now: number): I
   const today = startOfDay(now);
   if (openDays(sales, today, 14).length < 10) return null; // need two real weeks to say "never"
   const sold = itemsSold(events, daysBack(today, 14), now);
-  const idle = MENU.filter((m) => !sold.has(m.id));
+  // This shop's own menu as it is now (not the sample's), leaving out what it has taken off.
+  const idle = menuItems().filter((m) => !m.hidden && !sold.has(m.id));
   if (!idle.length) return null;
   return {
     id: 'not-selling',

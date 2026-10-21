@@ -131,7 +131,7 @@ test("the owner's app description carries this phone's key, and nothing else", a
 test('customer and owner apps have separate home-screen scopes', async () => {
   const { default: worker } = await import('./worker.ts');
   const { d1 } = fakeD1();
-  const env = { DB: d1, ASSETS: { fetch: async () => new Response('asset') } };
+  const env = { DB: d1, ORDER_SHOP: 'shop-a', ASSETS: { fetch: async () => new Response('asset') } };
   const customer = await worker.fetch(new Request('https://cheesybeez.com/order.webmanifest'), env);
   assert.equal(customer.status, 200);
   assert.equal(customer.headers.get('content-type'), 'application/manifest+json');
@@ -237,4 +237,18 @@ test('the sales ledger: each payment a row with its items, an Undo marks it, eac
   db.exec('DELETE FROM sale_items; DELETE FROM sales; DELETE FROM sales_cursor;');
   await call('/api/v1/replica', 'server-a');
   assert.deepEqual(sales().filter((s) => s.tenant_id === SHOP).map((s) => [s.id, s.status]), [['p1', 'undone'], ['p2', 'paid'], ['p3', 'paid']]);
+});
+
+test('a cloud without online ordering or questions has neither page; the owner app is Lume POS', async () => {
+  const { default: worker, ownerManifest } = await import('./worker.ts');
+  const env = { DB: fakeD1().d1, ASSETS: { fetch: async () => new Response('asset') } };
+  for (const path of ['/order', '/order/', '/order.html', '/order.webmanifest', '/questions']) {
+    assert.equal((await worker.fetch(new Request(`https://melo.test${path}`), env)).status, 404, path);
+  }
+  assert.equal(await (await worker.fetch(new Request('https://melo.test/'), env)).text(), 'asset', 'the owner app still opens');
+  assert.equal((await worker.fetch(new Request('https://melo.test/order'), { ...env, ORDER_SHOP: 'shop-a' })).status, 200);
+  assert.equal(ownerManifest(null).name, 'Lume POS Owner');
+  const { downloadPage } = await import('./download.ts');
+  assert.match(downloadPage(null), /<title>Get Lume POS<\/title>/);
+  assert.doesNotMatch(downloadPage(null), /CheesyBeez|install by themselves/);
 });

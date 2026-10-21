@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from '../../src/domain/brand.ts';
 import { adminRoutes } from './admin.ts';
 import { createCloud, type D1Like } from './cloud.ts';
 import { downloadPage, latestRelease } from './download.ts';
@@ -28,8 +29,8 @@ interface Env {
  * exactly as in the QR code it came from.
  */
 export const ownerManifest = (key: string | null) => ({
-  name: 'CheesyBeez Owner',
-  short_name: 'CheesyBeez',
+  name: `${PRODUCT_NAME} Owner`,
+  short_name: PRODUCT_NAME,
   description: "Today's takings and anything that needs you, from anywhere.",
   start_url: key && /^[A-Za-z0-9_-]{20,64}$/.test(key) ? `/?owner=${key}#owner` : '/#owner',
   scope: '/',
@@ -71,6 +72,10 @@ export default {
       return Promise.resolve(Response.redirect(`https://${CUSTOMER_HOST}${url.pathname}${url.search}`, 301));
     }
     if (url.hostname === CUSTOMER_HOST && url.pathname === '/') return env.ASSETS.fetch(new Request(new URL('/order', url), request));
+    // Online ordering and the owner's questions are CheesyBeez's own (cheesybeez.com): a cloud without
+    // its ORDER_SHOP / ANSWER_KEY has neither page, not an empty copy of CheesyBeez's.
+    if (!env.ORDER_SHOP && /^\/order(\.html|\.webmanifest|\/)?$/.test(url.pathname)) return Promise.resolve(new Response('Not found', { status: 404 }));
+    if (!env.ANSWER_KEY && url.pathname === '/questions') return Promise.resolve(new Response('Not found', { status: 404 }));
     if (url.pathname === '/order.webmanifest') {
       return Promise.resolve(new Response(JSON.stringify(orderManifest(url.hostname === CUSTOMER_HOST)), {
         headers: { 'content-type': 'application/manifest+json', 'cache-control': 'public, max-age=3600' },

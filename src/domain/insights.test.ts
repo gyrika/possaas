@@ -69,3 +69,15 @@ test('sales well above usual is good news; within 20% says nothing', () => {
   assert.equal(up[0].title, 'Sales 50% above a usual Friday');
   assert.deepEqual(ids({ events: [...pastFridays, paid(1, at(0, 12 * 60), 1100000)], now: friday }), []);
 });
+
+test("not selling: only this shop's own menu, never the sample's", async () => {
+  const { setStartingMenu, SAMPLE_START } = await import('./menu.ts');
+  const { EMPTY_START } = await import('./menuEdits.ts');
+  setStartingMenu(EMPTY_START);
+  try {
+    const now = Date.now();
+    assert.equal(rulesSuggestions.insights({ events: demoHistory(now), now }).find((i) => i.id === 'not-selling'), undefined);
+  } finally {
+    setStartingMenu(SAMPLE_START);
+  }
+});
