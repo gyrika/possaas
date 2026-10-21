@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { connect } from 'node:net';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -55,6 +56,33 @@ export function systemPrinter(printerName: string): RawPrinter {
         : run('lp', ['-d', printerName, '-o', 'raw', path])),
   });
 }
+
+/**
+ * A network receipt printer (Ethernet or Wi-Fi): its IP address, port 9100, the bytes as they are.
+ * No Windows driver at all. Chosen in Shop setup as "net:192.168.1.50" (or "net:192.168.1.50:9100").
+ */
+export const NETWORK = /^net:([a-z0-9.-]{1,253})(?::(\d{1,5}))?$/i;
+export const networkAddress = (name: string): { host: string; port: number } | null => {
+  const m = NETWORK.exec(name);
+  return m ? { host: m[1], port: Number(m[2] ?? 9100) } : null;
+};
+
+export function networkPrinter(name: string, { timeoutMs = 5000 } = {}): RawPrinter {
+  const { host, port } = networkAddress(name)!;
+  return serial({
+    name,
+    send: (bytes) => new Promise<void>((resolve, reject) => {
+      const socket = connect({ host, port });
+      socket.setTimeout(timeoutMs, () => socket.destroy(new Error(`no answer from ${host}:${port}`)));
+      socket.once('error', reject);
+      socket.once('connect', () => socket.end(Buffer.from(bytes)));
+      socket.once('close', (failed) => { if (!failed) resolve(); });
+    }),
+  });
+}
+
+/** The printer a name stands for: a network one ("net:…"), or one Windows knows. */
+export const printerFor = (name: string): RawPrinter => (networkAddress(name) ? networkPrinter(name) : systemPrinter(name));
 
 export function dryRunPrinter(dir: string): RawPrinter {
   let n = 0;

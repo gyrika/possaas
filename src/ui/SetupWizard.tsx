@@ -170,17 +170,38 @@ function PrinterStep({ state, ownerPin, onNext, onRefresh }: { state: SetupState
     setTries((n) => n + 1);
   };
   const testDrawer = async () => setDrawer((await openDrawer()) === 'printed' ? 'sent' : 'failed');
-  const options: (string | null)[] = [...state.printers, null];
+  const [ip, setIp] = useState('');
+  /** A USB receipt printer without its driver: Windows' own driver, then chosen, then the list again. */
+  const setUpUsb = async (port: string) => {
+    setError('');
+    try { setChosen((await setupClient.addUsbPrinter(port, ownerPin)).printer); setTest(''); onRefresh?.(); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  const useNetwork = (e: FormEvent) => {
+    e.preventDefault();
+    const address = ip.trim();
+    if (!/^\d{1,3}(\.\d{1,3}){3}(:\d{1,5})?$/.test(address)) { setError('Type the printer\'s IP address, like 192.168.1.50 (printed on its self-test page).'); return; }
+    void choose(`net:${address}`);
+  };
+  const usb = state.usbPorts ?? [];
+  const options: (string | null)[] = [...state.printers, ...(chosen?.startsWith('net:') ? [chosen] : []), null];
   return (
     <div className="setup__form">
       <div className="setup__choices" role="radiogroup" aria-label="Receipt printer">
         {options.map((p) => (
           <button key={p ?? 'none'} type="button" role="radio" aria-checked={chosen === p} className="setup__choice" onClick={() => void choose(p)}>
-            {p ?? 'No printer yet (receipts are saved as files)'}
+            {p === null ? 'No printer yet (receipts are saved as files)' : p.startsWith('net:') ? `Network printer ${p.slice(4)}` : p}
           </button>
         ))}
       </div>
-      {state.printers.length === 0 && (
+      {usb.map((port) => (
+        <div key={port} className="printer-help" role="region" aria-label={`Printer on ${port}`}>
+          <p className="printer-help__title">A printer is plugged in on {port}, without its driver.</p>
+          <p className="setup__hint">If it is your receipt printer, it can print without the maker's driver: Windows' own simple driver passes the receipts through.</p>
+          <p className="setup__row"><button type="button" className="chip chip--solid" onClick={() => void setUpUsb(port)}>Set it up</button></p>
+        </div>
+      ))}
+      {state.printers.length === 0 && usb.length === 0 && (
         <div className="printer-help" role="region" aria-label="No printer found">
           <p className="printer-help__title">Windows does not know a printer yet.</p>
           <ol>
@@ -191,6 +212,11 @@ function PrinterStep({ state, ownerPin, onNext, onRefresh }: { state: SetupState
           {onRefresh && <p className="setup__row"><button type="button" className="chip chip--solid" onClick={onRefresh}>Look again</button></p>}
         </div>
       )}
+      <form className="setup__row" aria-label="Network printer" onSubmit={useNetwork}>
+        <label className="setup__field setup__field--inline"><span>Network printer (Ethernet or Wi-Fi)</span>
+          <input value={ip} inputMode="decimal" placeholder="IP address, like 192.168.1.50" onChange={(e) => setIp(e.target.value)} /></label>
+        <button type="submit" className="chip" disabled={!ip.trim()}>Use it</button>
+      </form>
       {chosen && (
         <div className="setup__choices" role="radiogroup" aria-label="Paper width">
           {([80, 58] as const).map((w) => (

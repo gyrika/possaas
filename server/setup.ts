@@ -5,7 +5,7 @@ import type { Role } from '../src/domain/auth.ts';
 import { DEFAULT_FOOTER } from '../src/domain/brand.ts';
 import type { PaperWidth } from '../src/domain/receipt.ts';
 import { isPin } from './pins.ts';
-import { dryRunPrinter, listPrinters, systemPrinter, type RawPrinter } from './printer.ts';
+import { dryRunPrinter, listPrinters, networkAddress, printerFor, type RawPrinter } from './printer.ts';
 import { printerQueue, type PrinterQueue } from './printerStatus.ts';
 import type { Settings } from './settings.ts';
 import { PinTaken, type EventStore, type StaffMember } from './store.ts';
@@ -48,6 +48,8 @@ export interface SetupState {
   shop: ({ id: string } & ShopInfo) | null;
   printer: string | null;
   printers: string[];
+  /** USB printer ports with no printer on them: a receipt printer plugged in without its driver. */
+  usbPorts: string[];
   cloud: boolean;
   /** Only while the shop is new; afterwards the staff list needs the owner's PIN. */
   staff?: StaffMember[];
@@ -108,7 +110,7 @@ export function setupApi(ctx: SetupContext) {
   };
 
   const choosePrinter = (name: string | null) => {
-    ctx.usePrinter(name ? systemPrinter(name) : dryRunPrinter(ctx.printsDir));
+    ctx.usePrinter(name ? printerFor(name) : dryRunPrinter(ctx.printsDir));
     ctx.settings.set({ printer: name ?? undefined });
   };
 
@@ -129,6 +131,7 @@ export function setupApi(ctx: SetupContext) {
         shop: current,
         printer: s.printer ?? null,
         printers: await listPrinters(),
+        usbPorts: await queue.freeUsbPorts(),
         cloud: ctx.cloud() !== null,
         ...(!s.setupDone && current ? { staff: await ctx.store.listStaff(current.id) } : {}),
       };
@@ -177,6 +180,15 @@ export function setupApi(ctx: SetupContext) {
       return { state: await queue.state(name) };
     },
 
+    /** A USB receipt printer without its maker's driver: set up with Windows' own, and chosen. */
+    async addUsbPrinter(body: { port?: unknown; ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      if (typeof body.port !== 'string' || !(await queue.freeUsbPorts()).includes(body.port)) throw new SetupError(400, 'invalid', 'no receipt printer waiting on that USB port');
+      const name = await queue.addUsbPrinter(body.port);
+      choosePrinter(name);
+      return { printer: name };
+    },
+
     /** Clears receipts stuck in the chosen printer's queue. */
     async clearPrinter(body: { ownerPin?: unknown }) {
       await authorise(body.ownerPin);
@@ -188,7 +200,7 @@ export function setupApi(ctx: SetupContext) {
     async setPrinter(body: { name?: unknown; ownerPin?: unknown }) {
       await authorise(body.ownerPin);
       const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : null;
-      if (name && !(await listPrinters()).includes(name)) throw new SetupError(400, 'invalid', `no printer called ${name}`);
+      if (name && !networkAddress(name) && !(await listPrinters()).includes(name)) throw new SetupError(400, 'invalid', `no printer called ${name}`);
       choosePrinter(name);
       return { printer: name };
     },
