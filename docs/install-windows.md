@@ -108,6 +108,17 @@ you add `-Force`. It builds the new version while the old one keeps running, app
 changes, then switches over; if anything fails, it **puts the old version back** by itself.
 Logs of every install and update are in `C:\CheesyBeez\logs`.
 
+
+## The support file (looking after a shop from far away)
+
+When something is wrong at a shop, ask for the **support file**: Shop setup → **Help** → **Save support file**
+(owner's PIN), or, if the POS will not open, Start menu → **Lume POS support file** (Windows asks Yes/No once).
+It lands on the desktop as `Lume POS support <date> <time>.zip` for the shop to send on WhatsApp.
+Inside: `about.txt` (version, whether the shop server answers, Windows, printers, scheduled tasks, WebView2,
+firewall, network, antivirus, disk, memory), the logs (the newest 1 MB of each), `settings.json` with its keys
+hidden, and `station.env` with names only. Never the sales, the database, staff names or PINs
+(`server/supportFile.ts`, tested in `server/supportFile.test.ts`; CI makes one on Windows).
+
 ## Good to know
 
 - The internet at the shop only matters for AnyDesk and updates. The POS itself runs entirely

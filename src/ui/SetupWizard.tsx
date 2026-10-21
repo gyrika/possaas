@@ -24,8 +24,8 @@ const FIRST: Step[] = ['shop', 'printer', 'staff', 'cloud', 'devices'];
 const TITLES: Record<Step, string> = {
   shop: 'Name your shop', printer: 'Your receipt printer', staff: 'Your staff', cloud: 'Connect to the cloud', devices: 'Connect your devices',
 };
-type Tab = Exclude<Step, 'shop'> | 'updates';
-const TAB_LABEL: Record<Tab, string> = { staff: 'Staff', printer: 'Printer', cloud: 'Cloud', devices: 'Devices', updates: 'Updates' };
+type Tab = Exclude<Step, 'shop'> | 'updates' | 'help';
+const TAB_LABEL: Record<Tab, string> = { staff: 'Staff', printer: 'Printer', cloud: 'Cloud', devices: 'Devices', updates: 'Updates', help: 'Help' };
 const ROLES: { id: Role; label: string }[] = [
   { id: 'cashier', label: 'Cashier' }, { id: 'manager', label: 'Manager' }, { id: 'owner', label: 'Owner' }, { id: 'kitchen', label: 'Kitchen' },
 ];
@@ -383,6 +383,35 @@ function UpdatesTab({ ownerPin }: { ownerPin?: string }) {
   );
 }
 
+/**
+ * Shop setup → Help: something is wrong and the person who looks after the POS is far away.
+ * One tap puts a support file on the desktop to send them (WhatsApp is fine).
+ */
+function HelpTab({ ownerPin }: { ownerPin?: string }) {
+  const [state, setState] = useState<'idle' | 'saving' | { name: string }>('idle');
+  const [error, setError] = useState('');
+  const save = async () => {
+    setState('saving');
+    setError('');
+    try { setState({ name: (await setupClient.saveSupport(ownerPin)).name }); }
+    catch (e) { setState('idle'); setError(e instanceof Error ? e.message : String(e)); }
+  };
+  return (
+    <div className="setup__form">
+      <p className="setup__lead">Something not working? Save a support file and send it to whoever looks after your {PRODUCT_NAME}, on WhatsApp or by email.</p>
+      <p className="setup__hint">It has the POS's logs and this computer's details. Never your sales, staff, PINs or passwords.</p>
+      <p className="setup__row">
+        <button type="button" className="cta" disabled={state === 'saving'} onClick={() => void save()}>
+          {state === 'saving' ? 'Saving…' : 'Save support file'}
+        </button>
+      </p>
+      {typeof state === 'object' && <p className="setup__done" role="status">Saved on the desktop: <b>{state.name}</b></p>}
+      {error && <p className="setup__error" role="alert">{error}</p>}
+      <p className="setup__hint">If {PRODUCT_NAME} will not open at all, use <b>{PRODUCT_NAME} support file</b> in the Windows Start menu instead.</p>
+    </div>
+  );
+}
+
 function DevicesStep({ state, ownerPin, onFinish }: { state: SetupState; ownerPin?: string; onFinish?: () => void }) {
   const [links, setLinks] = useState<{ kitchen?: string; owner?: string }>({});
   const [error, setError] = useState('');
@@ -456,7 +485,7 @@ export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => voi
     body = (
       <>
         <nav className="cats setup__tabs" aria-label="Shop setup">
-          {(['staff', 'printer', 'cloud', 'devices', 'updates'] as const).map((t) => (
+          {(['staff', 'printer', 'cloud', 'devices', 'updates', 'help'] as const).map((t) => (
             <button key={t} type="button" className="pill" aria-pressed={tab === t} onClick={() => setTab(t)}>{TAB_LABEL[t]}</button>
           ))}
         </nav>
@@ -465,6 +494,7 @@ export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => voi
         {tab === 'cloud' && <CloudStep connected={state.cloud} ownerPin={ownerPin} onConnected={connected} />}
         {tab === 'devices' && <DevicesStep state={state} ownerPin={ownerPin} />}
         {tab === 'updates' && <UpdatesTab ownerPin={ownerPin} />}
+        {tab === 'help' && <HelpTab ownerPin={ownerPin} />}
       </>
     );
   } else {

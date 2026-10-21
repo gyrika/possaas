@@ -229,6 +229,23 @@ jobs:
           $got = [IO.File]::ReadAllBytes($out)
           if ([Convert]::ToBase64String($got) -ne [Convert]::ToBase64String($bytes)) { throw "The printer got $($got.Length) bytes, not the $($bytes.Length) sent" }
 
+      - name: The support file, from the Start menu's script (works even when the POS does not start)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Lume POS support file.lnk")) { throw 'No "Lume POS support file" in the Start menu' }
+          $path = (& "$env:APP\node\node.exe" --experimental-strip-types --no-warnings "$env:APP\app\server\supportFile.ts" | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -or -not (Test-Path $path)) { throw "No support file ($path)" }
+          if ($path -notlike "$env:PUBLIC\Desktop\Lume POS support *.zip") { throw "Not on the shared desktop: $path" }
+          $open = Join-Path $env:RUNNER_TEMP 'support'
+          Expand-Archive $path $open
+          $about = Get-Content (Join-Path $open 'about.txt') -Raw
+          $about
+          foreach ($part in 'Shop server:    answering', '----- Printers -----', '----- Scheduled tasks -----', '----- WebView2 -----') {
+            if (-not $about.Contains($part)) { throw "about.txt has no '$part'" }
+          }
+          if (-not (Test-Path (Join-Path $open 'logs\server.log'))) { throw 'No server log in it' }
+          if (Get-ChildItem $open -Recurse -Filter '*.sqlite') { throw 'The database must never be in it' }
+
       - name: Uninstall keeps the shop's data
         shell: pwsh
         run: |

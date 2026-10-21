@@ -30,6 +30,8 @@ export interface SetupContext {
   onCloudConnected?: () => void;
   /** The Station's versions ("Update now"). */
   updates?: UpdatesApi;
+  /** Shop setup → Help: the support file on the desktop (server/supportFile.ts). */
+  support?: () => Promise<{ path: string; name: string }>;
   fetch?: typeof fetch;
   now?: () => number;
 }
@@ -252,6 +254,14 @@ export function setupApi(ctx: SetupContext) {
       ctx.settings.set({ cloudUrl: ctx.cloudUrl, cloudToken: token });
       ctx.onCloudConnected?.();
       return { cloud: true };
+    },
+
+    /** Shop setup → Help: saves the support file on this PC's desktop and says where. */
+    async saveSupport(body: { ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      if (!ctx.support) throw new SetupError(409, 'not_ready', 'no support file here');
+      const { name, path } = await ctx.support();
+      return { name, path };
     },
 
     /** Shop setup → Updates: the installed version and GitHub's latest. */

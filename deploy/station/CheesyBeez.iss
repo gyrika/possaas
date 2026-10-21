@@ -70,6 +70,7 @@ Source: "station.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "station-install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "station-uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "station-update.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "station-support.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "stage\version.txt"; DestDir: "{app}"; Flags: ignoreversion
 #ifdef Offline
 Source: "stage\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
@@ -85,6 +86,8 @@ Type: files; Name: "{commonstartup}\CheesyBeez POS.lnk"
 ; The counter's app (a real Windows program, not a browser): its own icon, full screen.
 Name: "{commondesktop}\Lume POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
 Name: "{autoprograms}\Lume POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
+; When the POS will not open: the support file to send to whoever looks after it (server/supportFile.ts).
+Name: "{autoprograms}\Lume POS support file"; Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\station-support.ps1"""; IconFilename: "{app}\pos-app\CheesyBeezPOS.exe"
 ; Whoever logs in to Windows at the counter gets the POS.
 Name: "{commonstartup}\Lume POS"; Filename: "{app}\pos-app\CheesyBeezPOS.exe"; WorkingDir: "{app}\pos-app"
 

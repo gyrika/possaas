@@ -164,3 +164,22 @@ test("the shop's own name, town and receipt footer: for every screen, changed la
   assert.equal((await s.shop()).body.footer, '', 'an empty footer stays empty');
   await s.stop();
 });
+
+test("Shop setup → Help: the support file on the desktop, with the owner's PIN after setup", async () => {
+  let made = 0;
+  const dir = mkdtempSync(join(tmpdir(), 'cb-setup-support-'));
+  const store = memoryStore();
+  const settings = settingsFile(join(dir, 'settings.json'));
+  const setup = setupApi({
+    store, settings, usePrinter: () => {}, printsDir: join(dir, 'prints'), port: 8080, cloud: () => null, cloudUrl: 'https://cloud.test',
+    support: async () => { made += 1; return { name: 'Lume POS support 2026-10-21 1432.zip', path: 'C:\\Users\\Public\\Desktop\\Lume POS support 2026-10-21 1432.zip' }; },
+  });
+  await setup.nameShop({ name: 'Shop', place: '' });
+  assert.deepEqual(await setup.saveSupport({}), { name: 'Lume POS support 2026-10-21 1432.zip', path: 'C:\\Users\\Public\\Desktop\\Lume POS support 2026-10-21 1432.zip' });
+  await setup.addStaff({ name: 'Owner', role: 'owner', pin: '1234' });
+  await setup.finish();
+  await assert.rejects(setup.saveSupport({}), /owner's PIN/);
+  assert.equal((await setup.saveSupport({ ownerPin: '1234' })).name, 'Lume POS support 2026-10-21 1432.zip');
+  assert.equal(made, 2);
+  rmSync(dir, { recursive: true, force: true });
+});
