@@ -1,5 +1,5 @@
-import { EMPTY_MENU_STATE, effectiveMenu, type MenuState } from './menuEdits.ts';
-import type { MenuItem, MenuTag, Option, Variant } from './types.ts';
+import { EMPTY_MENU_STATE, allSections, effectiveMenu, type MenuState, type StartingMenu } from './menuEdits.ts';
+import type { Category, MenuItem, MenuTag, Option, Section, Variant } from './types.ts';
 
 /** Rupees → cents. */
 const rs = (n: number) => n * 100;
@@ -7,8 +7,9 @@ const rs = (n: number) => n * 100;
 const opt = (id: string, label: string, price = 0): Option => ({ id, label, price });
 
 /**
- * The real CheesyBeez printed menus (Pizza p1–2, Burger, Pasta). Names,
- * descriptions and prices are copied from them; item numbers are the
+ * The real CheesyBeez printed menus (Pizza p1–2, Burger, Pasta): the SAMPLE menu, for the demo
+ * and the tests (which lock its prices). A new shop starts empty and builds its own (menuEdits.ts).
+ * Names, descriptions and prices are copied from the printed menus; item numbers are the
  * numbers staff and customers use. Sinhala/Tamil labels are not filled in
  * yet: they must come from the owner, not be guessed.
  */
@@ -120,40 +121,64 @@ const TAGS: Readonly<Record<string, MenuTag[]>> = {
 
 export const MENU: MenuItem[] = PRINTED.map((m) => (TAGS[m.id] ? { ...m, tags: TAGS[m.id] } : m));
 
-export const CATEGORIES: { id: 'popular' | 'pizza' | 'burger' | 'pasta'; label: string }[] = [
-  { id: 'popular', label: 'Popular' },
-  { id: 'pizza', label: 'Pizza' },
-  { id: 'burger', label: 'Burgers' },
-  { id: 'pasta', label: 'Pasta' },
+/** The sample's sections: cook times from the CheesyBeez owner (2026-10-12). */
+export const SAMPLE_SECTIONS: Section[] = [
+  { id: 'pizza', name: 'Pizza', cookMinutes: 10, sizes: pizzaSizes(0, 0).map(({ price: _p, ...z }) => z), adds: PIZZA_ADDS },
+  { id: 'burger', name: 'Burgers', cookMinutes: 3, sizes: [], adds: BURGER_ADDS },
+  { id: 'pasta', name: 'Pasta', cookMinutes: 20, sizes: MENU.find((m) => m.id === 'italian-pasta')!.variants!.map(({ price: _p, ...z }) => z), adds: [] },
 ];
+export const SAMPLE_START: StartingMenu = { sections: SAMPLE_SECTIONS, items: MENU };
 
 /**
- * Until sales history exists, "Popular" is fixed: the menu's four BEST SELLER
- * pizzas first, then the cheap everyday items. Slice 6 replaces this with
- * ranking by real sales and time of day.
+ * The sample's "Popular": its four BEST SELLER pizzas first, then the cheap everyday items.
+ * A shop's own menu shows its first items there until "Popular" ranks real sales (step 3d).
  */
 export const POPULAR_IDS = [
   'margherita', 'devilled-chicken', 'seafood', 'bacon-onion', 'cheese-onion',
   'bbq-chicken', 'chicken-burger', 'crispy-chicken-burger', 'italian-pasta',
 ];
 
-// ----- The shop's current menu: the printed one above, with the owner's changes (menuEdits.ts) -----
+// ----- The shop's current menu: its starting menu, with the owner's changes (menuEdits.ts) -----
 
+/** The tests (and the demo) start from the sample; the app sets a real shop's empty start (src/main.tsx). */
+let start: StartingMenu = SAMPLE_START;
 let state: MenuState = EMPTY_MENU_STATE;
 let current: MenuItem[] = MENU;
 let starts: MenuItem[] = MENU;
+let sections: (Section & { removed?: true })[] = SAMPLE_SECTIONS;
 let version = 0;
 const listeners = new Set<() => void>();
 
-/** Every screen sets this from the shop's menu events (src/ui/menuStore.ts); the tests leave it printed. */
+/** Every screen sets this from the shop's menu events (src/ui/menuStore.ts); the tests leave it at the sample. */
 export const setMenuState = (next: MenuState, now = Date.now()): void => {
   state = next;
-  current = effectiveMenu(MENU, next, now);
-  starts = effectiveMenu(MENU, { ...EMPTY_MENU_STATE, added: next.added ?? {} }, now);
+  sections = allSections(start, next);
+  current = effectiveMenu(start, next, now);
+  starts = effectiveMenu(start, { ...EMPTY_MENU_STATE, added: next.added ?? {}, sections: next.sections ?? {} }, now);
   version++;
   listeners.forEach((l) => l());
 };
+export const setStartingMenu = (next: StartingMenu): void => {
+  start = next;
+  setMenuState(state);
+};
 export const menuState = (): MenuState => state;
+/** The sections the shop offers, in order. */
+export const menuSections = (): Section[] => sections.filter((x) => !x.removed);
+/** A size on a price button: the sample's letter ("M"), or a shop's own size name ("Full"). */
+export const sizeTag = (v: { id: string; label: string }): string => (v.id.length <= 2 ? v.id : v.label);
+/** Any section an item may be in, taken-off ones too (old orders). */
+export const sectionOf = (id: Category): (Section & { removed?: true }) | undefined => sections.find((x) => x.id === id);
+/** Nothing to sell yet: a new shop before its menu. */
+export const menuIsEmpty = (): boolean => !current.some((m) => !m.hidden);
+/** "Popular": the sample's best sellers, or a shop's first items until sales rank them (step 3d). */
+export const popularItems = (): MenuItem[] => {
+  const shown = current.filter((m) => !m.hidden);
+  const picked = POPULAR_IDS.map((id) => shown.find((m) => m.id === id)).filter((m): m is MenuItem => Boolean(m));
+  if (picked.length) return picked;
+  const order = new Map(menuSections().map((x, i) => [x.id, i]));
+  return [...shown].sort((a, b) => (order.get(a.category) ?? 99) - (order.get(b.category) ?? 99)).slice(0, 9);
+};
 /** All items, hidden ones included (old orders still show them); screens offer `!hidden`. */
 export const menuItems = (): MenuItem[] => current;
 export const menuVersion = (): number => version;
@@ -161,8 +186,10 @@ export const menuVersion = (): number => version;
 export const startingItem = (id: string): MenuItem | undefined => starts.find((m) => m.id === id);
 export const subscribeMenu = (l: () => void): (() => void) => { listeners.add(l); return () => listeners.delete(l); };
 
-export const itemById = (id: string): MenuItem => {
-  const item = current.find((m) => m.id === id);
-  if (!item) throw new Error(`Unknown menu item: ${id}`);
-  return item;
-};
+/**
+ * An item by id. One the menu does not know (an order kept on this device from another menu, say)
+ * shows as "Unknown item" rather than taking the screen down; its sent price is on its line.
+ */
+export const itemById = (id: string): MenuItem =>
+  current.find((m) => m.id === id) ?? MENU.find((m) => m.id === id) ??
+  { id, category: '', name: { en: 'Unknown item' }, description: '', aliases: [], price: 0, adds: [], leaveOut: [], hidden: true };

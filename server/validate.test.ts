@@ -46,7 +46,7 @@ test('menu edits and sold-out events are accepted only with valid event data', (
   assert.ok('reason' in invalidSoldOut);
 });
 
-test("the owner's new items are accepted only with an added-item id and a full, whole-rupee price list", () => {
+test("the owner's new items are accepted only with an added-item id and whole-rupee prices", () => {
   const owner = { ...base, actor: { id: 'owner-1', name: 'Nisal', role: 'owner' } };
   const item = { category: 'pasta', name: { en: 'Chicken Alfredo', si: '' }, description: '', prices: { S: 110000, M: 210000, L: 290000 } };
   const valid = [
@@ -54,15 +54,20 @@ test("the owner's new items are accepted only with an added-item id and a full, 
     { ...owner, id: 'event-2', type: 'menu.item_set', itemId: 'new-chicken-alfredo', before: {}, after: { prices: { L: 300000 }, hidden: true } },
     { ...owner, id: 'event-3', type: 'menu.sold_out', itemId: 'new-chicken-alfredo', until: 1_800_000_000_000 },
     { ...owner, id: 'event-4', type: 'menu.item_added', itemId: 'new-chicken-alfredo', item: null },
+    // A shop's own section and sizes: the server cannot know them one event at a time, so it checks the shape.
+    { ...owner, id: 'event-5', type: 'menu.item_added', itemId: 'new-chicken-kottu',
+      item: { category: 'sec-kottu', name: { en: 'Chicken Kottu' }, description: '', prices: { regular: 90000, full: 130000 }, number: 3, leaveOut: ['No egg'] } },
+    { ...owner, id: 'event-6', type: 'menu.item_set', itemId: 'new-chicken-kottu', before: {}, after: { prices: { full: 140000 } } },
   ];
   assert.deepEqual(validatePush({ events: valid }, 'shop-1'), { events: valid });
 
   for (const bad of [
     { itemId: 'margherita', item },
     { itemId: 'new-Chicken', item },
-    { itemId: 'new-x', item: { ...item, prices: { S: 110000 } } },
+    { itemId: 'new-x', item: { ...item, prices: {} } },
     { itemId: 'new-x', item: { ...item, prices: { S: 110000, M: 210000, L: '290000' } } },
-    { itemId: 'new-x', item: { ...item, category: 'drinks' } },
+    { itemId: 'new-x', item: { ...item, prices: { 'Not A Size': 110000 } } },
+    { itemId: 'new-x', item: { ...item, number: 0 } },
     { itemId: 'new-x', item: { ...item, name: { en: 'X', fr: 'Y' } } },
     { itemId: 'new-x', item: { ...item, extra: true } },
   ]) {
@@ -71,4 +76,24 @@ test("the owner's new items are accepted only with an added-item id and a full, 
   }
   const notAdded = validatePush({ events: [{ ...owner, type: 'menu.sold_out', itemId: 'not-on-menu', until: null }] }, 'shop-1');
   assert.ok('reason' in notAdded);
+});
+
+test("the owner's own sections: made, changed and taken off; the shape is checked", () => {
+  const owner = { ...base, orderNumber: 0, actor: { id: 'owner-1', name: 'Nisal', role: 'owner' } };
+  const section = { name: 'Kottu', cookMinutes: 8, sizes: [{ id: 'regular', label: 'Regular' }, { id: 'full', label: 'Full' }], adds: [{ id: 'egg', label: 'Egg', price: 10000 }] };
+  const valid = [
+    { ...owner, type: 'menu.section_set', sectionId: 'sec-kottu', section },
+    { ...owner, id: 'event-2', type: 'menu.section_set', sectionId: 'sec-kottu', section: null },
+  ];
+  assert.deepEqual(validatePush({ events: valid }, 'shop-1'), { events: valid });
+  for (const bad of [
+    { sectionId: 'pizza', section },
+    { sectionId: 'sec-kottu', section: { ...section, name: '' } },
+    { sectionId: 'sec-kottu', section: { ...section, cookMinutes: 0 } },
+    { sectionId: 'sec-kottu', section: { ...section, sizes: [{ id: 'one', label: 'One' }] } },
+    { sectionId: 'sec-kottu', section: { ...section, adds: [{ id: 'egg', label: 'Egg', price: 10050 }] } },
+    { sectionId: 'sec-kottu', section: { ...section, extra: true } },
+  ]) {
+    assert.ok('reason' in validatePush({ events: [{ ...owner, type: 'menu.section_set', ...bad }] }, 'shop-1'), JSON.stringify(bad));
+  }
 });

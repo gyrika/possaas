@@ -1,8 +1,22 @@
 /** Money is always integer LKR cents (1 LKR = 100). Never floats. */
 export type Cents = number;
 
-export type SizeId = 'S' | 'M' | 'L';
-export type Category = 'pizza' | 'burger' | 'pasta';
+/** A size's id within its section: 'S' | 'M' | 'L' on the sample menu, a slug of its label on a shop's own ("regular"). */
+export type SizeId = string;
+/** A menu section's id: 'pizza' | 'burger' | 'pasta' on the sample menu, "sec-…" on a shop's own. */
+export type Category = string;
+
+/**
+ * A menu section: what its items share. Its sizes (none = one price), its extras, and how long
+ * the kitchen takes, which sets a ticket's urgency colour.
+ */
+export interface Section {
+  id: Category;
+  name: string;
+  cookMinutes: number;
+  sizes: { id: SizeId; label: string; hint?: string }[];
+  adds: Option[];
+}
 /** Small labels on cheesybeez.com's cards. Each must come from the owner: never inferred. */
 export type MenuTag = 'popular' | 'veg';
 

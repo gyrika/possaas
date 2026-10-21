@@ -10,6 +10,7 @@ import { Kitchen } from './Kitchen.tsx';
 import { LockScreen } from './LockScreen.tsx';
 import { MenuView } from './MenuView.tsx';
 import { useMenu } from './menuStore.ts';
+import { menuIsEmpty } from '../domain/menu.ts';
 import { OwnerView } from './OwnerView.tsx';
 import { OwnerWelcome } from './OwnerWelcome.tsx';
 import { ShopsView } from './ShopsView.tsx';
@@ -103,7 +104,18 @@ export function Root() {
   const staff = useSyncExternalStore(subscribeAuth, signedIn);
   const kitchenOnly = isKitchenDevice() || staff?.role === 'kitchen';
   const setup = useSetupCheck();
+  /**
+   * A new shop's owner meets "Add your menu" first, and stays there while adding (the menu stops
+   * being empty with the first item) until they choose Done or "Do it later".
+   */
+  const [menuLater, setMenuLater] = useState(false);
+  const [buildingMenu, setBuildingMenu] = useState(false);
   useIdleLock(needsLogin && staff !== null);
+
+  /** Only the owner builds the menu: anyone else who logs in meanwhile gets the Register. */
+  const owns = !needsLogin || staff?.role === 'owner';
+  const firstMenu = menuIsEmpty() && owns && !menuLater && !isCloudSite();
+  useEffect(() => { if (firstMenu) setBuildingMenu(true); }, [firstMenu]);
 
   useEffect(() => {
     const onHash = () => setHash(location.hash);
@@ -151,6 +163,9 @@ export function Root() {
   // The developer's Shops screen (only answers on the developer's laptop: server/fleet.ts).
   if (hash === '#shops' && seesOwner) return <ShopsView onBack={() => go('')} />;
   if (fleetShop() && seesOwner) return <OwnerView key={hash} shop={fleetShop()!} onBack={() => go('#shops')} />;
+  if (owns && (buildingMenu || firstMenu) && (hash === '' || hash === '#menu')) {
+    return <MenuView owner onBack={() => { setBuildingMenu(false); setMenuLater(true); go(''); }} />;
+  }
   // The owner changes the menu; managers can mark items sold out during service.
   if (hash === '#menu' && (!needsLogin || (staff !== null && seesTakings(staff.role)))) {
     return <MenuView owner={!needsLogin || staff?.role === 'owner'} onBack={() => go('')} />;

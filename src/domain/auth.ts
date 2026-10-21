@@ -43,7 +43,7 @@ export const mayRecord = (role: Role, type: string): boolean => {
   if (CASHIER_EVENTS.has(type)) return role !== 'kitchen';
   if (MANAGER_EVENTS.has(type)) return managesRole(role);
   // The menu is the owner's; marking something sold out is a manager's job during service.
-  if (type === 'menu.item_set' || type === 'menu.item_added') return role === 'owner';
+  if (type === 'menu.item_set' || type === 'menu.item_added' || type === 'menu.section_set') return role === 'owner';
   if (type === 'menu.sold_out') return managesRole(role);
   return false;
 };

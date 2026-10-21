@@ -1,4 +1,4 @@
-import { MENU } from '../../src/domain/menu.ts';
+import { SAMPLE_START } from '../../src/domain/menu.ts';
 import { effectiveMenu, menuStateFromEvents } from '../../src/domain/menuEdits.ts';
 import {
   checkOnlineOrder, effectiveStatus, NEXT_STATUS, normalisePhone, parseHours, takingOrders, type OnlineLine, type OnlineOrder, type OnlineStatus,
@@ -57,10 +57,10 @@ export async function onlineRoutes(req: Request, url: URL, c: OnlineContext): Pr
   /** The shop's menu with its owner's changes, from its menu events (few, so read whole). */
   const shopMenuState = async (tenantId: string) => {
     const { results } = await db.prepare(
-      "SELECT body FROM events WHERE tenant_id = ? AND type IN ('menu.item_set', 'menu.sold_out', 'menu.item_added') ORDER BY seq").bind(tenantId).all<{ body: string }>();
+      "SELECT body FROM events WHERE tenant_id = ? AND type IN ('menu.item_set', 'menu.sold_out', 'menu.item_added', 'menu.section_set') ORDER BY seq").bind(tenantId).all<{ body: string }>();
     return menuStateFromEvents(results.map((r) => JSON.parse(r.body) as { type: string }));
   };
-  const shopMenu = async (tenantId: string) => effectiveMenu(MENU, await shopMenuState(tenantId), now());
+  const shopMenu = async (tenantId: string) => effectiveMenu(SAMPLE_START, await shopMenuState(tenantId), now());
 
   const shopState = async () => {
     if (!c.orderShop) throw new HttpError(404, 'server', 'online orders are not set up');
