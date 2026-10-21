@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PRODUCT_NAME } from '../domain/brand.ts';
 import { nextCounterUpdate, type CounterUpdate, type HealthSeen } from '../domain/updating.ts';
 import { isCloudSite } from '../services/pairing.ts';
 
@@ -75,7 +76,7 @@ export function UpdateScreen({ reload = () => location.reload(), idleMs = LOOK_I
     return (
       <div className="upd" role="dialog" aria-modal="true" aria-labelledby="upd-title">
         <div className="upd__card">
-          <h1 id="upd-title">{back ? 'Going back to the previous version' : 'Updating CheesyBeez'}</h1>
+          <h1 id="upd-title">{back ? 'Going back to the previous version' : `Updating ${PRODUCT_NAME}`}</h1>
           <p className="upd__sub" role="status">
             {back
               ? `Version ${state.version} did not start. This takes a few minutes.`

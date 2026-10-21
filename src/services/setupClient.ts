@@ -7,7 +7,7 @@ import type { Role } from '../domain/auth.ts';
 export interface StaffRow { id: string; name: string; role: Role; active: boolean }
 export interface SetupState {
   done: boolean;
-  shop: { id: string; name: string; place: string } | null;
+  shop: { id: string; name: string; place: string; footer: string } | null;
   printer: string | null;
   printers: string[];
   cloud: boolean;
@@ -28,6 +28,8 @@ const call = async <T>(step: string, body?: unknown): Promise<T> => {
 export const setupClient = {
   state: () => call<SetupState>(''),
   nameShop: (name: string, place: string) => call<{ shopId: string; counterToken?: string }>('/shop', { name, place }),
+  shopDetails: (d: { name: string; place: string; footer: string }, ownerPin?: string) =>
+    call<{ shop: { id: string; name: string; place: string; footer: string } }>('/details', { ...d, ownerPin }),
   setPrinter: (name: string | null, ownerPin?: string) => call<{ printer: string | null }>('/printer', { name, ownerPin }),
   staff: (ownerPin?: string) => call<{ staff: StaffRow[] }>('/staff/list', { ownerPin }),
   addStaff: (name: string, role: Role, pin: string, ownerPin?: string) => call<{ staff: StaffRow[] }>('/staff', { name, role, pin, ownerPin }),

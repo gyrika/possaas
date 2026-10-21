@@ -10,6 +10,8 @@ import { receipt, receiptText } from './receipt.ts';
 import { totals } from './totals.ts';
 import type { LineSpec, PaidOrder } from './types.ts';
 
+const SHOP = { name: 'CheesyBeez', lines: ['Thalwila'], footer: 'Thank you!' };
+
 // Half-and-half pizzas: "Half price for each half" (the owner, October 2026).
 
 const half = (a: string, b: string, extra: Partial<LineSpec> = {}): LineSpec =>
@@ -55,7 +57,7 @@ test('the kitchen and the receipt name both halves', () => {
   }], 1);
   assert.equal(ticket.lines[0].itemId, 'margherita');
   const paid: PaidOrder = { ...order, paidAt: 2, tender: 'cash', tendered: 300000, total: 259500 } as PaidOrder;
-  const text = receiptText(receipt(paid, { cashier: 'A' }));
+  const text = receiptText(receipt(paid, { shop: SHOP, cashier: 'A' }));
   assert.match(text, /1 x 1\/2 Margherita \+ 1\/2 Seafood/);
   assert.match(text, /2,595/);
 });

@@ -26,6 +26,7 @@ import { useMenu } from './menuStore.ts';
 import { THEME_LABEL, setTheme, themeChoice, type ThemeChoice } from './theme.ts';
 import { useFleet } from './ShopsView.tsx';
 import { lineItemName } from '../domain/halves.ts';
+import { ShopBrand } from './Brand.tsx';
 
 type Sheet =
   | { kind: 'extras'; item: MenuItem; size?: SizeId }
@@ -254,7 +255,7 @@ export function App({
   return (
     <div className={`register${manager ? ' register--managing' : ''}`} onClick={onBackground}>
       <header className="register__head">
-        <span className="brand">CheesyBeez</span>
+        <ShopBrand />
         {manager ? (
           <span className="corner corner--managing" role="status">
             <span className="corner__who">Managing · {manager.name}</span>

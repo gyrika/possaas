@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PIN_LENGTH } from '../domain/auth.ts';
 import { login, type LoginResult } from '../services/serverAuth.ts';
+import { ShopBrand } from './Brand.tsx';
 
 /**
  * The counter's front door (SCRUM-40). Several people share one PC through a
@@ -55,7 +56,7 @@ export function LockScreen() {
   return (
     <main className="lock" aria-label="Log in">
       <div className="lock__card">
-        <span className="brand">CheesyBeez</span>
+        <ShopBrand />
         <h1 className="lock__title">Enter your PIN</h1>
         <div className={`lock__dots${error ? ' lock__dots--error' : ''}${checking ? ' lock__dots--checking' : ''}`} aria-hidden>
           {Array.from({ length: PIN_LENGTH }, (_, i) => <span key={i} className={i < pin.length ? 'on' : ''} />)}

@@ -137,13 +137,13 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CheesyBeez-Setup-${{ steps.version.outputs.value }}
-          path: deploy/station/Output/CheesyBeez-Setup-*.exe
+          name: LumePOS-Setup-${{ steps.version.outputs.value }}
+          path: deploy/station/Output/LumePOS-Setup-*.exe
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CheesyBeez-Offline-Setup-${{ steps.version.outputs.value }}
-          path: deploy/station/Output/CheesyBeez-Offline-Setup-*.exe
+          name: LumePOS-Offline-Setup-${{ steps.version.outputs.value }}
+          path: deploy/station/Output/LumePOS-Offline-Setup-*.exe
 
   # The real Setup.exe on more than one Windows, the way a shop gets it: installed silently, then the
   # shop server, the counter app, the printer queue and the uninstall checked. Server 2022 is built on
@@ -155,10 +155,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2022, windows-2025]
-        setup: [CheesyBeez-Setup]
+        setup: [LumePOS-Setup]
         include:
           - os: windows-2022
-            setup: CheesyBeez-Offline-Setup
+            setup: LumePOS-Offline-Setup
     runs-on: ${{ matrix.os }}
     name: install (${{ matrix.setup }}, ${{ matrix.os }})
     env:
@@ -200,6 +200,7 @@ jobs:
         run: |
           foreach ($t in 'CheesyBeez Station', 'CheesyBeez Station update', 'CheesyBeez Station nightly') { Get-ScheduledTask -TaskName $t | Out-Null }
           Get-NetFirewallRule -DisplayName 'CheesyBeez POS' | Out-Null
+          if (-not (Test-Path "$env:PUBLIC\Desktop\Lume POS.lnk")) { throw 'No "Lume POS" shortcut on the desktop' }
           $wv = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue
           if (-not $wv -or $wv.pv -in @($null, '', '0.0.0.0')) { throw 'WebView2 is not installed' }
           "WebView2 $($wv.pv)"
@@ -253,8 +254,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: setup/*.exe
           body: |
-            CheesyBeez Station ${{ needs.build.outputs.version }}: download **CheesyBeez-Setup-${{ needs.build.outputs.version }}.exe** and double-click it.
-            A PC without internet: **CheesyBeez-Offline-Setup-${{ needs.build.outputs.version }}.exe** (larger: it also carries Microsoft's WebView2).
+            Lume POS ${{ needs.build.outputs.version }}: download **LumePOS-Setup-${{ needs.build.outputs.version }}.exe** and double-click it.
+            A PC without internet: **LumePOS-Offline-Setup-${{ needs.build.outputs.version }}.exe** (larger: it also carries Microsoft's WebView2).
             Needs Windows 10 (version 2004 or newer) or Windows 11, 64-bit.
             Windows may say "Windows protected your PC" the first time: click **More info**, then **Run anyway**.
-            Shop PCs that already have CheesyBeez update themselves within minutes, once the counter has been quiet for 15 minutes.
+            Beta: automatic updates are off. To update a shop PC, run the new Setup.exe on it; the shop's data is kept.

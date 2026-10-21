@@ -13,7 +13,7 @@ namespace CheesyBeez
     /// <summary>
     /// The counter's window onto the shop server on this PC (http://localhost:8080): full screen,
     /// its own icon, no browser around it, no browser pop-ups. If the server is still starting (or
-    /// restarting after an update), it shows a calm "Starting CheesyBeez" page and keeps trying.
+    /// restarting after an update), it shows a calm "Starting Lume POS" page and keeps trying.
     /// Always full screen (a counter has no use for a small window); Alt+F4 closes the app.
     /// </summary>
     internal static class Program
@@ -26,7 +26,7 @@ namespace CheesyBeez
             // One window is enough: a second start just brings the first one forward.
             using (var single = new Mutex(true, "CheesyBeezPOS.Counter", out var first))
             {
-                if (!first) { NativeFocus.Existing("CheesyBeez POS"); return; }
+                if (!first) { NativeFocus.Existing("Lume POS"); return; }
                 NativeFocus.SharpOnScaledScreens();
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
@@ -45,7 +45,7 @@ namespace CheesyBeez
         public PosWindow(string url)
         {
             this.url = url;
-            Text = "CheesyBeez POS";
+            Text = "Lume POS";
             Icon = new Icon(typeof(Program).Assembly.GetManifestResourceStream("CheesyBeez.app.ico"));
             BackColor = Color.FromArgb(0xF2, 0xF1, 0xEF);
             FormBorderStyle = FormBorderStyle.None;     // full screen: no title bar, no edges
@@ -68,7 +68,7 @@ namespace CheesyBeez
             core.Settings.AreBrowserAcceleratorKeysEnabled = false; // no Ctrl+P, Ctrl+F, F5 and friends
             core.Settings.IsPasswordAutosaveEnabled = false;
             core.Settings.IsGeneralAutofillEnabled = false;
-            core.DocumentTitleChanged += (s, e) => Text = "CheesyBeez POS";
+            core.DocumentTitleChanged += (s, e) => Text = "Lume POS";
             // Links to anywhere else (GitHub, the cloud) open in the normal browser, never inside the POS.
             core.NewWindowRequested += (s, e) => { e.Handled = true; OpenOutside(e.Uri); };
             core.NavigationStarting += (s, e) => { if (!IsPos(e.Uri) && !e.Uri.StartsWith("data:")) { e.Cancel = true; OpenOutside(e.Uri); } };
@@ -107,7 +107,7 @@ html,body{margin:0;height:100%;background:#F2F1EF;color:#1C1C1E;font-family:'DM 
 main{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
 h1{margin:0;font-size:26px;font-weight:500;letter-spacing:-.5px}p{margin:0;color:#6E6D72;font-size:16px}
 i{width:36px;height:36px;border-radius:50%;border:3px solid #E3E1DE;border-top-color:#E8A94B;animation:s 900ms linear infinite}
-@keyframes s{to{transform:rotate(360deg)}}</style></head><body><main><i></i><h1>Starting CheesyBeez</h1>
+@keyframes s{to{transform:rotate(360deg)}}</style></head><body><main><i></i><h1>Starting Lume POS</h1>
 <p>This takes a few seconds, or a minute or two after an update. Sales already taken are safe.</p></main></body></html>";
     }
 

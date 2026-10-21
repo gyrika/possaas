@@ -4,6 +4,8 @@ import { CMD, RECEIPT_WIDTH, escpos, opensDrawer, receipt, receiptText, twoCols,
 import { totals } from './totals.ts';
 import type { Order, PaidOrder, Tender } from './types.ts';
 
+const SHOP = { name: 'CheesyBeez', lines: ['Thalwila'], footer: 'Thank you!' };
+
 const at = new Date(2026, 9, 12, 19, 42).getTime(); // local time, as the receipt prints it
 
 const pay = (order: Order, tender: Tender, tendered?: number): PaidOrder => {
@@ -23,7 +25,7 @@ const busy: Order = {
 };
 
 test('the receipt as it prints: items, adjustments, discount, cash and change', () => {
-  const text = receiptText(receipt(pay(busy, 'cash', 1000000), { cashier: 'Nimal' }));
+  const text = receiptText(receipt(pay(busy, 'cash', 1000000), { shop: SHOP, cashier: 'Nimal' }));
   assert.equal(text, [
     '              C h e e s y B e e z',
     '                    Thalwila',
@@ -49,17 +51,17 @@ test('the receipt as it prints: items, adjustments, discount, cash and change', 
 });
 
 test('every line fits the paper', () => {
-  const lines = receipt(pay(busy, 'cash', 1000000), { cashier: 'A very long cashier name indeed' });
+  const lines = receipt(pay(busy, 'cash', 1000000), { shop: SHOP, cashier: 'A very long cashier name indeed' });
   for (const l of lines) assert.ok(l.text.length <= (l.big ? RECEIPT_WIDTH / 2 : RECEIPT_WIDTH), l.text);
 });
 
 test('bank transfer and Free: no cash lines, and Free says so once', () => {
   const plain: Order = { number: 1050, lines: [busy.lines[2]] };
-  const transfer = receiptText(receipt(pay(plain, 'transfer'), { cashier: 'Nimal' }));
+  const transfer = receiptText(receipt(pay(plain, 'transfer'), { shop: SHOP, cashier: 'Nimal' }));
   assert.match(transfer, /Paid by +Bank transfer/);
   assert.doesNotMatch(transfer, /Change|Subtotal/);
 
-  const free = receiptText(receipt(pay({ ...plain, adjust: { discount: { kind: 'comp' } } }, 'comp', 0), { cashier: 'Ravi' }));
+  const free = receiptText(receipt(pay({ ...plain, adjust: { discount: { kind: 'comp' } } }, 'comp', 0), { shop: SHOP, cashier: 'Ravi' }));
   assert.match(free, /\nFree +-650\n/);
   assert.match(free, /R s   0/);
   assert.doesNotMatch(free, /Paid by/);
@@ -92,13 +94,23 @@ test('two columns and wrapping', () => {
 
 test('a reprint is marked COPY', () => {
   const plain: Order = { number: 1, lines: [busy.lines[2]] };
-  const lines = receiptText(receipt(pay(plain, 'cash'), { cashier: 'Nimal', copy: true })).split('\n');
+  const lines = receiptText(receipt(pay(plain, 'cash'), { shop: SHOP, cashier: 'Nimal', copy: true })).split('\n');
   assert.equal(lines[2].trim(), 'COPY');
-  assert.ok(!receiptText(receipt(pay(plain, 'cash'), { cashier: 'Nimal' })).includes('COPY'));
+  assert.ok(!receiptText(receipt(pay(plain, 'cash'), { shop: SHOP, cashier: 'Nimal' })).includes('COPY'));
 });
 
 test('an online order says so on its receipt; a counter order does not', () => {
-  const online = receiptText(receipt(pay({ ...busy, online: { pickupBy: at } }, 'cash'), { cashier: 'Nimal' }));
+  const online = receiptText(receipt(pay({ ...busy, online: { pickupBy: at } }, 'cash'), { shop: SHOP, cashier: 'Nimal' }));
   assert.match(online, /Online order: collected/);
-  assert.doesNotMatch(receiptText(receipt(pay(busy, 'cash'), { cashier: 'Nimal' })), /Online/);
+  assert.doesNotMatch(receiptText(receipt(pay(busy, 'cash'), { shop: SHOP, cashier: 'Nimal' })), /Online/);
+});
+
+test("the shop's own header: a long name wraps instead of running off the paper; no footer when it is empty", () => {
+  const shop = { name: "Rasika's Kitchen and Bakery", lines: ['12 Temple Road, Kandy'], footer: '' };
+  const lines = receipt(pay(busy, 'cash', 1000000), { shop, cashier: 'Nimal' });
+  const big = lines.filter((l) => l.big && l.center);
+  assert.deepEqual(big.map((l) => l.text), ["Rasika's Kitchen and", 'Bakery']);
+  assert.ok(big.every((l) => l.text.length <= RECEIPT_WIDTH / 2));
+  assert.equal(lines[2].text, '12 Temple Road, Kandy');
+  assert.match(lines[lines.length - 1].text, /^-+$/, 'ends on the rule: no empty footer line');
 });

@@ -1,9 +1,9 @@
 # Installing the POS on the shop PC (and looking after it from far away)
 
-> **Use CheesyBeez Station (the Setup.exe).** Download `CheesyBeez-Setup-x.y.z.exe` from the
+> **Use CheesyBeez Station (the Setup.exe).** Download `LumePOS-Setup-x.y.z.exe` from the
 > repository's **Releases** page and double-click it on the shop PC (Windows 10 version 2004 or newer,
 > or Windows 11, 64-bit; older Windows gets a "needs Windows 10" message). A PC without internet:
-> `CheesyBeez-Offline-Setup-x.y.z.exe`, which also carries Microsoft's WebView2. The first
+> `LumePOS-Offline-Setup-x.y.z.exe`, which also carries Microsoft's WebView2. The first
 > time, Windows says "Windows protected your PC": click **More info → Run anyway** (the file is not
 > code-signed). It installs everything, nothing else is needed (no Node.js, no MySQL), then opens
 > the POS on the setup wizard: shop, printer, staff, QR codes for the kitchen tablet and the

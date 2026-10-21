@@ -15,14 +15,14 @@ import { lineItemName } from './halves.ts';
 /** Font A on 80 mm paper: 48 characters a line (24 when printed double width). */
 export const RECEIPT_WIDTH = 48;
 
+/** The shop's own header and footer, from its setup (src/services/shop.ts). */
 export interface ShopHeader {
   name: string;
   /** Lines under the name. Only what the owner has confirmed; phone etc. come from the owner. */
   lines: string[];
+  /** Empty: no footer line. */
   footer: string;
 }
-
-export const SHOP_HEADER: ShopHeader = { name: 'CheesyBeez', lines: ['Thalwila'], footer: 'Thank you!' };
 
 export interface ReceiptLine {
   text: string;
@@ -70,13 +70,14 @@ const rule = (width: number): ReceiptLine => ({ text: '-'.repeat(width) });
 const minus = (cents: number) => `-${fmt(cents)}`;
 
 export function receipt(
-  paid: PaidOrder, opts: { cashier: string; shop?: ShopHeader; width?: number; copy?: boolean },
+  paid: PaidOrder, opts: { cashier: string; shop: ShopHeader; width?: number; copy?: boolean },
 ): ReceiptLine[] {
-  const { cashier, shop = SHOP_HEADER, width = RECEIPT_WIDTH, copy = false } = opts;
+  const { cashier, shop, width = RECEIPT_WIDTH, copy = false } = opts;
   const t = totals(paid);
   const out: ReceiptLine[] = [
-    { text: shop.name, center: true, bold: true, big: true },
-    ...shop.lines.map((text) => ({ text, center: true })),
+    // Double width: half as many characters fit, so a long name goes on two lines rather than off the paper.
+    ...wrap(shop.name, Math.floor(width / 2)).map((text) => ({ text, center: true, bold: true, big: true })),
+    ...shop.lines.flatMap((line) => wrap(line, width)).map((text) => ({ text, center: true })),
     // A reprint says so, so one sale can never look like two.
     ...(copy ? [{ text: 'COPY', center: true, bold: true }] : []),
     rule(width),
@@ -113,7 +114,8 @@ export function receipt(
   } else if (paid.tender !== 'comp') { // Free already has its own line above
     out.push({ text: twoCols('Paid by', TENDER_LABEL[paid.tender], width) });
   }
-  out.push(rule(width), { text: shop.footer, center: true });
+  out.push(rule(width));
+  for (const text of wrap(shop.footer, width)) out.push({ text, center: true });
   return out;
 }
 

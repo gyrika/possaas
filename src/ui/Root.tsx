@@ -15,6 +15,7 @@ import { OwnerWelcome } from './OwnerWelcome.tsx';
 import { ShopsView } from './ShopsView.tsx';
 import { ReceiptPreview } from './ReceiptPreview.tsx';
 import { SetupWizard } from './SetupWizard.tsx';
+import { ProductBrand } from './Brand.tsx';
 
 const KITCHEN = '#kitchen';
 const OWNER = '#owner';
@@ -74,7 +75,7 @@ function NotConnected() {
   return (
     <main className="lock" aria-label="Not connected">
       <div className="lock__card owner-welcome">
-        <span className="brand">CheesyBeez</span>
+        <ProductBrand />
         <h1 className="lock__title">This device is not connected yet</h1>
         <p>On the shop PC: Manager mode → Ctrl+K → Shop setup → Devices, then scan the QR code with this device.</p>
       </div>

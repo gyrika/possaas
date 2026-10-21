@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { PIN_LENGTH, type Role } from '../domain/auth.ts';
+import { DEFAULT_FOOTER, PRODUCT_NAME } from '../domain/brand.ts';
 import { pairAsCounter } from '../services/pairing.ts';
 import { printReceipt } from '../services/printer.ts';
 import { setupClient, type SetupState, type StaffRow } from '../services/setupClient.ts';
+import { setShopDetails } from '../services/shop.ts';
 import { QrCode } from './QrCode.tsx';
 import { samplePaid } from './ReceiptPreview.tsx';
 import { restartApp } from './restart.ts';
 import { OwnerNav } from './OwnerNav.tsx';
+import { ProductBrand } from './Brand.tsx';
 
 /**
  * Setting up the shop, on the shop PC itself. Serves whoever sets it up,
@@ -54,17 +57,53 @@ function ShopStep({ state, onDone }: { state: SetupState; onDone: () => void }) 
       const r = await setupClient.nameShop(name, place);
       // The shop PC pairs itself as the counter: no link to open, nothing to type.
       if (r.counterToken) pairAsCounter(r.counterToken, r.shopId);
+      setShopDetails({ name: name.trim(), place: place.trim(), footer: state.shop?.footer ?? DEFAULT_FOOTER });
       onDone();
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
   };
   return (
     <form className="setup__form" onSubmit={(e) => void submit(e)}>
       <label className="setup__field"><span>Shop name</span>
-        <input autoFocus value={name} placeholder="CheesyBeez" onChange={(e) => setName(e.target.value)} /></label>
+        <input autoFocus value={name} placeholder="e.g. Rasika's Kitchen" onChange={(e) => setName(e.target.value)} /></label>
       <label className="setup__field"><span>Town</span>
-        <input value={place} placeholder="Thalwila" onChange={(e) => setPlace(e.target.value)} /></label>
+        <input value={place} placeholder="e.g. Kandy" onChange={(e) => setPlace(e.target.value)} /></label>
       {error && <p className="setup__error" role="alert">{error}</p>}
       <div className="setup__foot"><button type="submit" className="cta" disabled={!name.trim()}>Next</button></div>
+    </form>
+  );
+}
+
+/**
+ * What the receipt (and the corner of every screen) says: the shop's name, a line under it and the
+ * footer. Saved before the test receipt, so the test shows them.
+ */
+function ReceiptDetails({ shop, ownerPin }: { shop: NonNullable<SetupState['shop']>; ownerPin?: string }) {
+  const [saved, setSaved] = useState({ name: shop.name, place: shop.place, footer: shop.footer });
+  const [draft, setDraft] = useState(saved);
+  const [error, setError] = useState('');
+  const changed = draft.name !== saved.name || draft.place !== saved.place || draft.footer !== saved.footer;
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      const { shop: s } = await setupClient.shopDetails(draft, ownerPin);
+      const next = { name: s.name, place: s.place, footer: s.footer };
+      setSaved(next); setDraft(next); setShopDetails(next);
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+  };
+  const field = (key: keyof typeof draft, label: string, placeholder: string) => (
+    <label className="setup__field"><span>{label}</span>
+      <input value={draft[key]} placeholder={placeholder} onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))} /></label>
+  );
+  return (
+    <form className="setup__form" aria-label="On the receipt" onSubmit={(e) => void save(e)}>
+      {field('name', 'Shop name', "e.g. Rasika's Kitchen")}
+      {field('place', 'Under the name', 'e.g. 12 Temple Road, Kandy · 077 123 4567')}
+      {field('footer', 'Last line', 'e.g. Thank you! Come again.')}
+      {error && <p className="setup__error" role="alert">{error}</p>}
+      <p className="setup__row">
+        <button type="submit" className="chip" disabled={!changed || !draft.name.trim()}>Save</button>
+      </p>
     </form>
   );
 }
@@ -94,6 +133,7 @@ function PrinterStep({ state, ownerPin, onNext }: { state: SetupState; ownerPin?
         ))}
       </div>
       {state.printers.length === 0 && <p className="setup__hint">No printer found. Plug it in, install its Windows driver, then come back here.</p>}
+      {state.shop && <ReceiptDetails shop={state.shop} ownerPin={ownerPin} />}
       {chosen && (
         <p className="setup__row">
           <button type="button" className="chip" onClick={() => void printTest()} disabled={test === 'printing'}>Print a test receipt</button>
@@ -192,7 +232,7 @@ function CloudStep({ connected, ownerPin, onConnected, onNext }: {
           <label className="setup__field"><span>Shop code</span>
             <input autoFocus value={code} placeholder="CB-XXXX-XXXX" autoComplete="off" spellCheck={false}
               onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>
-          <p className="setup__hint">You get it from whoever set up CheesyBeez for you. The internet must be on.</p>
+          <p className="setup__hint">You get it from whoever set up {PRODUCT_NAME} for you. The internet must be on.</p>
           {error && <p className="setup__error" role="alert">{error}</p>}
           <p className="setup__row"><button type="submit" className="chip chip--solid" disabled={!code.trim() || busy}>{busy ? 'Connecting…' : 'Connect'}</button></p>
         </form>
@@ -321,7 +361,7 @@ function UpdatesTab({ ownerPin }: { ownerPin?: string }) {
       <p className="setup__lead">Installed: <b>{info?.current ?? '…'}</b>. New versions install by themselves within minutes, once the counter has been quiet for 15 minutes.</p>
       {phase === 'updating' && <UpdateProgress percent={progress.percent} label={progress.label} />}
       {phase === 'back' && (
-        <p className="setup__error" role="alert">Version {info?.latest} did not start on this PC, so CheesyBeez went back to {info?.current}. All sales are safe. Tell whoever looks after your POS.</p>
+        <p className="setup__error" role="alert">Version {info?.latest} did not start on this PC, so {PRODUCT_NAME} went back to {info?.current}. All sales are safe. Tell whoever looks after your POS.</p>
       )}
       {phase === 'slow' && (
         <p className="setup__error" role="alert">This is taking longer than expected. Leave the PC on; if the POS does not come back, restart the PC.</p>
@@ -449,7 +489,7 @@ export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => voi
     <div className="setup">
       {mode === 'manage' ? <OwnerNav current="setup" onRegister={onClose} /> : (
         <header className="setup__head">
-          <span className="brand">CheesyBeez</span>
+          <ProductBrand />
         </header>
       )}
       <main className="setup__main" aria-label="Shop setup">{body}</main>

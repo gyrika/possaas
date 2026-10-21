@@ -125,7 +125,7 @@ export function OnlineSheet({ state, onAccept, onClose }: {
                 onAccept={(m) => void act(onAccept(o, m))}
                 onDecline={(reason) => void act(onlineOrders.answer(o.id, { status: 'declined', reason }))}
               />
-            )) : <p className="online__empty">{state.open ? 'Nothing new. Orders from cheesybeez.com chime here.' : 'Switch on “Taking orders” to let customers order online.'}</p>}
+            )) : <p className="online__empty">{state.open ? 'Nothing new. Online orders chime here.' : 'Switch on “Taking orders” to let customers order online.'}</p>}
           </section>
 
           {going.length > 0 && (

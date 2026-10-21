@@ -2,6 +2,7 @@ import type { IncomingMessage } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import type { Role } from '../src/domain/auth.ts';
+import { DEFAULT_FOOTER } from '../src/domain/brand.ts';
 import { isPin } from './pins.ts';
 import { dryRunPrinter, listPrinters, systemPrinter, type RawPrinter } from './printer.ts';
 import type { Settings } from './settings.ts';
@@ -27,15 +28,18 @@ export interface SetupContext {
   cloudUrl: string;
   /** The wizard connected the cloud: start copying, no restart. */
   onCloudConnected?: () => void;
-  /** CheesyBeez Station's versions ("Update now"). */
+  /** The Station's versions ("Update now"). */
   updates?: UpdatesApi;
   fetch?: typeof fetch;
   now?: () => number;
 }
 
+/** What every screen and the receipt show (GET /api/v1/shop-details): the shop's own name, never the product's. */
+export interface ShopInfo { name: string; place: string; footer: string }
+
 export interface SetupState {
   done: boolean;
-  shop: { id: string; name: string; place: string } | null;
+  shop: ({ id: string } & ShopInfo) | null;
   printer: string | null;
   printers: string[];
   cloud: boolean;
@@ -72,7 +76,7 @@ export function setupApi(ctx: SetupContext) {
 
   const shop = () => {
     const s = ctx.settings.get();
-    return s.shopId ? { id: s.shopId, name: s.shopName ?? s.shopId, place: s.place ?? '' } : null;
+    return s.shopId ? { id: s.shopId, name: s.shopName ?? s.shopId, place: s.place ?? '', footer: s.receiptFooter ?? DEFAULT_FOOTER } : null;
   };
   const requireShop = () => {
     const s = shop();
@@ -102,6 +106,12 @@ export function setupApi(ctx: SetupContext) {
   return {
     choosePrinter,
 
+    /** For every screen on the shop's network (no PIN: it is printed on every receipt anyway). */
+    publicShop(): ShopInfo | null {
+      const s = shop();
+      return s ? { name: s.name, place: s.place, footer: s.footer } : null;
+    },
+
     async state(): Promise<SetupState> {
       const s = ctx.settings.get();
       const current = shop();
@@ -128,6 +138,18 @@ export function setupApi(ctx: SetupContext) {
       if (existing) return { shopId: id };
       const { token } = await ctx.store.addDevice(id, `${name} ${place}`.trim(), 'counter');
       return { shopId: id, counterToken: token };
+    },
+
+    /** Shop setup → Printer: the name, town and footer the receipt (and the screens) show. The shop's id never changes. */
+    async shopDetails(body: { name?: unknown; place?: unknown; footer?: unknown; ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      requireShop();
+      const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : '';
+      if (!name) throw new SetupError(400, 'invalid', 'the shop needs a name');
+      const place = typeof body.place === 'string' ? body.place.trim().slice(0, 80) : '';
+      const footer = typeof body.footer === 'string' ? body.footer.trim().slice(0, 120) : DEFAULT_FOOTER;
+      ctx.settings.set({ shopName: name, place, receiptFooter: footer });
+      return { shop: shop() };
     },
 
     async setPrinter(body: { name?: unknown; ownerPin?: unknown }) {

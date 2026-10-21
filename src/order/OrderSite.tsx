@@ -3,11 +3,13 @@ import { menuItems, setMenuState } from '../domain/menu.ts';
 import { fmt } from '../domain/money.ts';
 import { Banknote, Clock, Hamburger, MapPin, MessageCircle, Phone, Pizza, Plus, ShoppingBag, Soup } from 'lucide-react';
 import { clockText, normalisePhone, onlineLineTotal, onlineTotal, statusText, type OnlineLine } from '../domain/online.ts';
-import { SHOP_HEADER } from '../domain/receipt.ts';
 import type { Category, MenuItem, MenuTag, SizeId } from '../domain/types.ts';
 import { useInstall } from '../services/ownerApp.ts';
 import { api, remembered, type MyOrder, type Placed, type ShopInfo } from './api.ts';
 import { HERO, PHOTOS, STRIPS, type StripId } from './photos.ts';
+
+/** The ordering site is still CheesyBeez's own (cheesybeez.com); other shops get theirs with the cloud. */
+const SHOP_HEADER = { name: 'CheesyBeez', lines: ['Thalwila'] };
 import { isOrderAppHost, setUpOrderApp } from './pwa.ts';
 
 /**

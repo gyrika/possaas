@@ -116,7 +116,7 @@ try {
   Status 'downloading' 5
   if ($Force) { Note 'Update now: asked for in Shop setup.' }
 
-  $asset = $release.assets | Where-Object { $_.name -like 'CheesyBeez-Setup-*.exe' } | Select-Object -First 1
+  $asset = $release.assets | Where-Object { $_.name -like 'LumePOS-Setup-*.exe' } | Select-Object -First 1
   if (-not $asset) { Note "Release $latest has no installer."; exit 0 }
   # No update without a good backup of the sales first.
   Status 'backup' 61
@@ -133,7 +133,7 @@ try {
   Note "Version $latest did not answer within 3 minutes: going back to $current."
   Status 'going-back' 90
   Set-Content -Path $skipFile -Value $latest
-  $back = "CheesyBeez-Setup-$current.exe"
+  $back = "LumePOS-Setup-$current.exe"
   $code = Install "https://github.com/gyrika/ERP/releases/download/v$current/$back" $back $false
   if (Answers $current) { Note "Back on $current (installer exit $code). Version $latest is skipped until a newer one comes out."; Status 'back' 100 }
   else { Note "Going back to $current did not answer either (installer exit $code): needs a look over AnyDesk." }

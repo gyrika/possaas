@@ -37,7 +37,7 @@ export const parseRupees = (raw: string): Cents | null => {
 /** An order from cheesybeez.com, and when the customer comes for it. */
 function OnlineTag({ order, time = true }: { order: Order; time?: boolean }) {
   return order.online
-    ? <span className="status status--online" title="Ordered on cheesybeez.com">Online{time && ` · ${clock(order.online.pickupBy)}`}</span>
+    ? <span className="status status--online" title="Ordered online">Online{time && ` · ${clock(order.online.pickupBy)}`}</span>
     : null;
 }
 

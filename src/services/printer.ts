@@ -1,6 +1,7 @@
 import { escpos, opensDrawer, receipt } from '../domain/receipt.ts';
 import type { PaidOrder } from '../domain/types.ts';
 import { syncToken } from './pairing.ts';
+import { shopHeader } from './shop.ts';
 
 /**
  * Prints the customer receipt through the server on the counter PC, which
@@ -27,7 +28,7 @@ const base64 = (bytes: Uint8Array): string => {
 export async function printReceipt(paid: PaidOrder, cashier: string, { reprint = false } = {}): Promise<PrintResult> {
   const token = syncToken();
   if (!token) return 'unavailable';
-  const bytes = escpos(receipt(paid, { cashier, copy: reprint }), { openDrawer: !reprint && opensDrawer(paid) });
+  const bytes = escpos(receipt(paid, { shop: shopHeader(), cashier, copy: reprint }), { openDrawer: !reprint && opensDrawer(paid) });
   try {
     const r = await fetch('/api/v1/print', {
       method: 'POST',
