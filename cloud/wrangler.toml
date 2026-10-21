@@ -19,3 +19,16 @@ run_worker_first = ["/", "/api/*", "/admin", "/admin/*", "/owner.webmanifest", "
 
 # Online ordering stays off: no shop takes orders through this cloud yet (ORDER_SHOP, ORDER_PHONE,
 # ORDER_HOURS, ORDER_ADDRESS go under [vars] once one does).
+
+# A test copy of the cloud, apart from the shops' live one: its own address and its own empty
+# database. Try changes end to end over the internet before they reach the shops:
+#   npm run deploy:staging  →  https://melo-staging.cheesybeez-cloud.workers.dev
+[env.staging]
+name = "melo-staging"
+workers_dev = true
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "melo-staging"
+database_id = "85e3e111-35c1-49b9-95a5-e8dd1c4f34ac"
+migrations_dir = "migrations"

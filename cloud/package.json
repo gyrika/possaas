@@ -8,6 +8,8 @@
     "deploy": "npm --prefix .. run build:cloud && wrangler deploy",
     "migrate": "wrangler d1 migrations apply melo --remote",
     "migrate:local": "wrangler d1 migrations apply melo --local",
+    "deploy:staging": "npm --prefix .. run build:cloud && wrangler deploy --env staging",
+    "migrate:staging": "wrangler d1 migrations apply melo-staging --remote --env staging",
     "device": "node --experimental-strip-types --no-warnings addDevice.ts",
     "answers": "wrangler d1 execute melo --remote --json --command \"SELECT id, saved_at, body FROM owner_answers ORDER BY id DESC LIMIT 1\"",
     "admin-key": "node --experimental-strip-types --no-warnings adminKey.ts"

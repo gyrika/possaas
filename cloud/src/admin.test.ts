@@ -173,3 +173,58 @@ test('shops with something wrong come first, each problem in one line', async ()
   assert.match(page, /class="shop is-bad"/);
   assert.match(page, /<li class="warn">Cash short at the last 3 closes: Rs 300 in all<\/li>/);
 });
+
+test('the audit log keeps every sign-in, wrong password and shop opened, once per reading', async () => {
+  const { admin, session } = await setup(); // setup signed in once
+  await admin(login('wrong'));
+  await admin(req('/admin/shop/shop-a', { session }));
+  await admin(req('/admin/api/shops/shop-a/events?after=0', { headers: { authorization: `Bearer ${KEY}`, 'cf-connecting-ip': '203.0.113.9' } }));
+  await admin(req('/admin/api/shops/shop-a/events?after=40', { session })); // the next page of the same reading
+  await admin(req('/admin/logout', { method: 'POST', session }));
+
+  const page = await (await admin(req('/admin/log', { session })))!.text();
+  const order = ['Signed out', "Read the shop's data", 'Opened the shop', 'Wrong password', 'Signed in'];
+  const at = order.map((w) => page.search(new RegExp(w)));
+  assert.ok(at.every((i) => i > 0), `all five are there: ${at}`);
+  assert.deepEqual([...at].sort((a, b) => a - b), at, 'newest first');
+  assert.match(page, /Laptop · 203\.0\.113\.9/);
+  assert.equal((page.match(/Read the shop/g) ?? []).length, 1, 'the next page is not logged again');
+  assert.equal((await admin(req('/admin/log', { headers: { authorization: `Bearer ${KEY}` } })))!.status, 403, 'the key does not open the log');
+});
+
+test('removing a shop: only by typing its id, everything of it goes, every other shop stays', async () => {
+  const { cloud, admin, db, session } = await setup();
+  for (const [token, id] of [['server-a', 'a1'], ['server-b', 'b1']]) {
+    await cloud(new Request('https://cloud.test/api/v1/replica', {
+      method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ events: [{ seq: 1, deviceId: 'pc', receivedAt: NOW, event: { ...paid(id, NOW), shopId: token === 'server-a' ? 'shop-a' : 'shop-b' } }] }),
+    }));
+  }
+  const form = (confirm: string) => req('/admin/shops/shop-b/remove', {
+    method: 'POST', session, headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ confirm }),
+  });
+
+  const ask = await (await admin(req('/admin/shops/shop-b/remove', { session })))!.text();
+  assert.match(ask, /Remove Test shop/);
+  assert.match(ask, /1 events, 1 sales and 1 linked devices/);
+
+  const wrong = (await admin(form('shop-a')))!;
+  assert.equal(wrong.status, 400);
+  assert.match(await wrong.text(), /Nothing was removed/);
+  assert.equal((await admin(req('/admin/shops/shop-b/remove', { method: 'POST', headers: { authorization: `Bearer ${KEY}` } })))!.status, 403, 'never with the laptop key');
+  assert.equal((await admin(req('/admin/shops/shop-b/remove', { method: 'POST' })))!.status, 403, 'never without signing in');
+
+  const done = (await admin(form(' shop-b ')))!;
+  assert.equal(done.status, 303);
+  const left = (table: string) => db.prepare(`SELECT tenant_id FROM ${table} ORDER BY tenant_id`).all().map((r) => (r as { tenant_id: string }).tenant_id);
+  for (const t of ['events', 'sales', 'devices']) assert.deepEqual(left(t), ['shop-a'], t);
+  assert.deepEqual(db.prepare('SELECT id FROM shops').all().map((r) => (r as { id: string }).id), ['shop-a']);
+  assert.throws(() => db.prepare("DELETE FROM events WHERE tenant_id = 'shop-a'").run(), /events are never deleted/, 'other shops\' events still never go');
+  // The removed shop's PC can no longer copy in.
+  const push = await cloud(new Request('https://cloud.test/api/v1/replica', {
+    method: 'POST', headers: { authorization: 'Bearer server-b', 'content-type': 'application/json' }, body: JSON.stringify({ events: [] }),
+  }));
+  assert.equal(push.status, 401);
+  assert.match(await (await admin(req('/admin/log', { session })))!.text(), /Removed the shop<\/td><td>Test shop/);
+  assert.equal((await admin(req('/admin/shops/shop-b/remove', { session })))!.status, 404, 'gone');
+});

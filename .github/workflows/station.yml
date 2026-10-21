@@ -51,6 +51,13 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Cloud staging
+        if: vars.DEPLOY_CLOUD == 'true'
+        run: |
+          npm run migrate:staging --prefix cloud
+          npm run deploy:staging --prefix cloud
+          curl -fsS --retry 5 --retry-delay 3 https://melo-staging.cheesybeez-cloud.workers.dev/api/v1/health
+
       - name: Cloud live
         if: vars.DEPLOY_CLOUD == 'true'
         run: |
