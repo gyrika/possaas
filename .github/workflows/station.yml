@@ -217,9 +217,19 @@ jobs:
       - name: The counter app starts and stays open
         shell: pwsh
         run: |
+          $already = @(Get-Process CheesyBeezPOS -ErrorAction SilentlyContinue)
+          if ($already) { "Already running before the test: $($already | ForEach-Object { "$($_.Id) started $($_.StartTime)" })" }
           $p = Start-Process "$env:APP\pos-app\CheesyBeezPOS.exe" -WorkingDirectory "$env:APP\pos-app" -PassThru
           Start-Sleep 15
-          if ($p.HasExited) { throw "The counter app closed by itself (exit $($p.ExitCode))" }
+          if ($p.HasExited) {
+            # Evidence for why: another copy (it steps aside with exit 0), .NET or WebView2 errors.
+            Get-Process CheesyBeezPOS, msedgewebview2 -ErrorAction SilentlyContinue | Format-Table -AutoSize Id, ProcessName, StartTime
+            Get-WinEvent -LogName Application -MaxEvents 60 -ErrorAction SilentlyContinue |
+              Where-Object { $_.ProviderName -match '\.NET Runtime|Application Error|Windows Error Reporting' -or $_.Message -match 'CheesyBeezPOS|msedgewebview2' } |
+              Format-List TimeCreated, ProviderName, Message
+            Get-ChildItem "$env:LOCALAPPDATA\CheesyBeez\pos-app" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 30 FullName
+            throw "The counter app closed by itself (exit $($p.ExitCode))"
+          }
           Stop-Process -Id $p.Id -Force
 
       - name: A receipt reaches the Windows printer queue unchanged
