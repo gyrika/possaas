@@ -119,6 +119,16 @@ firewall, network, antivirus, disk, memory), the logs (the newest 1 MB of each),
 hidden, and `station.env` with names only. Never the sales, the database, staff names or PINs
 (`server/supportFile.ts`, tested in `server/supportFile.test.ts`; CI makes one on Windows).
 
+## Backups, and putting one back
+
+Every night at 4 am the Station copies the sales to `C:\ProgramData\CheesyBeez\backups` (the newest 14 are
+kept). That copy dies with the PC's disk, so the owner also saves one to a USB stick once a week: Shop setup →
+**Backup** → **Save a copy on …** (it lands in `Lume POS backups` on the stick).
+
+Putting a backup back (a support job, over AnyDesk): stop the **CheesyBeez Station** task in Task Scheduler,
+copy the backup over `C:\ProgramData\CheesyBeez\pos.sqlite`, delete `pos.sqlite-wal` and `pos.sqlite-shm`
+beside it, then start the task again. Sales made after that backup are lost, so take the newest one.
+
 ## Good to know
 
 - The internet at the shop only matters for AnyDesk and updates. The POS itself runs entirely

@@ -7,6 +7,7 @@ import type { PaperWidth } from '../src/domain/receipt.ts';
 import { isPin } from './pins.ts';
 import { dryRunPrinter, listPrinters, networkAddress, printerFor, type RawPrinter } from './printer.ts';
 import { printerQueue, type PrinterQueue } from './printerStatus.ts';
+import type { UsbBackup } from './usbBackup.ts';
 import type { Settings } from './settings.ts';
 import { PinTaken, type EventStore, type StaffMember } from './store.ts';
 import type { UpdatesApi } from './updates.ts';
@@ -34,6 +35,8 @@ export interface SetupContext {
   updates?: UpdatesApi;
   /** Windows' view of the printer, for "Did it print? No" (tests pass their own). */
   queue?: PrinterQueue;
+  /** Shop setup → Backup: a copy of the sales on a USB stick (server/usbBackup.ts). */
+  usb?: UsbBackup;
   /** Shop setup → Help: the support file on the desktop (server/supportFile.ts). */
   support?: () => Promise<{ path: string; name: string }>;
   fetch?: typeof fetch;
@@ -297,6 +300,20 @@ export function setupApi(ctx: SetupContext) {
       ctx.settings.set({ cloudUrl: ctx.cloudUrl, cloudToken: token });
       ctx.onCloudConnected?.();
       return { cloud: true };
+    },
+
+    /** Shop setup → Backup: the USB sticks plugged in now. */
+    async backupDrives(body: { ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      return { drives: ctx.usb ? await ctx.usb.drives() : [] };
+    },
+
+    /** Copies the sales onto the chosen USB stick. */
+    async backupToUsb(body: { drive?: unknown; ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      if (!ctx.usb || typeof body.drive !== 'string') throw new SetupError(400, 'invalid', 'choose a USB stick');
+      try { return await ctx.usb.save(body.drive); }
+      catch (e) { throw new SetupError(409, 'not_ready', e instanceof Error ? e.message : String(e)); }
     },
 
     /** Shop setup → Help: saves the support file on this PC's desktop and says where. */
