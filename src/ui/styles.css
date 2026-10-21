@@ -408,7 +408,7 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
 .rpreview__head h1 { margin: 0 0 6px; font-size: 22px; font-weight: 500; letter-spacing: -0.4px; }
 .rpreview__head p { margin: 0; color: var(--ink-2); font-size: 15px; }
 .rpreview__actions { margin-top: 16px !important; display: flex; gap: 12px; align-items: center; justify-content: center; }
-.paper { margin: 0; width: min(100%, calc(48ch + 48px)); padding: 28px 24px 40px; background: #fff; color: #111; border-radius: 4px;
+.paper { margin: 0; width: min(100%, calc(var(--chars, 48) * 1ch + 48px)); padding: 28px 24px 40px; background: #fff; color: #111; border-radius: 4px;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 8px 24px rgb(0 0 0 / 0.08);
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: clamp(9px, 2.6vw, 14px); line-height: 1.45; overflow-x: auto; }
 .paper__line { white-space: pre; }
@@ -670,3 +670,9 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
   .menued__rowin { flex-wrap: wrap; }
   .menued__rowin input.num { max-width: none; }
 }
+
+/* Shop setup → Printer: "Did it come out?", and what to do when it did not (step 5). */
+.printer-help { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.printer-help__title { margin: 0; font-size: 17px; font-weight: 600; }
+.printer-help ol { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 22px; color: var(--ink-2); font-size: 15px; }
+.setup__subhead { margin: 8px 0 0; color: var(--ink-3); font-size: 13px; font-weight: 500; letter-spacing: -0.1px; }

@@ -10,8 +10,8 @@ vi.mock('./restart.ts', () => ({ restartApp: vi.fn() }));
 interface Person { id: string; name: string; role: string; pin: string; active: boolean }
 
 /** The shop server's setup endpoints, remembering what they are told (and refusing as the real one does). */
-function fakeShopServer({ done = false, status = 200, newFails = false, updatesOff = false } = {}) {
-  const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string; footer: string }, printer: null as string | null, staff: [] as Person[] };
+function fakeShopServer({ done = false, status = 200, newFails = false, updatesOff = false, printer = { status: 'Normal', jobs: 0 } } = {}) {
+  const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string; footer: string; paper?: 58 | 80 }, printed: 0, cleared: 0, printers: ['XP-80T'], printer: null as string | null, staff: [] as Person[] };
   const pub = () => s.staff.map(({ pin: _p, ...m }) => m);
   const ownerOk = (pin: unknown) => !s.done || s.staff.some((m) => m.active && m.role === 'owner' && m.pin === pin);
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -21,10 +21,14 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
     const step = String(url).replace('/api/v1/setup', '');
     const ok = (b: unknown) => Response.json(b);
     const no = (code: number, message: string) => Response.json({ message }, { status: code });
+    if (String(url) === '/api/v1/print') { s.printed += 1; return ok({ ok: true }); }
     if (String(url) === '/api/v1/health') { if (s.down) throw new TypeError('fetch failed'); return ok({ ok: true, version: s.version }); }
-    if (step === '') return ok({ done: s.done, shop: s.shop, printer: s.printer, printers: ['XP-80T'], cloud: s.cloud, ...(s.done ? {} : { staff: pub() }) });
+    if (step === '') return ok({ done: s.done, shop: s.shop, printer: s.printer, printers: s.printers, cloud: s.cloud, ...(s.done ? {} : { staff: pub() }) });
     if (!ownerOk(body.ownerPin)) return no(401, "that is not the owner's PIN");
     if (step === '/shop') { const first = !s.shop; s.shop = { id: 'cheesybeez-thalwila', name: body.name, place: body.place, footer: 'Thank you!' }; return ok({ shopId: s.shop.id, ...(first ? { counterToken: 'counter-token' } : {}) }); }
+    if (step === '/paper') { s.shop = { ...s.shop!, paper: body.width }; return ok({ paper: body.width }); }
+    if (step === '/printer/state') return ok({ state: { ...printer, jobs: printer.jobs - s.cleared, offline: false } });
+    if (step === '/printer/clear') { s.cleared = printer.jobs; return ok({ cleared: printer.jobs }); }
     if (step === '/details') { s.shop = { ...s.shop!, name: body.name, place: body.place, footer: body.footer }; return ok({ shop: s.shop }); }
     if (step === '/printer') { s.printer = body.name; return ok({ printer: body.name }); }
     if (step === '/staff') {
@@ -190,6 +194,52 @@ test('Shop setup → Help: one tap puts the support file on the desktop, and say
   expect(screen.getByText(/Never your sales, staff, PINs or passwords/)).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Save support file' }));
   expect((await screen.findByRole('status')).textContent).toBe('Saved on the desktop: Lume POS support 2026-10-21 1432.zip');
+});
+
+test("Shop setup → Printer: the test receipt, 'Did it come out? No', the likely cause from Windows, stuck receipts cleared; 58 mm paper", async () => {
+  const server = fakeShopServer({ done: true, printer: { status: 'PaperOut', jobs: 2 } });
+  server.shop = { id: 'shop-ab12', name: 'Shop', place: '', footer: 'Thank you!', paper: 80 };
+  server.printer = 'XP-80T';
+  server.staff.push({ id: 'o', name: 'Rasika', role: 'owner', pin: '1234', active: true });
+  localStorage.setItem('cb.sync.token', 'counter-token'); // this PC is the counter: it prints
+  const user = userEvent.setup();
+  render(<SetupWizard mode="manage" />);
+  await user.type(await screen.findByLabelText("The owner's PIN"), '1234{Enter}');
+  await user.click(await screen.findByRole('button', { name: 'Printer' }));
+
+  await user.click(screen.getByRole('radio', { name: /58 mm paper/ }));
+  await vi.waitFor(() => expect(server.shop?.paper).toBe(58));
+  await user.click(screen.getByRole('button', { name: 'Print a test receipt' }));
+  expect(await screen.findByText('Did a receipt come out?')).toBeTruthy();
+  expect(server.printed).toBe(1);
+  await user.click(screen.getByRole('button', { name: 'No' }));
+
+  const help = within(await screen.findByRole('region', { name: 'Printer help' }));
+  expect(help.getByText('The printer is out of paper, or the paper is stuck.')).toBeTruthy();
+  expect(help.getByText(/^2 receipts are waiting in Windows/)).toBeTruthy();
+  await user.click(help.getByRole('button', { name: 'Clear the waiting receipts' }));
+  expect((await help.findByRole('status')).textContent).toBe('2 waiting receipts cleared.');
+  expect(help.queryByRole('button', { name: 'Clear the waiting receipts' })).toBeNull();
+
+  await user.click(help.getByRole('button', { name: 'Try again' }));
+  await user.click(await screen.findByRole('button', { name: 'Yes, it printed' }));
+  expect(screen.getByText('The printer is ready.')).toBeTruthy();
+  expect(server.printed).toBe(2);
+});
+
+test("Shop setup → Printer: no printer yet says how to install one, and Look again asks Windows again", async () => {
+  const server = fakeShopServer({ done: true });
+  server.printers = [];
+  server.staff.push({ id: 'o', name: 'Rasika', role: 'owner', pin: '1234', active: true });
+  const user = userEvent.setup();
+  render(<SetupWizard mode="manage" />);
+  await user.type(await screen.findByLabelText("The owner's PIN"), '1234{Enter}');
+  await user.click(await screen.findByRole('button', { name: 'Printer' }));
+  const none = within(await screen.findByRole('region', { name: 'No printer found' }));
+  expect(none.getByText(/Install its Windows driver/)).toBeTruthy();
+  server.printers = ['XP-58']; // plugged in and its driver installed
+  await user.click(none.getByRole('button', { name: 'Look again' }));
+  expect(await screen.findByRole('radio', { name: 'XP-58' })).toBeTruthy();
 });
 
 test('Shop setup → Updates during the beta: automatic updates are off, and how to update by hand', async () => {

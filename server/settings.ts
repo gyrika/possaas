@@ -15,6 +15,8 @@ export interface ShopSettings {
   receiptFooter?: string;
   /** Windows printer name; absent = no printer yet (dry run). */
   printer?: string;
+  /** Receipt paper width in mm; absent = 80. */
+  paperWidth?: 58 | 80;
   setupDone?: boolean;
   /** The cloud copy, once the wizard connected it with the shop code. */
   cloudUrl?: string;

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { RECEIPT_WIDTH, receipt } from '../domain/receipt.ts';
+import { receipt } from '../domain/receipt.ts';
 import { totals } from '../domain/totals.ts';
 import type { Order, PaidOrder } from '../domain/types.ts';
 import { canPrint, printReceipt } from '../services/printer.ts';
-import { shopHeader } from '../services/shop.ts';
+import { receiptWidth, shopDetails, shopHeader } from '../services/shop.ts';
 
 /**
  * /#receipt: the customer receipt as the XP-80T will print it, for the owner
@@ -29,7 +29,8 @@ export const samplePaid = (): PaidOrder => {
 export function ReceiptPreview() {
   const [paid] = useState(samplePaid);
   const [test, setTest] = useState<'idle' | 'printing' | 'printed' | 'failed'>('idle');
-  const lines = receipt(paid, { shop: shopHeader(), cashier: 'Nimal' });
+  const width = receiptWidth();
+  const lines = receipt(paid, { shop: shopHeader(), cashier: 'Nimal', width });
 
   const printTest = async () => {
     setTest('printing');
@@ -42,7 +43,7 @@ export function ReceiptPreview() {
     <main className="rpreview">
       <header className="rpreview__head">
         <h1>Customer receipt</h1>
-        <p>80 mm paper, {RECEIPT_WIDTH} characters a line. A sample sale, as it prints.</p>
+        <p>{shopDetails()?.paper ?? 80} mm paper, {width} characters a line. A sample sale, as it prints.</p>
         {canPrint() && (
           <p className="rpreview__actions">
             <button type="button" className="chip" onClick={() => void printTest()} disabled={test === 'printing'}>
@@ -55,7 +56,7 @@ export function ReceiptPreview() {
           </p>
         )}
       </header>
-      <figure className="paper" aria-label="Receipt preview">
+      <figure className="paper" aria-label="Receipt preview" style={{ '--chars': width } as React.CSSProperties}>
         {lines.map((l, i) => (
           <div key={i} className={`paper__line${l.big ? ' paper__line--big' : ''}${l.bold ? ' paper__line--bold' : ''}`}
             style={{ textAlign: l.center ? 'center' : 'left' }}>

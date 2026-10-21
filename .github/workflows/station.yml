@@ -199,7 +199,9 @@ jobs:
         shell: pwsh
         run: |
           foreach ($t in 'CheesyBeez Station', 'CheesyBeez Station update', 'CheesyBeez Station nightly') { Get-ScheduledTask -TaskName $t | Out-Null }
-          Get-NetFirewallRule -DisplayName 'CheesyBeez POS' | Out-Null
+          $fw = Get-NetFirewallRule -DisplayName 'CheesyBeez POS'
+          if ("$($fw.Profile)" -ne 'Any') { throw "The firewall rule is for $($fw.Profile) networks only: tablets on a 'Public' Wi-Fi are kept out" }
+          if ("$(($fw | Get-NetFirewallAddressFilter).RemoteAddress)" -ne 'LocalSubnet') { throw 'The firewall rule must let in the shop network only' }
           if (-not (Test-Path "$env:PUBLIC\Desktop\Lume POS.lnk")) { throw 'No "Lume POS" shortcut on the desktop' }
           $wv = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue
           if (-not $wv -or $wv.pv -in @($null, '', '0.0.0.0')) { throw 'WebView2 is not installed' }

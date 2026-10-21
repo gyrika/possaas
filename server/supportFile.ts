@@ -127,7 +127,7 @@ export async function saveSupportFile(o: SupportOptions): Promise<{ path: string
     `Time zone:      ${Intl.DateTimeFormat().resolvedOptions().timeZone}`,
   ];
   if (platform === 'win32') {
-    for (const [title, [command, args]] of WINDOWS_CHECKS) about.push('', `----- ${title} -----`, await run(command, args));
+    for (const [title, [command, args]] of WINDOWS_CHECKS) about.push('', `----- ${title} -----`, (await run(command, args)) || '(nothing reported)');
   }
   entries.push({ name: 'about.txt', data: `${about.join('\r\n')}\r\n` });
 

@@ -34,9 +34,14 @@ Register-ScheduledTask -TaskName 'CheesyBeez Station nightly' -Action $nightly -
 & powercfg.exe /change standby-timeout-ac 0
 & powercfg.exe /change monitor-timeout-ac 0
 
-# Kitchen tablets on the shop's Wi-Fi (private networks only, never public ones).
-if (-not (Get-NetFirewallRule -DisplayName 'CheesyBeez POS' -ErrorAction SilentlyContinue)) {
-  New-NetFirewallRule -DisplayName 'CheesyBeez POS' -Direction Inbound -Protocol TCP -LocalPort 8080 -Profile Private -Action Allow | Out-Null
+# Kitchen tablets on the shop's Wi-Fi: only from the shop's own network (LocalSubnet), whatever
+# Windows calls it. Many shop PCs call their Wi-Fi "Public", and a Private-only rule kept tablets out
+# (seen in a support file). An older install's rule is widened the same way.
+$rule = Get-NetFirewallRule -DisplayName 'CheesyBeez POS' -ErrorAction SilentlyContinue
+if ($rule) {
+  $rule | Set-NetFirewallRule -Profile Any -RemoteAddress LocalSubnet
+} else {
+  New-NetFirewallRule -DisplayName 'CheesyBeez POS' -Direction Inbound -Protocol TCP -LocalPort 8080 -Profile Any -RemoteAddress LocalSubnet -Action Allow | Out-Null
 }
 
 # The counter app shows the POS with Windows' own web engine (WebView2). Windows 10 and 11 normally
