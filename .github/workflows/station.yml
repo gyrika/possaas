@@ -1,5 +1,6 @@
 # Releases CheesyBeez on every merge to main, in the safe order:
-#   tests -> cloud staging -> cloud live -> Setup.exe (next version, e.g. 1.0.4 -> 1.0.5) -> GitHub Release.
+#   tests -> cloud staging -> cloud live -> Setup.exe (next version, e.g. 1.0.4 -> 1.0.5)
+#   -> installed and checked on Windows Server 2022 and 2025 -> GitHub Release.
 # Shop PCs look every 5 minutes and install it once their counter has been quiet for 15 minutes.
 # - A pull request touching the Station, the server, the app or the cloud: built and tested on Windows
 #   (and the Setup.exe is downloadable from the run's page), nothing released.
@@ -65,6 +66,8 @@ jobs:
     # Pull requests skip the cloud; a merge builds only once the cloud is live.
     if: always() && (needs.cloud.result == 'success' || (github.event_name != 'push' && needs.cloud.result == 'skipped'))
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -98,7 +101,7 @@ jobs:
 
       - name: Stage
         shell: pwsh
-        run: ./deploy/station/stage.ps1 -NodeVersion 22.23.3 -AppVersion ${{ steps.version.outputs.value }}
+        run: ./deploy/station/stage.ps1 -NodeVersion 22.23.3 -AppVersion ${{ steps.version.outputs.value }} -OfflineWebView2
 
       - name: The nightly backup works with the Node.js inside Setup.exe
         shell: pwsh
@@ -122,27 +125,136 @@ jobs:
             if (-not (Get-ChildItem deploy/station/stage/pos-app -Recurse -Filter $need)) { throw "The counter app is missing $need" }
           }
 
-      - name: Build Setup.exe
+      - name: Build Setup.exe (and the offline one, with WebView2 inside)
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" deploy\station\CheesyBeez.iss
           if ($LASTEXITCODE) { throw "ISCC failed ($LASTEXITCODE)" }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" /DOffline deploy\station\CheesyBeez.iss
+          if ($LASTEXITCODE) { throw "ISCC failed for the offline Setup.exe ($LASTEXITCODE)" }
           Get-ChildItem deploy\station\Output
 
       - uses: actions/upload-artifact@v4
         with:
           name: CheesyBeez-Setup-${{ steps.version.outputs.value }}
-          path: deploy/station/Output/*.exe
+          path: deploy/station/Output/CheesyBeez-Setup-*.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CheesyBeez-Offline-Setup-${{ steps.version.outputs.value }}
+          path: deploy/station/Output/CheesyBeez-Offline-Setup-*.exe
+
+  # The real Setup.exe on more than one Windows, the way a shop gets it: installed silently, then the
+  # shop server, the counter app, the printer queue and the uninstall checked. Server 2022 is built on
+  # Windows 10 21H2, Server 2025 on Windows 11 24H2. Nothing is released unless every one passes.
+  install-test:
+    needs: build
+    if: always() && needs.build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+        setup: [CheesyBeez-Setup]
+        include:
+          - os: windows-2022
+            setup: CheesyBeez-Offline-Setup
+    runs-on: ${{ matrix.os }}
+    name: install (${{ matrix.setup }}, ${{ matrix.os }})
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      APP: C:\Program Files\CheesyBeez Station
+      DATA: C:\ProgramData\CheesyBeez
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.setup }}-${{ needs.build.outputs.version }}
+          path: setup
+
+      - name: Install silently
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem setup -Filter '*.exe' | Select-Object -First 1).FullName
+          $log = Join-Path $env:RUNNER_TEMP 'install.log'
+          $p = Start-Process $exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$log" -Wait -PassThru
+          if ($p.ExitCode) { Get-Content $log -Tail 60; throw "Setup.exe failed ($($p.ExitCode))" }
+          # A test build is 0.0.N: the updater would replace it with the latest release, so it is switched off here.
+          Disable-ScheduledTask -TaskName 'CheesyBeez Station update' | Out-Null
+
+      - name: The shop server answers as this version
+        shell: pwsh
+        run: |
+          $h = $null
+          foreach ($i in 1..60) {
+            try { $h = Invoke-RestMethod 'http://localhost:8080/api/v1/health' -TimeoutSec 5; break } catch { Start-Sleep 2 }
+          }
+          if (-not $h) { Get-Content "$env:DATA\logs\server.log" -Tail 60 -ErrorAction SilentlyContinue; throw 'The shop server did not start' }
+          if ($h.version -ne $env:VERSION) { throw "The shop server says version $($h.version), not $env:VERSION" }
+          if ((Invoke-WebRequest 'http://localhost:8080/' -UseBasicParsing).StatusCode -ne 200) { throw 'The POS page did not load' }
+          # The setup wizard's first answer lists the PC's printers (Get-Printer).
+          Invoke-RestMethod 'http://localhost:8080/api/v1/setup' | ConvertTo-Json -Depth 4
+          if (-not (Test-Path "$env:DATA\pos.sqlite")) { throw 'No database in the data folder' }
+
+      - name: Windows is set up (tasks, firewall, WebView2)
+        shell: pwsh
+        run: |
+          foreach ($t in 'CheesyBeez Station', 'CheesyBeez Station update', 'CheesyBeez Station nightly') { Get-ScheduledTask -TaskName $t | Out-Null }
+          Get-NetFirewallRule -DisplayName 'CheesyBeez POS' | Out-Null
+          $wv = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue
+          if (-not $wv -or $wv.pv -in @($null, '', '0.0.0.0')) { throw 'WebView2 is not installed' }
+          "WebView2 $($wv.pv)"
+
+      - name: The counter app starts and stays open
+        shell: pwsh
+        run: |
+          $p = Start-Process "$env:APP\pos-app\CheesyBeezPOS.exe" -WorkingDirectory "$env:APP\pos-app" -PassThru
+          Start-Sleep 15
+          if ($p.HasExited) { throw "The counter app closed by itself (exit $($p.ExitCode))" }
+          Stop-Process -Id $p.Id -Force
+
+      - name: A receipt reaches the Windows printer queue unchanged
+        shell: pwsh
+        run: |
+          # A text-only printer that writes to a file stands in for the Xprinter.
+          $out = 'C:\cb-receipt.prn'
+          Add-PrinterDriver -Name 'Generic / Text Only'
+          Add-PrinterPort -Name $out
+          Add-Printer -Name 'CheesyBeez test' -DriverName 'Generic / Text Only' -PortName $out
+          $bytes = [byte[]](0x1B, 0x40) + [Text.Encoding]::ASCII.GetBytes("CheesyBeez test`n") + [byte[]](0x1D, 0x56, 0x00)
+          $in = Join-Path $env:RUNNER_TEMP 'receipt.bin'
+          [IO.File]::WriteAllBytes($in, $bytes)
+          & "$env:APP\app\server\rawprint.ps1" -Printer 'CheesyBeez test' -Path $in
+          foreach ($i in 1..15) { if ((Test-Path $out) -and (Get-Item $out).Length -ge $bytes.Length) { break }; Start-Sleep 1 }
+          $got = [IO.File]::ReadAllBytes($out)
+          if ([Convert]::ToBase64String($got) -ne [Convert]::ToBase64String($bytes)) { throw "The printer got $($got.Length) bytes, not the $($bytes.Length) sent" }
+
+      - name: Uninstall keeps the shop's data
+        shell: pwsh
+        run: |
+          Start-Process "$env:APP\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait
+          if (Get-ScheduledTask -TaskName 'CheesyBeez Station' -ErrorAction SilentlyContinue) { throw 'The server task is still there' }
+          if (-not (Test-Path "$env:DATA\pos.sqlite")) { throw "The uninstall removed the shop's database" }
+
+  release:
+    needs: [build, install-test]
+    if: always() && github.event_name == 'push' && needs.build.result == 'success' && needs.install-test.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ needs.build.outputs.version }}'
+          path: setup
+          merge-multiple: true
 
       - name: Publish the release
-        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.value }}
+          tag_name: v${{ needs.build.outputs.version }}
           target_commitish: ${{ github.sha }}
-          files: deploy/station/Output/*.exe
+          files: setup/*.exe
           body: |
-            CheesyBeez Station ${{ steps.version.outputs.value }}: download **CheesyBeez-Setup-${{ steps.version.outputs.value }}.exe** and double-click it.
+            CheesyBeez Station ${{ needs.build.outputs.version }}: download **CheesyBeez-Setup-${{ needs.build.outputs.version }}.exe** and double-click it.
+            A PC without internet: **CheesyBeez-Offline-Setup-${{ needs.build.outputs.version }}.exe** (larger: it also carries Microsoft's WebView2).
+            Needs Windows 10 (version 2004 or newer) or Windows 11, 64-bit.
             Windows may say "Windows protected your PC" the first time: click **More info**, then **Run anyway**.
             Shop PCs that already have CheesyBeez update themselves within minutes, once the counter has been quiet for 15 minutes.
