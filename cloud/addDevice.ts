@@ -31,16 +31,16 @@ const t = Date.now();
 const sql = `INSERT OR IGNORE INTO shops (id, name, created_at) VALUES ('${shop}', '${name}', ${t});
 INSERT INTO devices (id, tenant_id, kind, token_hash, created_at) VALUES ('${id}', '${shop}', '${values.kind}', '${hash}', ${t});`;
 
-execFileSync('npx', ['wrangler', 'd1', 'execute', 'cheesybeez-cloud', values.local ? '--local' : '--remote', '--command', sql],
+execFileSync('npx', ['wrangler', 'd1', 'execute', 'melo', values.local ? '--local' : '--remote', '--command', sql],
   { stdio: ['ignore', 'ignore', 'inherit'], cwd: import.meta.dirname });
 
 console.log(`Device ${id} (${values.kind}) added to ${shop} in the ${values.local ? 'local' : 'real'} cloud database.`);
 if (values.kind === 'shop_server') {
   console.log('\nAdd these lines to server/.env on the shop server, then restart it:\n');
-  console.log(`CLOUD_URL=${values.url ?? (values.local ? 'http://localhost:8787' : 'https://cheesybeez-cloud.<your-subdomain>.workers.dev')}`);
+  console.log(`CLOUD_URL=${values.url ?? (values.local ? 'http://localhost:8787' : 'https://melo.cheesybeez-cloud.workers.dev')}`);
   console.log(`CLOUD_TOKEN=${token}`);
   console.log(`CLOUD_SHOP=${shop}`);
 } else {
-  const base = values.url ?? (values.local ? 'http://localhost:8787' : 'https://cheesybeez-cloud.<your-subdomain>.workers.dev');
+  const base = values.url ?? (values.local ? 'http://localhost:8787' : 'https://melo.cheesybeez-cloud.workers.dev');
   console.log(`\nOpen this once on the owner's phone (it is the key: keep it private):\n  ${base}/?owner=${token}#owner`);
 }

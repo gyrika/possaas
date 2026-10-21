@@ -1,13 +1,13 @@
-# The CheesyBeez cloud copy (SCRUM-61). Deploy from this folder: npm run deploy
-name = "cheesybeez-cloud"
+# The Lume POS cloud copy (its own, apart from the CheesyBeez cloud). Deploy from this folder: npm run deploy
+name = "melo"
 main = "src/worker.ts"
 compatibility_date = "2025-06-01"
 workers_dev = true
 
 [[d1_databases]]
 binding = "DB"
-database_name = "cheesybeez-cloud"
-database_id = "02b0e2d7-482a-4039-8f74-009ed4209045"
+database_name = "melo"
+database_id = "89d4100b-5d6a-49f7-8456-f4dacce35e2c"
 migrations_dir = "migrations"
 
 # The owner's phone page (the cloud build of the app; nothing else of the POS is served here).
@@ -17,30 +17,5 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/", "/api/*", "/admin", "/admin/*", "/owner.webmanifest", "/manager.webmanifest", "/order.webmanifest", "/questions", "/get", "/download"]
 
-[vars]
-# The shop whose online orders cheesybeez.com takes (its id from the setup wizard): Nisal's
-# shop, installed 2026-10-13. Off until the counter switches "Taking orders" on.
-ORDER_SHOP = "cheesybeez-thalwila-2862"
-# Its daily hours for the ordering page ("Open · Closes 9 PM"), Sri Lanka time, e.g. "11:00-21:00".
-# Only the owner's real hours; left out, the page shows "Open for pickup" / "Closed" without times.
-# ORDER_HOURS = ""
-# The pickup card's Call / WhatsApp number: the owner's own answer on /questions (2026-10).
-ORDER_PHONE = "0771817968"
-# Its street address, once the owner gives it; left out, the card says the town and links to Maps.
-# ORDER_ADDRESS = ""
-
-# A test copy of the cloud, apart from the shops' live one: its own address and its own empty
-# database. Try changes end to end over the internet before they reach the shop:
-#   npm run deploy:staging  →  https://cheesybeez-cloud-staging.cheesybeez-cloud.workers.dev
-[env.staging]
-name = "cheesybeez-cloud-staging"
-workers_dev = true
-
-[[env.staging.d1_databases]]
-binding = "DB"
-database_name = "cheesybeez-cloud-staging"
-database_id = "725a90a0-2357-4a6b-b85e-5e402d73d6fa"
-migrations_dir = "migrations"
-
-[env.staging.vars]
-ORDER_SHOP = "cheesybeez-staging-test-1c7f" # the laptop test shop
+# Online ordering stays off: no shop takes orders through this cloud yet (ORDER_SHOP, ORDER_PHONE,
+# ORDER_HOURS, ORDER_ADDRESS go under [vars] once one does).

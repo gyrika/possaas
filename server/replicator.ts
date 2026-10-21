@@ -15,7 +15,7 @@ import type { EventStore } from './store.ts';
 export interface ReplicatorOptions {
   store: EventStore;
   tenantId: string;
-  /** e.g. https://cheesybeez-cloud.<account>.workers.dev */
+  /** e.g. https://melo.<account>.workers.dev */
   url: string;
   token: string;
   fetch?: typeof fetch;

@@ -5,7 +5,7 @@
  * computer itself may ask (app.ts checks it). A shop PC has no key, so it has no Shops screen.
  */
 export interface FleetOptions {
-  /** e.g. https://cheesybeez-cloud.cheesybeez-cloud.workers.dev */
+  /** e.g. https://melo.cheesybeez-cloud.workers.dev */
   url: string;
   key: string;
   fetch?: typeof fetch;
