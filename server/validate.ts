@@ -1,5 +1,7 @@
 import { MENU } from '../src/domain/menu.ts';
-import { checkNewItem, checkOverride, MENU_EVENT_TYPES, NEW_ITEM_ID, type ItemOverride, type NewItem } from '../src/domain/menuEdits.ts';
+import {
+  checkNewItem, checkOverride, checkSection, MENU_EVENT_TYPES, NEW_ITEM_ID, NEW_SECTION_ID, OPTION_ID, SIZE_KEY, type ItemOverride, type NewItem, type SectionDef,
+} from '../src/domain/menuEdits.ts';
 import type { MenuItem } from '../src/domain/types.ts';
 import {
   KITCHEN_EVENT_TYPES, ORDER_EVENT_TYPES, PUSH_BATCH, type SyncEvent,
@@ -14,22 +16,32 @@ const isAddedId = (v: unknown): v is string => typeof v === 'string' && NEW_ITEM
 const onMenu = (itemId: unknown): boolean => MENU.some((entry) => entry.id === itemId) || isAddedId(itemId);
 /**
  * An item the owner added: the server checks one event at a time, so it does not know which
- * section it is in. Any section's sizes and extras pass; the menu ignores what the item lacks.
+ * section it is in, nor that section's sizes and extras. Any well-formed size or extra passes;
+ * the menu ignores what the item lacks.
  */
-const ANY_ADDED: MenuItem = {
-  id: 'new-item', category: 'pizza', name: { en: 'This item' }, description: '', aliases: [],
-  variants: (['S', 'M', 'L'] as const).map((id) => ({ id, label: id, price: 0 })), price: 0,
-  adds: MENU.flatMap((m) => m.adds), leaveOut: [],
+const anyAdded = (o: Record<string, unknown>): MenuItem => {
+  const ids = (v: unknown, ok: RegExp) => (isObj(v) ? Object.keys(v).filter((k) => ok.test(k)) : []);
+  return {
+    id: 'new-item', category: 'any', name: { en: 'This item' }, description: '', aliases: [],
+    variants: ids(o.prices, SIZE_KEY).map((id) => ({ id, label: id, price: 0 })), price: 0,
+    adds: ids(o.adds, OPTION_ID).map((id) => ({ id, label: id, price: 0 })), leaveOut: [],
+  };
 };
 const validNewItem = (value: unknown): boolean =>
   value === null || (isObj(value) && isObj(value.name) && isObj(value.prices) &&
     Object.entries(value.name).every(([key, name]) => ['en', 'si', 'ta'].includes(key) && typeof name === 'string') &&
     Object.values(value.prices).every((price) => typeof price === 'number') &&
-    Object.keys(value).every((key) => ['category', 'name', 'description', 'prices'].includes(key)) &&
-    checkNewItem(value as unknown as NewItem, MENU) === null);
+    Object.keys(value).every((key) => ['category', 'name', 'description', 'prices', 'number', 'leaveOut'].includes(key)) &&
+    checkNewItem(value as unknown as NewItem, null) === null);
+const validOption = (v: unknown): boolean =>
+  isObj(v) && Object.keys(v).every((k) => ['id', 'label', 'hint', 'price'].includes(k));
+const validSection = (value: unknown): boolean =>
+  value === null || (isObj(value) && Object.keys(value).every((key) => ['name', 'cookMinutes', 'sizes', 'adds'].includes(key)) &&
+    Array.isArray(value.sizes) && value.sizes.every(validOption) && Array.isArray(value.adds) && value.adds.every(validOption) &&
+    checkSection(value as unknown as SectionDef) === null);
 const validOverride = (itemId: unknown, value: unknown): boolean => {
   if (!isObj(value)) return false;
-  const item = MENU.find((entry) => entry.id === itemId) ?? (isAddedId(itemId) ? ANY_ADDED : undefined);
+  const item = MENU.find((entry) => entry.id === itemId) ?? (isAddedId(itemId) ? anyAdded(value) : undefined);
   if (!item) return false;
   if (value.name !== undefined && (!isObj(value.name) ||
       Object.entries(value.name).some(([key, name]) =>
@@ -76,6 +88,9 @@ export const validatePush = (body: unknown, tenantId: string): { events: SyncEve
     }
     if (e.type === 'menu.item_added' && (!isAddedId(e.itemId) || !validNewItem(e.item))) {
       return { reason: `event ${e.id} has an invalid new menu item` };
+    }
+    if (e.type === 'menu.section_set' && (typeof e.sectionId !== 'string' || !NEW_SECTION_ID.test(e.sectionId) || !validSection(e.section))) {
+      return { reason: `event ${e.id} has an invalid menu section` };
     }
   }
   return { events: body.events as SyncEvent[] };

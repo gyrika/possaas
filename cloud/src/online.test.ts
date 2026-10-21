@@ -33,7 +33,7 @@ const customer = (phone = '0771234567', lines: unknown[] = [pizza]) => ({ name: 
 test('closed until the counter switches it on and the shop server is heard from', async () => {
   const { call, clock } = await setup();
   const shop = (await call('/api/v1/shop')).body;
-  assert.deepEqual([shop.name, shop.open, shop.hours, shop.phone, shop.address, shop.menuState], ['CheesyBeez Thalwila', false, null, null, null, { overrides: {}, soldOut: {}, added: {} }]);
+  assert.deepEqual([shop.name, shop.open, shop.hours, shop.phone, shop.address, shop.menuState], ['CheesyBeez Thalwila', false, null, null, null, { overrides: {}, soldOut: {}, added: {}, sections: {} }]);
   assert.deepEqual((await (await setup({ orderHours: '11:00-21:00' })).call('/api/v1/shop')).body.hours, { opens: 660, closes: 1260 }, 'the hours, when set');
   const contact = (await (await setup({ orderPhone: '077 181 7968', orderAddress: ' 12 Main St ' })).call('/api/v1/shop')).body;
   assert.deepEqual([contact.phone, contact.address], ['0771817968', '12 Main St'], 'the contact, when set');

@@ -646,3 +646,27 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
 
 .history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 
+
+/* A shop's own menu (step 3): the Register before there is one, sections, fast item entry. */
+.menu-empty { display: flex; max-width: 440px; flex-direction: column; align-items: flex-start; gap: 12px; padding: 64px 0; }
+.menu-empty h2 { margin: 0; font-size: 22px; font-weight: 500; letter-spacing: -0.4px; }
+.menu-empty p { margin: 0; color: var(--ink-2); font-size: 16px; }
+.menu-empty .cta { min-width: 220px; }
+.menuv__section { display: flex; align-items: center; gap: 16px; margin: 8px 0 0; color: var(--ink-2); font-size: 15px; }
+.menuv__section .linkbtn { min-height: 48px; }
+.menuv__later { margin: 8px 0 0; }
+.menuv__add.cta { min-width: 240px; margin-top: 16px; }
+.menuv__name .card__no { margin-right: 8px; }
+.menued__rows { display: flex; max-width: 560px; flex-direction: column; gap: 10px; }
+.cats .cta { flex: none; width: auto; min-width: 220px; padding: 0 28px; }
+.menued__rowin { display: flex; align-items: center; gap: 10px; }
+.menued__rowin input { min-height: 48px; flex: 1; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--ground); color: var(--ink); font: inherit; font-size: 17px; }
+.menued__rowin input.num { max-width: 140px; }
+.menued__rows .chip { align-self: flex-start; }
+.menued__more summary { min-height: 48px; display: flex; align-items: center; color: var(--ink-2); font-size: 15px; cursor: pointer; }
+.menued__added { display: flex; align-items: center; gap: 12px; margin: 0; color: var(--ok-ink); font-size: 15px; font-weight: 500; }
+.menued__foot .cta kbd { margin-left: 8px; border-color: currentColor; color: inherit; opacity: 0.7; }
+@media (max-width: 640px) {
+  .menued__rowin { flex-wrap: wrap; }
+  .menued__rowin input.num { max-width: none; }
+}

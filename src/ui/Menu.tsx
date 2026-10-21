@@ -1,9 +1,12 @@
-import { CATEGORIES, POPULAR_IDS, menuItems } from '../domain/menu.ts';
+import { menuIsEmpty, menuItems, menuSections, popularItems, sizeTag } from '../domain/menu.ts';
 import { fmtPlain } from '../domain/money.ts';
 import type { MenuItem, SizeId } from '../domain/types.ts';
+import { usesLogin } from '../services/auth.ts';
+import { signedIn } from '../services/serverAuth.ts';
 import { useMenu } from './menuStore.ts';
 
-export type CategoryId = (typeof CATEGORIES)[number]['id'];
+/** 'popular', or one of the shop's sections. */
+export type CategoryId = string;
 
 interface Props {
   category: CategoryId;
@@ -17,26 +20,43 @@ interface Props {
 
 /** What the owner offers: hidden items are not shown; sold-out ones show, greyed. */
 const visible = (c: CategoryId): MenuItem[] =>
-  (c === 'popular'
-    ? POPULAR_IDS.map((id) => menuItems().find((m) => m.id === id)!).filter(Boolean)
-    : menuItems().filter((m) => m.category === c)
-  ).filter((m) => !m.hidden);
+  (c === 'popular' ? popularItems() : menuItems().filter((m) => m.category === c)).filter((m) => !m.hidden);
+
+/** A new shop before its menu: the owner is one tap from building it; anyone else knows whom to ask. */
+function EmptyMenu() {
+  const owner = !usesLogin() || signedIn()?.role === 'owner';
+  return (
+    <div className="menu-empty" role="status">
+      <h2>Your menu is empty</h2>
+      {owner ? (
+        <>
+          <p>Add what you sell, and it appears here to take orders.</p>
+          <button type="button" className="cta" onClick={() => { location.hash = '#menu'; }}>Add your menu</button>
+        </>
+      ) : <p>The owner adds the menu. Ask them to log in and choose Add your menu.</p>}
+    </div>
+  );
+}
 
 export function Menu({ category, onCategory, onQuickAdd, onCustomise, hint }: Props) {
   useMenu();
+  if (menuIsEmpty()) return <EmptyMenu />;
+  const tabs = [{ id: 'popular', name: 'Popular' }, ...menuSections()];
+  // A section taken off while it was open: back to Popular.
+  const shown = tabs.some((t) => t.id === category) ? category : 'popular';
   return (
     <>
       <nav className="cats" aria-label="Menu">
-        {CATEGORIES.map((c) => (
-          <button key={c.id} type="button" className="pill" aria-pressed={category === c.id} onClick={() => onCategory(c.id)}>
-            {c.label}
+        {tabs.map((c) => (
+          <button key={c.id} type="button" className="pill" aria-pressed={shown === c.id} onClick={() => onCategory(c.id)}>
+            {c.name}
           </button>
         ))}
         <span className="hint">{hint}</span>
       </nav>
 
       <div className="grid">
-        {visible(category).map((item) => (
+        {visible(shown).map((item) => (
           <div key={item.id} className={`card${item.soldOut ? ' card--soldout' : ''}`}>
             {item.soldOut && <span className="card__soldout">Sold out</span>}
             <button type="button" className="card__title" disabled={item.soldOut} onClick={() => onCustomise(item)}>
@@ -47,10 +67,10 @@ export function Menu({ category, onCategory, onQuickAdd, onCustomise, hint }: Pr
               <span className="card__desc">{item.description}</span>
             </button>
             <div className="card__prices">
-              {item.variants && item.variants.length === 2 ? (
+              {item.variants && (item.variants.length === 2 || item.variants.length === 1) ? (
                 item.variants.map((v) => (
                   <button key={v.id} type="button" className="price num" disabled={item.soldOut} onClick={() => onQuickAdd(item, v.id)}>
-                    {v.id} {fmtPlain(v.price)}
+                    {sizeTag(v)} {fmtPlain(v.price)}
                   </button>
                 ))
               ) : item.variants ? (
