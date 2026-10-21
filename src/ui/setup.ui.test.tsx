@@ -10,7 +10,7 @@ vi.mock('./restart.ts', () => ({ restartApp: vi.fn() }));
 interface Person { id: string; name: string; role: string; pin: string; active: boolean }
 
 /** The shop server's setup endpoints, remembering what they are told (and refusing as the real one does). */
-function fakeShopServer({ done = false, status = 200, newFails = false } = {}) {
+function fakeShopServer({ done = false, status = 200, newFails = false, updatesOff = false } = {}) {
   const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string }, printer: null as string | null, staff: [] as Person[] };
   const pub = () => s.staff.map(({ pin: _p, ...m }) => m);
   const ownerOk = (pin: unknown) => !s.done || s.staff.some((m) => m.active && m.role === 'owner' && m.pin === pin);
@@ -35,7 +35,7 @@ function fakeShopServer({ done = false, status = 200, newFails = false } = {}) {
     if (step === '/pair') return ok(body.kind === 'counter' ? { counterToken: 'second-screen', shopId: 'cheesybeez-thalwila' } : { link: `http://10.0.0.5:8080/?pair=k&as=${body.kind}` });
     if (step === '/cloud') { if (body.code !== 'CB-7K3M-Q9XZ') return no(403, 'that shop code is not right'); s.cloud = true; return ok({ cloud: true }); }
     if (step === '/finish') { s.done = true; return ok({ done: true }); }
-    if (step === '/update/check') return ok({ current: s.version, latest: '1.0.1', newer: s.version !== '1.0.1' });
+    if (step === '/update/check') return ok(updatesOff ? { current: s.version, latest: null, newer: false, off: true } : { current: s.version, latest: '1.0.1', newer: s.version !== '1.0.1' });
     // What station-update.ps1 writes as it goes: downloading (real %), then backing up.
     if (step === '/update/status') {
       const t = Date.now() - s.installedAt;
@@ -154,6 +154,19 @@ test("Shop setup → Updates: the owner's PIN, a newer version, Update now, back
   expect(screen.getByText('Done: opening the new version')).toBeTruthy();
   await vi.waitFor(() => expect(restartApp).toHaveBeenCalled(), { timeout: 3000 }); // the new version answered
 }, 25_000);
+
+test('Shop setup → Updates during the beta: automatic updates are off, and how to update by hand', async () => {
+  const server = fakeShopServer({ done: true, updatesOff: true });
+  server.staff.push({ id: 'o', name: 'Nisal Vimukthi', role: 'owner', pin: '1234', active: true });
+  const user = userEvent.setup();
+  render(<SetupWizard mode="manage" />);
+  await user.type(await screen.findByLabelText("The owner's PIN"), '1234{Enter}');
+  await user.click(await screen.findByRole('button', { name: 'Updates' }));
+  expect((await screen.findByText(/Automatic updates are off/)).textContent).toMatch(/run the new Setup.exe on this PC/);
+  expect(screen.getByText('1.0.0')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Update now' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull();
+});
 
 test('Update now, and the new version does not start: the owner is told it went back, and that the sales are safe', async () => {
   const server = fakeShopServer({ done: true, newFails: true });

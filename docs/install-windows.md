@@ -6,7 +6,9 @@
 > code-signed). It installs everything, nothing else is needed (no Node.js, no MySQL), then opens
 > the POS on the setup wizard: shop, printer, staff, QR codes for the kitchen tablet and the
 > owner's phone. The shop's data is kept in `C:\ProgramData\CheesyBeez`; logs in its `logs` folder.
-> It updates itself within minutes of a new Release, once the counter has been quiet for 15 minutes. To publish a new version, merge a pull request into
+> **possaas beta: automatic updates are off** (`$UpdatesOn` in `station-update.ps1`, `AUTO_UPDATES` in
+> `server/updates.ts`): releases still come from gyrika/ERP. To update, run the new Setup.exe; the data is kept.
+> With updates on, it updates itself within minutes of a new Release, once the counter has been quiet for 15 minutes. To publish a new version, merge a pull request into
 > `main`: GitHub tests it, puts the cloud live, builds the next Setup.exe and releases it.
 >
 > **Updates never touch the sales.** The program lives in `C:\Program Files\CheesyBeez Station`,

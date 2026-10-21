@@ -28,9 +28,21 @@ test('versions compare part by part', () => {
 
 test("check: the installed version and GitHub's latest", async () => {
   const s = station('1.0.0');
-  assert.deepEqual(await updatesApi({ ...s, fetch: github('v1.0.1') }).check(), { current: '1.0.0', latest: '1.0.1', newer: true });
-  assert.deepEqual(await updatesApi({ ...s, fetch: github('v1.0.0') }).check(), { current: '1.0.0', latest: '1.0.0', newer: false });
-  await assert.rejects(updatesApi({ ...s, fetch: github('', 503) }).check(), /GitHub answered 503/);
+  assert.deepEqual(await updatesApi({ ...s, enabled: true, fetch: github('v1.0.1') }).check(), { current: '1.0.0', latest: '1.0.1', newer: true });
+  assert.deepEqual(await updatesApi({ ...s, enabled: true, fetch: github('v1.0.0') }).check(), { current: '1.0.0', latest: '1.0.0', newer: false });
+  await assert.rejects(updatesApi({ ...s, enabled: true, fetch: github('', 503) }).check(), /GitHub answered 503/);
+  s.done();
+});
+
+test('off during the beta: no GitHub, nothing to install, even inside a Station on Windows', async () => {
+  const s = station('1.0.0');
+  const asked: unknown[] = [];
+  const ran: string[][] = [];
+  const u = updatesApi({ ...s, platform: 'win32', fetch: (async (...a: unknown[]) => { asked.push(a); return Response.json({ tag_name: 'v9.0.0' }); }) as unknown as typeof fetch, run: (c, a) => ran.push([c, ...a]) });
+  assert.deepEqual(await u.check(), { current: '1.0.0', latest: null, newer: false, off: true });
+  assert.throws(() => u.install(), /off: run the new Setup.exe/);
+  await new Promise((r) => setTimeout(r, 600));
+  assert.deepEqual([asked, ran], [[], []]);
   s.done();
 });
 
@@ -38,15 +50,15 @@ test('install: runs the Station updater (forced), only on Windows inside a Stati
   const s = station('1.0.0');
   const ran: string[][] = [];
   const run = (command: string, args: string[]) => ran.push([command, ...args]);
-  assert.throws(() => updatesApi({ ...s, platform: 'linux', run }).install(), /on Windows/);
-  updatesApi({ ...s, platform: 'win32', run }).install();
+  assert.throws(() => updatesApi({ ...s, enabled: true, platform: 'linux', run }).install(), /on Windows/);
+  updatesApi({ ...s, enabled: true, platform: 'win32', run }).install();
   await new Promise((r) => setTimeout(r, 600)); // it starts a moment later, after the reply
   assert.deepEqual(ran, [['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', s.updaterScript, '-Force']]);
   s.done();
 
   const dev = station(null);
   assert.equal(updatesApi(dev).current(), 'development');
-  assert.throws(() => updatesApi({ ...dev, platform: 'win32', run }).install(), /on Windows/, 'never in development');
+  assert.throws(() => updatesApi({ ...dev, enabled: true, platform: 'win32', run }).install(), /on Windows/, 'never in development');
   dev.done();
 });
 

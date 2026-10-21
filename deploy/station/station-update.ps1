@@ -6,6 +6,12 @@
 # Safe: another backup right before installing, and if the new version does not answer within
 # 3 minutes, the version that was running is put back by itself. Everything goes in logs\update.log.
 param([switch]$Force, [switch]$Nightly)
+
+# Automatic updates are OFF during the possaas beta: releases still come from gyrika/ERP, so an
+# update would put the CheesyBeez ERP over this POS. The nightly backup still runs. New versions
+# are installed by hand (run the new Setup.exe; the shop's data is kept). Turn on together with
+# AUTO_UPDATES in server/updates.ts, once releases come from possaas' own place.
+$UpdatesOn = $false
 $ErrorActionPreference = 'Stop'
 $data = Join-Path $env:ProgramData 'CheesyBeez'
 $log = Join-Path $data 'logs\update.log'
@@ -83,6 +89,7 @@ function Install([string]$url, [string]$name, [bool]$show = $true) {
 try {
   if ($Force) { Status 'checking' 2 }
   if ($Nightly) { [void](Backup 'nightly') }
+  if (-not $UpdatesOn) { if ($Nightly -or $Force) { Note 'Automatic updates are off (beta): install a new version by running its Setup.exe.' }; exit 0 }
 
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
   $current = (Get-Content (Join-Path $PSScriptRoot 'version.txt') -Raw).Trim()
