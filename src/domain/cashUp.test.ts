@@ -50,4 +50,6 @@ test("the day's count: payments by how they were paid, an undone payment not cou
   assert.match(text, /Cash \(2\) +1,950/);
   assert.match(text, /Bank transfer \(1\) +800/);
   assert.match(text, /Difference +Rs 200 short/);
+  assert.match(text, /Total \(4 orders\)/);
+  assert.match(cashUpLines({ ...d, orders: 1 }, { shop: { name: 'S', lines: [], footer: '' }, float: 0, counted: null, by: 'R', width: 48 }).map((l) => l.text).join('\n'), /Total \(1 order\) /);
 });

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cookTimeMs } from './kitchen.ts';
-import { SAMPLE_START, itemById, menuIsEmpty, menuItems, menuSections, popularItems, setMenuState, setStartingMenu } from './menu.ts';
+import { SAMPLE_START, itemById, menuIsEmpty, menuItems, menuSections, popularItems, setMenuState, setStartingMenu, typingExample } from './menu.ts';
 import { EMPTY_MENU_STATE, EMPTY_START, checkNewItem, checkSection, menuStateFromEvents, type NewItem, type SectionDef } from './menuEdits.ts';
 import { orderTotal } from './order.ts';
 import { ShorthandInterpreter } from './parser.ts';
@@ -103,3 +103,13 @@ test('an item this menu does not know shows as "Unknown item" instead of taking 
   assert.equal(itemById('new-gone').name.en, 'Unknown item');
   assert.equal(itemById('new-gone').hidden, true);
 }));
+
+test("the typing example is the shop's own food, never another shop's", () => {
+  withShop([
+    section('sec-kottu', KOTTU),
+    item('new-chicken-kottu', { category: 'sec-kottu', name: { en: 'Chicken Kottu' }, description: '', prices: { regular: 90000, full: 130000 } }),
+    item('new-cheese-kottu', { category: 'sec-kottu', name: { en: 'Cheese Kottu' }, description: '', prices: { full: 160000 } }),
+  ], () => {
+    assert.equal(typingExample(), '2 full chicken kottu, cheese kottu');
+  });
+});

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { menuItems, itemById } from '../domain/menu.ts';
+import { menuItems, itemById, typingExample } from '../domain/menu.ts';
 import { ShorthandInterpreter } from '../domain/parser.ts';
 import type { LineSpec, OrderDraft, OrderInterpreter } from '../domain/types.ts';
 import { useMenu } from './menuStore.ts';
@@ -70,7 +70,7 @@ export function ShorthandBar({ initial, onSubmit, onClose }: Props) {
             if (e.key === 'Enter') submit();
             if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
           }}
-          placeholder="5 L, 2 margherita, burger no tomato…"
+          placeholder={`${typingExample()}…`}
           aria-label="Type an order"
           spellCheck={false}
           autoComplete="off"

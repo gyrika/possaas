@@ -293,7 +293,7 @@ function StaffStep({ initial, ownerPin, onNext }: { initial: StaffRow[]; ownerPi
       )}
       <form className="setup__add" onSubmit={(e) => void add(e)} aria-label="Add a person">
         <label className="setup__field"><span>{hasOwner ? 'Add a person' : 'First, the owner'}</span>
-          <input autoFocus value={name} placeholder={hasOwner ? 'Name' : 'Nisal Vimukthi'} onChange={(e) => setName(e.target.value)} /></label>
+          <input autoFocus value={name} placeholder={hasOwner ? 'Name' : 'e.g. Rasika Perera'} onChange={(e) => setName(e.target.value)} /></label>
         <div className="setup__chips" role="radiogroup" aria-label="Role">
           {ROLES.map((r) => (
             <button key={r.id} type="button" role="radio" aria-checked={role === r.id} className="chip" onClick={() => setRole(r.id)}>{r.label}</button>

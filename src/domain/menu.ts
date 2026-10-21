@@ -165,6 +165,18 @@ export const setStartingMenu = (next: StartingMenu): void => {
 export const menuState = (): MenuState => state;
 /** The sections the shop offers, in order. */
 export const menuSections = (): Section[] => sections.filter((x) => !x.removed);
+/**
+ * An example of typing an order, from this shop's own menu: "2 full chicken kottu, cheese kottu"
+ * (never another shop's food). Its first item in its biggest size, then its second item.
+ */
+export const typingExample = (): string => {
+  const shown = current.filter((m) => !m.hidden && !m.soldOut);
+  const [a, b] = shown;
+  if (!a) return '2 chicken kottu, milo';
+  const size = a.variants && a.variants.length > 1 ? `${a.variants[a.variants.length - 1].label.toLowerCase()} ` : '';
+  return [`2 ${size}${a.name.en.toLowerCase()}`, ...(b ? [b.name.en.toLowerCase()] : [])].join(', ');
+};
+
 /** A size on a price button: the sample's letter ("M"), or a shop's own size name ("Full"). */
 export const sizeTag = (v: { id: string; label: string }): string => (v.id.length <= 2 ? v.id : v.label);
 /** Any section an item may be in, taken-off ones too (old orders). */

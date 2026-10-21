@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Actor } from '../domain/auth.ts';
 import { cookState, type KitchenTicket } from '../domain/kitchen.ts';
 import { DISCOUNT_CHIPS } from '../domain/manager.ts';
-import { itemById } from '../domain/menu.ts';
+import { itemById, typingExample } from '../domain/menu.ts';
 import { fmt } from '../domain/money.ts';
 import { orderTotal, unsentLines } from '../domain/order.ts';
 import { discountLabel, lineAdjustment, lineNet, totals } from '../domain/totals.ts';
@@ -202,7 +202,7 @@ export function OrderPanel({
         {listing && open.length === 0 && paidToday.length === 0 && (
           <div className="empty">
             <b>Tap a size to start</b>
-            <span>or just start typing: “2 L margherita, burger”</span>
+            <span>or just start typing: “{typingExample()}”</span>
           </div>
         )}
 

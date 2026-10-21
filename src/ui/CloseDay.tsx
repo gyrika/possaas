@@ -68,7 +68,7 @@ export function CloseDay({ onBack }: { onBack: () => void }) {
 
         {canPrint() && (
           <p className="setup__row">
-            <button type="button" className="cta" onClick={() => void print()}>Print it</button>
+            <button type="button" className="cta closeday__print" onClick={() => void print()}>Print it</button>
             {printed && <span role="status">{printed === 'printed' ? 'Sent to the printer.' : 'The printer did not take it.'}</span>}
           </p>
         )}

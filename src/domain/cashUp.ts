@@ -88,7 +88,7 @@ export function cashUpLines(d: DayCount, o: { shop: ShopHeader; float: Cents; co
     { text: `${when(d.from)} - ${when(d.to)}`, center: true },
     rule,
     ...TENDERS.filter((t) => d.byTender[t].orders).map((t) => row(`${TENDER_NAMES[t]} (${d.byTender[t].orders})`, fmt(d.byTender[t].cents))),
-    row(`Total (${d.orders} orders)`, fmt(d.total)),
+    row(`Total (${d.orders} ${d.orders === 1 ? 'order' : 'orders'})`, fmt(d.total)),
     row('Items cancelled', String(d.voids)),
     row('Discounts / free', String(d.discounts)),
     rule,
