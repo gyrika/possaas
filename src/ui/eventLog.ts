@@ -9,7 +9,7 @@ import { storageKey } from './storage.ts';
  * (docs/sync-contract.md). Every action is written here first, so a sale
  * never waits for the network. Events are never edited or removed while
  * unsent; once the server has them, routine events older than KEEP_SYNCED_MS
- * are dropped. The ingredient and supplier lists are kept, so screens can rebuild them.
+ * are dropped. Menu changes are kept, so screens can rebuild the menu.
  *
  * localStorage, not IndexedDB: synchronous, so screens stay simple; the
  * durable record is MySQL on the same PC, and trimming keeps us far below
@@ -104,19 +104,11 @@ export const markSynced = (ids: readonly string[], now = Date.now()): void => {
   write(OUTBOX(), outbox);
   const pending = new Set(outbox);
   const all = readAll();
-  // The ingredient and supplier lists and menu changes are the shop's data itself: kept for good.
-  // Stock amounts need the whole history: the Inventory screen reads it from the server.
+  // Menu changes are the shop's data itself: kept for good.
   const kept = all.filter((e) =>
     pending.has(e.id) ||
     now - e.at < KEEP_SYNCED_MS ||
-    e.type.startsWith('menu.') ||
-    e.type === 'recipe.answer_set' ||
-    e.type === 'stock.item_added' ||
-    e.type === 'stock.supplier_added' ||
-    e.type === 'stock.item_archived' ||
-    e.type === 'stock.item_restored' ||
-    e.type === 'stock.supplier_archived' ||
-    e.type === 'stock.supplier_restored');
+    e.type.startsWith('menu.'));
   if (kept.length !== all.length) write(KEY(), kept);
 };
 

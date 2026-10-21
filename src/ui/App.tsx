@@ -46,13 +46,11 @@ export function App({
   onKitchen,
   onOwner,
   onSwitch,
-  canManageStock = true,
 }: {
   onKitchen?: () => void;
   /** Opens the Owner view (owners and managers; F3 does the same). */
   onOwner?: () => void;
   onSwitch?: () => void;
-  canManageStock?: boolean;
 } = {}) {
   const reg = useRegister();
   useMenu();
@@ -250,12 +248,8 @@ export function App({
       { id: 'sound', label: sound ? 'Turn sound off' : 'Turn sound on', run: () => { setSoundOn(!sound); setSound(!sound); } },
       { id: 'leave', label: 'Leave manager mode', hint: 'Esc', run: mode.exit },
     );
-    if (canManageStock) {
-      list.push({ id: 'inventory', label: 'Inventory and stock', run: () => { location.hash = '#inventory'; } });
-      list.push({ id: 'suppliers', label: 'Suppliers', run: () => { location.hash = '#suppliers'; } });
-    }
     return list;
-  }, [manager, listing, reg, selectedLine, sound, canManageStock, manage, askAdjust, askVoid, mode.exit, fleet]);
+  }, [manager, listing, reg, selectedLine, sound, manage, askAdjust, askVoid, mode.exit, fleet]);
 
   return (
     <div className={`register${manager ? ' register--managing' : ''}`} onClick={onBackground}>

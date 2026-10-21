@@ -89,72 +89,9 @@ test('demo events are never queued for the server', () => {
   expect(readOutbox()).toEqual([]);
 });
 
-test('synced catalog lifecycle events stay local after routine events are pruned', () => {
+test('menu changes stay local after routine events are pruned', () => {
   const actor = { id: 'manager', name: 'Ravi', role: 'manager' as const };
   addEvents([
-    {
-      id: 'old-item',
-      shopId: 'shop',
-      at: 1,
-      orderNumber: 0,
-      actor,
-      type: 'stock.item_added',
-      item: {
-        id: 'inv-new',
-        name: 'Sea Salt',
-        category: 'General',
-        baseUnit: 'pcs',
-        packQty: 1,
-        supplierIds: ['sup-new'],
-        workingPriceCents: 0,
-      },
-    },
-    {
-      id: 'old-supplier',
-      shopId: 'shop',
-      at: 1,
-      orderNumber: 0,
-      actor,
-      type: 'stock.supplier_added',
-      supplier: { id: 'sup-new', name: 'Fresh Farms' },
-      linkedItemIds: [],
-    },
-    {
-      id: 'old-item-archive',
-      shopId: 'shop',
-      at: 1,
-      orderNumber: 0,
-      actor,
-      type: 'stock.item_archived',
-      itemId: 'inv-new',
-    },
-    {
-      id: 'old-supplier-archive',
-      shopId: 'shop',
-      at: 1,
-      orderNumber: 0,
-      actor,
-      type: 'stock.supplier_archived',
-      supplierId: 'sup-new',
-    },
-    {
-      id: 'old-item-restore',
-      shopId: 'shop',
-      at: 1,
-      orderNumber: 0,
-      actor,
-      type: 'stock.item_restored',
-      itemId: 'inv-new',
-    },
-    {
-      id: 'old-supplier-restore',
-      shopId: 'shop',
-      at: 1,
-      orderNumber: 0,
-      actor,
-      type: 'stock.supplier_restored',
-      supplierId: 'sup-new',
-    },
     {
       id: 'old-menu',
       shopId: 'shop',
@@ -170,15 +107,7 @@ test('synced catalog lifecycle events stay local after routine events are pruned
 
   markSynced([], Date.now());
 
-  expect(readAll().map((event) => event.id)).toEqual([
-    'old-item',
-    'old-supplier',
-    'old-item-archive',
-    'old-supplier-archive',
-    'old-item-restore',
-    'old-supplier-restore',
-    'old-menu',
-  ]);
+  expect(readAll().map((event) => event.id)).toEqual(['old-menu']);
 });
 
 test('offline sign: how many orders wait, and gone once they are sent', async () => {

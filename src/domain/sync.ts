@@ -1,10 +1,6 @@
 import type { Actor } from './auth.ts';
 import type { OrderEvent } from './events.ts';
-import type { RecipeEvent } from './costing.ts';
 import type { MenuEvent } from './menuEdits.ts';
-import type { Cents } from './types.ts';
-import type { InventoryItem, Supplier } from './inventoryData.ts';
-import type { CountEntry, GapReason, Tier } from './counting.ts';
 
 /**
  * The sync contract between devices and the server (SCRUM-59, 60, 29, 30).
@@ -28,65 +24,13 @@ export type KitchenEvent =
   | (KitchenBase & { type: 'kitchen.bumped' })
   | (KitchenBase & { type: 'kitchen.unbumped' });
 
-/**
- * Stock changes (inventory), recorded like sales so they reach MySQL and the cloud
- * copy with who did them. Not about an order: `orderNumber` is always 0.
- */
-interface StockBase {
-  id: string;
-  shopId: string;
-  at: number;
-  orderNumber: 0;
-  actor: Actor;
-}
-
-interface StockItemBase extends StockBase {
-  itemId: string;
-}
-
-export type StockEvent =
-  | (StockItemBase & { type: 'stock.adjusted'; deltaPacks: number; reason?: 'waste' | 'audit' | 'receive' })
-  | (StockItemBase & { type: 'stock.price_set'; before: Cents; after: Cents })
-  | (StockBase & { type: 'stock.item_added'; item: InventoryItem })
-  | (StockBase & { type: 'stock.supplier_added'; supplier: Supplier; linkedItemIds: string[] })
-  | (StockItemBase & { type: 'stock.item_archived' | 'stock.item_restored' })
-  | (StockBase & { type: 'stock.supplier_archived' | 'stock.supplier_restored'; supplierId: string })
-  /**
-   * A shelf count (counting.ts): what was left, what the app expected then (both in base
-   * units), how it was counted, and why it differs when the gap is beyond the allowance.
-   * The shelf becomes counted - expected + what it was, so concurrent sales stay exact.
-   */
-  | (StockItemBase & {
-    type: 'stock.counted'; counted: number; expected: number; entries: CountEntry[];
-    reason: GapReason | null; valueCents: Cents; tier: Tier;
-    /** The shelf photo taken as proof of a big gap (SCRUM-94), kept on the shop PC. */
-    photo?: string | null;
-  })
-  /** Takes back a count (Undo on the count screen). */
-  | (StockBase & { type: 'stock.count_undone'; countId: string })
-  /** A unit learned for an item: "Tray" = 30 pcs (base: 0 removes it). */
-  | (StockItemBase & { type: 'stock.unit_set'; name: string; base: number })
-  /** The owner fixes how often an item is counted; null hands it back to the automatic choice. */
-  | (StockItemBase & { type: 'stock.tier_set'; tier: Tier | null })
-  /** What receiving this item is counted in, the owner's choice (SCRUM-96): a unit id from unitsOf ('pack', 'kg', 'unit:Tray'). */
-  | (StockItemBase & { type: 'stock.receive_unit_set'; unit: string })
-  /** The owner on a count's gap (SCRUM-95): OK, or a question to the manager. */
-  | (StockItemBase & { type: 'stock.gap_reviewed'; countId: string; decision: 'ok' | 'ask'; note: string })
-  /** The manager answers the owner's question about a gap. */
-  | (StockItemBase & { type: 'stock.gap_answered'; countId: string; note: string });
-
 /** Everything that syncs. Menu changes: src/domain/menuEdits.ts. */
-export type SyncEvent = OrderEvent | KitchenEvent | StockEvent | MenuEvent | RecipeEvent;
+export type SyncEvent = OrderEvent | KitchenEvent | MenuEvent;
 
 /** An event before the log gives it an id and stamps the shop. */
 export type NewSyncEvent = SyncEvent extends infer E ? (E extends SyncEvent ? Omit<E, 'id' | 'shopId'> : never) : never;
 
 export const KITCHEN_EVENT_TYPES = ['kitchen.seen', 'kitchen.bumped', 'kitchen.unbumped'] as const;
-export const STOCK_EVENT_TYPES = [
-  'stock.adjusted', 'stock.price_set', 'stock.item_added', 'stock.supplier_added',
-  'stock.item_archived', 'stock.item_restored', 'stock.supplier_archived', 'stock.supplier_restored',
-  'stock.counted', 'stock.count_undone', 'stock.unit_set', 'stock.tier_set', 'stock.gap_reviewed', 'stock.gap_answered', 'stock.receive_unit_set',
-] as const satisfies readonly StockEvent['type'][];
 export const ORDER_EVENT_TYPES = [
   'order.sent', 'order.send_undone', 'order.paid', 'order.payment_undone', 'order.item_changed', 'order.item_cancelled',
   'order.line_removed', 'order.line_adjusted', 'order.discount_set', 'order.comped', 'order.change_undone',

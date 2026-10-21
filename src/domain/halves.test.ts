@@ -7,7 +7,6 @@ import { unitPrice } from './money.ts';
 import { addLine, emptyOrder, markSent } from './order.ts';
 import { ShorthandInterpreter } from './parser.ts';
 import { receipt, receiptText } from './receipt.ts';
-import { bookGaps, bookUsage } from './stockUsage.ts';
 import { totals } from './totals.ts';
 import type { LineSpec, PaidOrder } from './types.ts';
 
@@ -59,16 +58,6 @@ test('the kitchen and the receipt name both halves', () => {
   const text = receiptText(receipt(paid, { cashier: 'A' }));
   assert.match(text, /1 x 1\/2 Margherita \+ 1\/2 Seafood/);
   assert.match(text, /2,595/);
-});
-
-test('in stock each half takes half of its recipe; a half with no recipe keeps the pizza off stock', () => {
-  const none = new Map();
-  const whole = (id: string) => Object.fromEntries(bookUsage({ itemId: id, qty: 1, size: 'L', adds: [], outs: [] }, none).map((u) => [u.inventoryId, u.qtyBaseUnits]));
-  const both = Object.fromEntries(bookUsage(half('margherita', 'cheese-onion'), none).map((u) => [u.inventoryId, u.qtyBaseUnits]));
-  const ONION = 'inv-0024';
-  assert.equal(both[ONION], whole('cheese-onion')[ONION] / 2);
-  assert.deepEqual(bookUsage(half('margherita', 'sausages'), none), [], 'Sausages has no recipe yet');
-  assert.equal(bookGaps(half('margherita', 'sausages'), none).untracked, true);
 });
 
 test('typed: "L half devilled chicken half bbq chicken" and "margherita / seafood no onion"', () => {

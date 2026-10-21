@@ -1,7 +1,6 @@
 import type { Actor, AuthService } from '../domain/auth.ts';
 import { fakeAuth } from '../fake/fakeAuth.ts';
-import { phoneToken, syncToken } from './pairing.ts';
-import { phoneAuth } from './managerPhone.ts';
+import { syncToken } from './pairing.ts';
 import { serverAuth } from './serverAuth.ts';
 
 /**
@@ -10,15 +9,9 @@ import { serverAuth } from './serverAuth.ts';
  * no lock screen.
  */
 export const usesLogin = (): boolean => syncToken() !== null;
-// The phone apps sign with the person the phone was made for (SCRUM-94/95).
-const auth = (): AuthService => (phoneToken() ? phoneAuth : usesLogin() ? serverAuth : fakeAuth);
+const auth = (): AuthService => (usesLogin() ? serverAuth : fakeAuth);
 
 /** The single manager check every screen uses. */
 export const requireManager = (pin: string): Promise<Actor | null> => auth().verifyManagerPin(pin);
-/** The owner this PIN belongs to, or null (the Recipes screen: the shop's secret). */
-export const requireOwner = async (pin: string): Promise<Actor | null> => {
-  const actor = await requireManager(pin);
-  return actor?.role === 'owner' ? actor : null;
-};
 export const currentCashier = (): Actor => auth().currentCashier();
 export const shopId = (): string => auth().shopId();

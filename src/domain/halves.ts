@@ -7,7 +7,7 @@ import type { Cents, MenuItem, Option, OrderLine } from './types.ts';
  * first half, `half` the second, both in the line's size. The base price is half
  * of each half's price, rounded once to the cent; extras are priced as on any
  * pizza, once for the whole pizza. Leave-outs cover the whole pizza and come from
- * both halves. In stock, each half takes half of its own recipe.
+ * both halves.
  */
 export const HALVES_CATEGORY = 'pizza';
 

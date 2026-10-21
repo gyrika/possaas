@@ -1,25 +1,20 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
-import { managesStock, seesTakings } from '../domain/auth.ts';
+import { seesTakings } from '../domain/auth.ts';
 import { usesLogin } from '../services/auth.ts';
-import { loadMe } from '../services/managerPhone.ts';
-import { adminShop, fleetShop, isCloudSite, isKitchenDevice, isManagerPhone, ownerToken, syncToken } from '../services/pairing.ts';
+import { adminShop, fleetShop, isCloudSite, isKitchenDevice, ownerToken, syncToken } from '../services/pairing.ts';
 import { isDemo } from './storage.ts';
 import { lock, signedIn, subscribeAuth } from '../services/serverAuth.ts';
 import { App } from './App.tsx';
-import { InventoryView } from './InventoryView.tsx';
 import { Kitchen } from './Kitchen.tsx';
 import { LockScreen } from './LockScreen.tsx';
-import { ManagerView } from './ManagerView.tsx';
 import { MenuView } from './MenuView.tsx';
 import { useMenu } from './menuStore.ts';
 import { OwnerView } from './OwnerView.tsx';
 import { OwnerWelcome } from './OwnerWelcome.tsx';
 import { ShopsView } from './ShopsView.tsx';
 import { ReceiptPreview } from './ReceiptPreview.tsx';
-import { RecipesView } from './RecipesView.tsx';
 import { SetupWizard } from './SetupWizard.tsx';
-import { SupplierView } from './SupplierView.tsx';
 
 const KITCHEN = '#kitchen';
 const OWNER = '#owner';
@@ -103,7 +98,6 @@ export function Root() {
   const [hash, setHash] = useState(location.hash);
   /** Came here from the Register, so the Kitchen offers a way back. */
   const [fromRegister, setFromRegister] = useState(false);
-  const [filterIngredientId, setFilterIngredientId] = useState<string | null>(null);
   const needsLogin = usesLogin();
   const staff = useSyncExternalStore(subscribeAuth, signedIn);
   const kitchenOnly = isKitchenDevice() || staff?.role === 'kitchen';
@@ -111,10 +105,7 @@ export function Root() {
   useIdleLock(needsLogin && staff !== null);
 
   useEffect(() => {
-    const onHash = () => {
-      setHash(location.hash);
-      setFilterIngredientId(null);
-    };
+    const onHash = () => setHash(location.hash);
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -126,15 +117,9 @@ export function Root() {
     // replaceState: flipping all day must not fill the browser history.
     history.replaceState(null, '', to || location.pathname + location.search);
     setHash(to);
-    setFilterIngredientId(null);
     if (to === KITCHEN) setFromRegister(true);
   }), []);
   const show = useCallback((kitchen: boolean) => go(kitchen ? KITCHEN : ''), [go]);
-  const findSupplier = useCallback((ingredientId: string) => withTransition(() => {
-    setFilterIngredientId(ingredientId);
-    history.replaceState(null, '', '#suppliers');
-    setHash('#suppliers');
-  }), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -148,8 +133,6 @@ export function Root() {
   }, [hash, inKitchen, show, go, seesOwner, kitchenOnly, needsLogin, staff]);
 
   // The cloud site is the owner's phone page and nothing else (the demo for examiners too).
-  // A manager's phone app (SCRUM-94): the counts and the stock, nothing else.
-  if (isManagerPhone()) return <ManagerPhone inventory={hash === '#inventory'} />;
   if (isCloudSite()) return ownerToken() || isDemo() || adminShop() ? <OwnerView phone /> : <OwnerWelcome />;
   if (setup === 'checking') return <div className="setup" aria-busy="true" />;
   if (setup === 'new') return <SetupWizard mode="first" />;
@@ -163,37 +146,16 @@ export function Root() {
   if (kitchenOnly) return <Kitchen onSwitch={staff ? lock : undefined} />;
   if (inKitchen) return <Kitchen onBack={fromRegister || needsLogin ? () => show(false) : undefined} />;
   if (needsLogin && !staff) return <LockScreen />;
-  // Managers and owners only (SCRUM-41); anyone else typing the address gets the Register.
-  // The server refuses a cashier's stock events anyway.
-  const mayManageStock = !needsLogin || (staff !== null && managesStock(staff.role));
   if (hash === OWNER && seesOwner) return <OwnerView onBack={() => go('')} />;
   // The developer's Shops screen (only answers on the developer's laptop: server/fleet.ts).
   if (hash === '#shops' && seesOwner) return <ShopsView onBack={() => go('')} />;
   if (fleetShop() && seesOwner) return <OwnerView key={hash} shop={fleetShop()!} onBack={() => go('#shops')} />;
-  if (hash === '#manager' && mayManageStock) return <ManagerView onRegister={() => go('')} />;
-  if (hash === '#inventory' && mayManageStock) {
-    return <InventoryView onFindSupplier={findSupplier} onRegister={() => go('')} />;
-  }
   // The owner changes the menu; managers can mark items sold out during service.
   if (hash === '#menu' && (!needsLogin || (staff !== null && seesTakings(staff.role)))) {
     return <MenuView owner={!needsLogin || staff?.role === 'owner'} onBack={() => go('')} />;
   }
-  // His recipes: the owner's alone, opened with his PIN on the screen itself.
-  if (hash === '#recipes' && (!needsLogin || staff?.role === 'owner')) return <RecipesView onRegister={() => go('')} />;
-  if (hash === '#suppliers' && mayManageStock) {
-    return <SupplierView filterIngredientId={filterIngredientId} onRegister={() => go('')} />;
-  }
   return (
     <App onKitchen={() => show(true)} onOwner={needsLogin && seesOwner ? () => go(OWNER) : undefined}
-      onSwitch={needsLogin ? lock : undefined} canManageStock={mayManageStock} />
+      onSwitch={needsLogin ? lock : undefined} />
   );
-}
-
-/** The manager's phone app: who it belongs to comes from the cloud once, then the counts. */
-function ManagerPhone({ inventory }: { inventory: boolean }) {
-  const [me, setMe] = useState<'loading' | 'ready' | string>('loading');
-  useEffect(() => { loadMe().then(() => setMe('ready'), (e: unknown) => setMe(e instanceof Error ? e.message : String(e))); }, []);
-  if (me === 'loading') return <div className="setup" aria-busy="true" />;
-  if (me !== 'ready') return <main className="setup"><p className="setup__error" role="alert">{me}</p></main>;
-  return inventory ? <InventoryView /> : <ManagerView />;
 }

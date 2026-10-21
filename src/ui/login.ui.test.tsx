@@ -157,39 +157,6 @@ test('manager mode checks the PIN with the server: a cashier’s PIN does not op
   expect(await screen.findByText('Managing · Ravi')).toBeTruthy();
 });
 
-test('cashiers cannot open stock views or see their command; managers can', async () => {
-  pair();
-  history.replaceState(null, '', '/#inventory');
-  const user = userEvent.setup();
-  render(<Root />);
-  await user.keyboard('1111');
-  await screen.findByRole('button', { name: 'Nimal: switch user' });
-  expect(screen.queryByRole('main', { name: 'Inventory' })).toBeNull();
-
-  await user.keyboard('{Control>}m{/Control}2580');
-  expect(await screen.findByText('Managing · Ravi')).toBeTruthy();
-  await user.keyboard('{Control>}k{/Control}');
-  expect(screen.getByRole('dialog', { name: 'Commands' })).toBeTruthy();
-  expect(screen.queryByText('Inventory and stock')).toBeNull();
-  expect(screen.queryByText('Suppliers')).toBeNull();
-  await user.keyboard('{Escape}');
-
-  await user.keyboard('{F4}2580');
-  expect(await screen.findByRole('main', { name: 'Inventory' })).toBeTruthy();
-});
-
-test.each([
-  ['manager', '2580'],
-  ['owner', '8765'],
-])('%s can open the suppliers view', async (_role, pin) => {
-  pair();
-  history.replaceState(null, '', '/#suppliers');
-  const user = userEvent.setup();
-  render(<Root />);
-  await user.keyboard(pin);
-  expect(await screen.findByRole('main', { name: 'Suppliers' })).toBeTruthy();
-});
-
 test('owner view: a cashier typing the address gets the Register; the owner or a manager gets the feed', async () => {
   pair();
   history.replaceState(null, '', '/#owner');
@@ -241,19 +208,4 @@ test('F3 flips a manager between the Register and the Owner view; a cashier stay
   expect(owner()).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Register' }));
   expect(panel()).toBeTruthy();
-});
-
-test("a manager has no Recipes link, and typing the address gives the Register: the recipes are the owner's", async () => {
-  pair();
-  history.replaceState(null, '', '/#inventory');
-  const user = userEvent.setup();
-  render(<Root />);
-  await user.keyboard('2580');
-  const nav = within(await screen.findByRole('navigation', { name: 'Owner sections' }));
-  expect(nav.queryByRole('link', { name: 'Recipes' })).toBeNull();
-  expect(nav.getByRole('link', { name: 'Menu' })).toBeTruthy();
-
-  act(() => { location.hash = '#recipes'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
-  expect(await screen.findByRole('complementary', { name: 'Current order' })).toBeTruthy();
-  expect(screen.queryByLabelText('Owner PIN')).toBeNull();
 });

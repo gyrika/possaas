@@ -1,11 +1,5 @@
-import { gapCases, shortStreaks, toCheck, weekLoss, type GapCase } from './gapReview.ts';
-import { costsToAnswer, marginsFell } from './costInsights.ts';
-import { inventoryFromEvents, isLowStock, isOutOfStock } from './inventory.ts';
-import type { InventoryItem, Supplier } from './inventoryData.ts';
 import { MENU, itemById } from './menu.ts';
 import { fmt } from './money.ts';
-import { formatQuantity } from './quantity.ts';
-import { reasonLabel } from './counting.ts';
 import type { SyncEvent } from './sync.ts';
 import type { Cents, OrderLine } from './types.ts';
 import { lineItemName } from './halves.ts';
@@ -37,12 +31,7 @@ export interface Insight {
   detail: string;
   /** The one tap: open the list behind the card. */
   action: { label: string; items: InsightItem[] };
-  /** Gaps for the owner to check (SCRUM-95): the list behind the card is answered, not just read. */
-  cases?: CaseView[];
 }
-
-/** One gap as the owner sees it: the case, the item's name and the gap in words. */
-export interface CaseView { gap: GapCase; name: string; gapText: string }
 
 export interface DaySummary {
   salesCents: Cents;
@@ -53,7 +42,6 @@ export interface DaySummary {
 export interface ShopData {
   events: readonly SyncEvent[];
   now: number;
-  stock?: { items: readonly InventoryItem[]; suppliers: readonly Supplier[] };
 }
 
 export interface SuggestionsService {
@@ -249,119 +237,6 @@ const kitchenSlow = (events: readonly SyncEvent[], now: number): Insight | null 
   };
 };
 
-const runningLow = (events: readonly SyncEvent[], stock: ShopData['stock'], now: number): Insight | null => {
-  if (!stock) return null;
-  // Only items someone has counted: a never-counted item is unknown, not empty.
-  const low = inventoryFromEvents(stock.items, events, { now }).filter((r) => !r.archived && r.counted && isLowStock(r));
-  if (!low.length) return null;
-  const names = low.slice(0, 3).map((r) => r.name).join(', ');
-  return {
-    id: 'running-low',
-    tone: 'attention',
-    title: `${plural(low.length, 'item')} running low`,
-    detail: `${names}${low.length > 3 ? ` and ${low.length - 3} more` : ''}.`,
-    action: {
-      label: 'Order list',
-      items: [...low].sort((a, b) => a.name.localeCompare(b.name))
-        .map((r) => ({
-          primary: r.name,
-          // Stock here is worked out from sales, never seen: out means "go and look", not "stop selling".
-          secondary: `${isOutOfStock(r) ? 'may be out: check the shelf' : `${plural(Math.round(r.onHandPacks * 10) / 10, 'pack')} left`} · ${r.supplierIds.map((id) =>
-            stock.suppliers.find((s) => s.id === id)?.name ?? id).join(', ')}`,
-        })),
-    },
-  };
-};
-
-/**
- * Counts this week that found less than the recipes said should be there: waste or
- * loss. Every shortfall is listed, the costliest first; no made-up "normal" amount.
- */
-const countedShort = (events: readonly SyncEvent[], stock: ShopData['stock'], now: number): Insight | null => {
-  if (!stock) return null;
-  const since = daysBack(startOfDay(now), 7);
-  const rows = inventoryFromEvents(stock.items, events, { now });
-  const short = new Map<string, number>(); // packs, below zero
-  /** The manager's reasons for this week's gaps (shelf counts), per item. */
-  const why = new Map<string, Set<string>>();
-  const undone = new Set(events.flatMap((e) => (e.type === 'stock.count_undone' ? [e.countId] : [])));
-  for (const e of events) {
-    if (e.at < since || e.at > now) continue;
-    if (e.type === 'stock.adjusted' && e.reason === 'audit') short.set(e.itemId, (short.get(e.itemId) ?? 0) + e.deltaPacks);
-    if (e.type === 'stock.counted' && !undone.has(e.id)) {
-      const packQty = rows.find((r) => r.id === e.itemId)?.packQty ?? 1;
-      short.set(e.itemId, (short.get(e.itemId) ?? 0) + (e.counted - e.expected) / packQty);
-      if (e.reason) why.set(e.itemId, new Set([...(why.get(e.itemId) ?? []), reasonLabel(e.reason)]));
-    }
-  }
-  const lost = [...short]
-    .map(([id, packs]) => ({ row: rows.find((r) => r.id === id), packs }))
-    .filter((x): x is { row: (typeof rows)[number]; packs: number } => !!x.row && x.packs < 0)
-    .map(({ row, packs }) => ({ row, qty: -packs * row.packQty, cents: Math.round(-packs * row.workingPriceCents), why: [...(why.get(row.id) ?? [])] }))
-    .sort((a, b) => b.cents - a.cents || a.row.name.localeCompare(b.row.name));
-  if (!lost.length) return null;
-  const [top] = lost;
-  const total = lost.reduce((n, l) => n + l.cents, 0);
-  // The week before, for scale (SCRUM-95): shelf counts only, the same way.
-  const { lastWeek } = weekLoss(events, now);
-  return {
-    id: 'counted-short',
-    tone: 'attention',
-    title: `${top.row.name} counted ${formatQuantity(top.qty, top.row.baseUnit)} below expected this week`,
-    detail: `${lost.length > 1 ? `And ${plural(lost.length - 1, 'more item')}. ` : ''}Rs ${fmt(total)} in all: waste or loss.${lastWeek > 0 ? ` Last week: Rs ${fmt(lastWeek)}.` : ''}`,
-    action: {
-      label: 'See counts',
-      items: lost.map((l) => ({
-        primary: l.row.name,
-        secondary: `${formatQuantity(l.qty, l.row.baseUnit)} below expected${l.why.length ? ` · ${l.why.join(', ')}` : ''}`,
-        amount: l.cents,
-      })),
-    },
-  };
-};
-
-/**
- * Gaps beyond the allowance the owner has not OK'd (SCRUM-95): each with the manager's
- * reason and photo; the owner says OK, or asks. Answers come back on the same card.
- */
-const gapsToCheck = (events: readonly SyncEvent[], stock: ShopData['stock']): Insight | null => {
-  const open = toCheck(gapCases(events));
-  if (!open.length) return null;
-  const items = stock ? inventoryFromEvents(stock.items, events) : [];
-  const cases = open.map((gap) => {
-    const item = items.find((i) => i.id === gap.itemId);
-    const qty = item ? formatQuantity(Math.abs(gap.delta), item.baseUnit) : `${Math.abs(gap.delta)}`;
-    return { gap, name: item?.name ?? gap.itemId, gapText: `${qty} ${gap.delta < 0 ? 'short' : 'over'} · ${reasonLabel(gap.reason)}` };
-  });
-  const answered = open.filter((g) => g.review.kind === 'asked' && g.review.answer).length;
-  const [first] = cases;
-  return {
-    id: 'gaps-to-check',
-    tone: 'attention',
-    title: open.length === 1 ? `${first.name}: ${first.gapText}` : `${plural(open.length, 'gap')} in the counts to check`,
-    detail: answered ? `${plural(answered, 'answer')} from the manager.`
-      : `With the manager's reason${open.some((g) => g.photo) ? ' and a photo of the shelf' : ''}. OK it, or ask.`,
-    action: { label: 'Check', items: [] },
-    cases,
-  };
-};
-
-/** An item short beyond the allowance three counts running: a pattern worth a look. */
-const shortStreak = (events: readonly SyncEvent[], stock: ShopData['stock']): Insight | null => {
-  const streaks = shortStreaks(events);
-  if (!streaks.length || !stock) return null;
-  const items = inventoryFromEvents(stock.items, events);
-  const named = streaks.map((s) => ({ ...s, name: items.find((i) => i.id === s.itemId)?.name ?? s.itemId }));
-  const [top] = named;
-  return {
-    id: 'short-streak',
-    tone: 'attention',
-    title: `${top.name} short ${top.counts} counts in a row`,
-    detail: `Rs ${fmt(top.cents)} over those counts. Not bad luck: worth a look at how it is kept or used.`,
-    action: { label: 'See items', items: named.map((s) => ({ primary: s.name, secondary: `short ${s.counts} counts in a row`, amount: s.cents })) },
-  };
-};
-
 /** Menu items ordered per item id, over a window. */
 const itemsSold = (events: readonly SyncEvent[], from: number, to: number) => {
   const sold = new Map<string, number>();
@@ -413,19 +288,13 @@ export const rulesSuggestions: SuggestionsService = {
     const salesCents = sales.reduce((n, s) => n + s.total, 0);
     return { salesCents, orders: sales.length, averageCents: sales.length ? Math.round(salesCents / sales.length) : 0 };
   },
-  insights({ events, now, stock }) {
+  insights({ events, now }) {
     const sales = salesFrom(events);
     return [
       salesVsUsual(sales, now),
       voidsToday(events, sales, now),
       discountsToday(events, sales, now),
       kitchenSlow(events, now),
-      runningLow(events, stock, now),
-      gapsToCheck(events, stock),
-      shortStreak(events, stock),
-      countedShort(events, stock, now),
-      marginsFell(events, stock, now),
-      costsToAnswer(events, stock, now),
       notSelling(events, sales, now),
       bestSeller(events, now),
     ].filter((x): x is Insight => x !== null).sort((a, b) => ORDER[a.tone] - ORDER[b.tone]);

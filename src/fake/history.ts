@@ -121,14 +121,5 @@ export function demoHistory(now: number, shopId = FAKE_SHOP_ID): SyncEvent[] {
     }
   }
 
-  // Stock, counted by the manager three days ago and used since: pizza flour and mozzarella run low.
-  const counted = today.getTime() - 3 * DAY + 10 * 60 * MIN;
-  const stock: [string, number][] = [['inv-0001', 4], ['inv-0006', 3], ['inv-0024', 6], ['inv-0025', 5]]; // flour, mozzarella, onion, tomato
-  for (const [itemId, packs] of stock) {
-    events.push({ type: 'stock.adjusted', id: id('stock'), shopId, at: counted, orderNumber: 0, actor: ravi, itemId, deltaPacks: packs });
-  }
-  events.push({ type: 'stock.adjusted', id: id('stock'), shopId, at: counted + DAY, orderNumber: 0, actor: ravi, itemId: 'inv-0001', deltaPacks: -3 });
-  events.push({ type: 'stock.adjusted', id: id('stock'), shopId, at: counted + 2 * DAY, orderNumber: 0, actor: ravi, itemId: 'inv-0006', deltaPacks: -3 });
-
   return events.filter((e) => e.at <= now).sort((a, b) => a.at - b.at);
 }

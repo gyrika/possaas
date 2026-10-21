@@ -2,10 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { demoHistory } from '../fake/history.ts';
 import { rulesSuggestions, salesFrom, type ShopData } from './insights.ts';
-import { SEED_INVENTORY, SEED_SUPPLIERS } from './inventoryData.ts';
 import type { SyncEvent } from './sync.ts';
 
-const stock = { items: SEED_INVENTORY, suppliers: SEED_SUPPLIERS };
 const friday = new Date(2026, 9, 9, 20, 30).getTime(); // a Friday evening, local time
 const ids = (data: ShopData) => rulesSuggestions.insights(data).map((i) => i.id);
 
@@ -14,17 +12,14 @@ const paid = (orderNumber: number, at: number, total: number): SyncEvent =>
   ({ type: 'order.paid', id: `p${orderNumber}-${at}`, shopId: 's', at, actor, orderNumber, total, tender: 'cash', tendered: total });
 
 test('the demo Friday: every kind of card, things needing a decision first, good news last', () => {
-  const insights = rulesSuggestions.insights({ events: demoHistory(friday), now: friday, stock });
-  assert.deepEqual(insights.map((i) => i.id), ['sales-vs-usual', 'voids', 'kitchen-slow', 'running-low', 'costs-to-answer', 'not-selling', 'best-seller']);
-  const [sales, voids, kitchen, low, costs, idle] = insights;
+  const insights = rulesSuggestions.insights({ events: demoHistory(friday), now: friday });
+  assert.deepEqual(insights.map((i) => i.id), ['sales-vs-usual', 'voids', 'kitchen-slow', 'not-selling', 'best-seller']);
+  const [sales, voids, kitchen, idle] = insights;
   assert.match(sales.title, /^Sales \d+% below a usual Friday$/);
   assert.match(voids.title, /voids today, \d+ by Ravi$/);
   assert.ok(voids.action.items.every((i) => i.secondary?.startsWith('Ravi')), 'each void says who and why');
   assert.match(kitchen.detail, /Usually \d+ min/);
-  assert.equal(low.title, '3 items running low'); // onion: taken by the day's pizzas (SCRUM-78)
-  assert.deepEqual(low.action.items.map((i) => i.primary).sort(), ['Mozzarella (Prabhat)', 'Onion', 'Pizza Flour']);
   assert.equal(idle.title, "BBQ Pork hasn't sold in 2 weeks");
-  assert.equal(costs.title, 'Food costs: 25 answers to go');
 });
 
 test('the summary counts today only, and a payment undone does not count', () => {
@@ -60,8 +55,7 @@ test('order numbers repeat (each screen counts from 1001): every payment is its 
 test('a new shop: no history, so no "usual" to compare with, and no false alarms', () => {
   const day = new Date(friday); day.setHours(0, 0, 0, 0);
   const events = Array.from({ length: 30 }, (_, i) => paid(i + 1, day.getTime() + (12 * 60 + i) * 60_000, 300000));
-  // Only the food-cost questions, which a new shop does have (its owner's recipes leave gaps).
-  assert.deepEqual(ids({ events, now: friday, stock }), ['costs-to-answer']);
+  assert.deepEqual(ids({ events, now: friday }), []);
 });
 
 test('sales well above usual is good news; within 20% says nothing', () => {
@@ -72,59 +66,4 @@ test('sales well above usual is good news; within 20% says nothing', () => {
   assert.equal(up[0].tone, 'good');
   assert.equal(up[0].title, 'Sales 50% above a usual Friday');
   assert.deepEqual(ids({ events: [...pastFridays, paid(1, at(0, 12 * 60), 1100000)], now: friday }), []);
-});
-
-test('running low counts only items someone has counted', () => {
-  const ravi = { id: 'r', name: 'Ravi', role: 'manager' as const };
-  const events: SyncEvent[] = [
-    { type: 'stock.adjusted', id: 's1', shopId: 's', at: 1, orderNumber: 0, actor: ravi, itemId: 'inv-0001', deltaPacks: 1 },
-    { type: 'stock.adjusted', id: 's2', shopId: 's', at: 2, orderNumber: 0, actor: ravi, itemId: 'inv-0006', deltaPacks: 9 },
-  ];
-  const low = rulesSuggestions.insights({ events, now: friday, stock });
-  assert.deepEqual(low.map((i) => i.title), ['1 item running low', 'Food costs: 25 answers to go']);
-  assert.match(low[0].action.items[0].secondary ?? '', /1 pack left · Prima/);
-});
-
-test('food costs: a price rise this week that lowers a margin is named, with what went up', () => {
-  const owner = { id: 'o', name: 'Owner', role: 'owner' as const };
-  const ravi = { id: 'r', name: 'Ravi', role: 'manager' as const };
-  const answer = (q: string, after: object, at: number): SyncEvent => ({ type: 'recipe.answer_set', id: `a-${q}`, shopId: 's', at, orderNumber: 0, actor: owner, question: q, before: null, after } as SyncEvent);
-  const answers: SyncEvent[] = [
-    answer('yield:Pizza Sauce Batch', { kind: 'yield', qty: 3600 }, 1),
-    answer('yield:Mozzarella Blend', { kind: 'yield', qty: 2000 }, 1),
-    answer('ingredient:Basil', { kind: 'price', cents: 20000, qty: 100 }, 1),
-  ];
-  assert.equal(ids({ events: answers, now: friday, stock }).includes('margins-fell'), false, 'no price change, no card');
-
-  const rise: SyncEvent = { type: 'stock.price_set', id: 'p1', shopId: 's', at: friday - 3 * 86_400_000, orderNumber: 0, actor: ravi, itemId: 'inv-0006', before: 510000, after: 714000 };
-  const card = rulesSuggestions.insights({ events: [...answers, rise], now: friday, stock: { ...stock, items: stock.items.map((i) => (i.id === 'inv-0006' ? { ...i, workingPriceCents: 714000 } : i)) } })
-    .find((i) => i.id === 'margins-fell')!;
-  assert.equal(card.tone, 'attention');
-  // Only items whose cost is complete can say a margin: the 4 pizzas these answers complete, both sizes.
-  assert.match(card.title, /^8 menu items earn less after price rises$/);
-  assert.ok(card.action.items.some((i) => i.primary === 'Margherita L'));
-  assert.match(card.detail, /Mozzarella \(Prabhat\) up 40%/);
-  assert.match(card.action.items[0].secondary ?? '', /^\d+% → \d+%$/);
-
-  const old: SyncEvent = { ...rise, id: 'p0', at: friday - 10 * 86_400_000 };
-  assert.equal(ids({ events: [...answers, old], now: friday, stock }).includes('margins-fell'), false, 'only this week counts');
-});
-
-test('a count below what the recipes expected this week: the costliest first, with what it cost', () => {
-  const manager = { id: 'm', name: 'Ravi', role: 'manager' as const };
-  const count = (id: string, itemId: string, deltaPacks: number, at: number, reason: 'audit' | 'receive' = 'audit'): SyncEvent =>
-    ({ type: 'stock.adjusted', id, shopId: 's', at, actor: manager, orderNumber: 0, itemId, deltaPacks, reason });
-  const day = 24 * 60 * 60 * 1000;
-  const events = [
-    count('c1', 'inv-0006', -0.3, friday - day), // Mozzarella (Prabhat): 600 g of a 2 kg block
-    count('c2', 'inv-0004', -0.01, friday - day), // a little salt
-    count('c3', 'inv-0001', -1, friday - 10 * day), // last month: not this week
-    count('c4', 'inv-0024', 0.2, friday - day), // more onion than expected: not a loss
-    count('r1', 'inv-0052', -1, friday - day, 'receive'), // a delivery fixed, not a count
-  ];
-  const card = rulesSuggestions.insights({ events, now: friday, stock }).find((i) => i.id === 'counted-short')!;
-  assert.equal(card.title, 'Mozzarella (Prabhat) counted 600 g below expected this week');
-  assert.deepEqual(card.action.items.map((i) => i.primary), ['Mozzarella (Prabhat)', SEED_INVENTORY.find((i) => i.id === 'inv-0004')!.name]);
-  assert.match(card.detail, /^And 1 more item\. Rs [\d,.]+ in all: waste or loss\.$/);
-  assert.equal(rulesSuggestions.insights({ events: [], now: friday, stock }).some((i) => i.id === 'counted-short'), false);
 });
