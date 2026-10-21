@@ -633,7 +633,17 @@ export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => voi
   };
 
   let body;
-  if (!state) body = <div className="setup__form"><div className="skeleton setup__skeleton" aria-label="Loading" /></div>;
+  if (!state && error) {
+    // No answer from the shop server: say so and offer one way on, never a box that loads for ever.
+    body = (
+      <div className="setup__form">
+        <h1>Shop setup can't open</h1>
+        <p className="setup__error" role="alert">The {PRODUCT_NAME} server on this PC is not answering, so nothing can be set up from here.</p>
+        <p className="menuv__lead">Close {PRODUCT_NAME} and open it again from the desktop. If this keeps happening, restart the PC.</p>
+        <p className="setup__row"><button type="button" className="cta closeday__print" onClick={() => { setError(''); void reload(); }}>Try again</button></p>
+      </div>
+    );
+  } else if (!state) body = <div className="setup__form"><div className="skeleton setup__skeleton" aria-label="Loading" /></div>;
   else if (mode === 'connect') body = <OwnerPin title="Connect this screen as the counter" onPin={(p) => void unlock(p)} error={error} />;
   else if (mode === 'manage' && !ownerPin) body = <OwnerPin title="Shop setup" onPin={(p) => void unlock(p)} error={error} />;
   else if (mode === 'manage') {

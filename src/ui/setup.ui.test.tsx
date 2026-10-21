@@ -310,3 +310,15 @@ test('Update now, and the new version does not start: the owner is told it went 
   expect(alert.textContent).toBe('Version 1.0.1 did not start on this PC, so Lume POS went back to 1.0.0. All sales are safe. Tell whoever looks after your POS.');
   expect(restartApp).not.toHaveBeenCalled();
 }, 20_000);
+
+test("Shop setup with the shop server not answering: says so and offers Try again, never loads for ever", async () => {
+  fakeShopServer({ done: true, status: 502 });
+  const user = userEvent.setup();
+  render(<SetupWizard mode="manage" onClose={() => {}} />);
+  expect(await screen.findByRole('heading', { name: "Shop setup can't open" })).toBeTruthy();
+  expect(screen.getByRole('alert').textContent).toMatch(/server on this PC is not answering/);
+  vi.unstubAllGlobals();
+  fakeShopServer({ done: true });
+  await user.click(screen.getByRole('button', { name: 'Try again' }));
+  expect(await screen.findByLabelText(/PIN/)).toBeTruthy(); // back to the owner's PIN
+});
