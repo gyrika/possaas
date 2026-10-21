@@ -1,4 +1,4 @@
-import { drawerOnly, escpos, opensDrawer, receipt } from '../domain/receipt.ts';
+import { drawerOnly, escpos, opensDrawer, receipt, type ReceiptLine } from '../domain/receipt.ts';
 import type { PaidOrder } from '../domain/types.ts';
 import { syncToken } from './pairing.ts';
 import { receiptWidth, shopHeader } from './shop.ts';
@@ -28,6 +28,9 @@ const base64 = (bytes: Uint8Array): string => {
 export async function printReceipt(paid: PaidOrder, cashier: string, { reprint = false } = {}): Promise<PrintResult> {
   return send(escpos(receipt(paid, { shop: shopHeader(), cashier, copy: reprint, width: receiptWidth() }), { openDrawer: !reprint && opensDrawer(paid) }));
 }
+
+/** Any lines on the receipt printer (the day's close), without opening the drawer. */
+export const printLines = (lines: ReceiptLine[]): Promise<PrintResult> => send(escpos(lines));
 
 /** Shop setup → Printer: opens the cash drawer (plugged into the printer) without printing anything. */
 export const openDrawer = (): Promise<PrintResult> => send(drawerOnly());

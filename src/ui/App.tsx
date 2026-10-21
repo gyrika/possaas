@@ -240,6 +240,7 @@ export function App({
       // The developer's laptop only (its server holds the admin password).
       ...(fleet ? [{ id: 'shops', label: "Shops: every shop's sales (developer)", run: () => { location.hash = '#shops'; } }] : []),
       { id: 'menu', label: 'Menu: prices, names, sold out', run: () => { location.hash = '#menu'; } },
+      { id: 'close', label: 'Close the day: count the cash', run: () => { location.hash = '#close'; } },
       // This screen's look; the current choice says "On".
       ...(['light', 'dark', 'auto'] as ThemeChoice[]).map((t) => ({
         id: `theme-${t}`, label: THEME_LABEL[t], hint: themeChoice() === t ? 'On' : undefined, run: () => setTheme(t),
