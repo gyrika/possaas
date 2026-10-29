@@ -42,7 +42,7 @@ export const fakeOrders = (now: number): Order[] => {
   ];
 };
 
-/** The rice & curry demo's shop (/?demo=rice): it takes payment before the order goes to the kitchen. */
+/** The rice & curry demo's shop (/?demo=rice): it takes payment before the order goes to the kitchen. Its logo (src/fake/bata-kade-logo.webp) is the shop's own. */
 export const FAKE_RICE_SHOP_DETAILS = { name: 'Bata Kade · බටකඩේ', place: 'Demo', footer: 'Thank you!', payFirst: true };
 
 /**

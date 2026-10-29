@@ -156,6 +156,50 @@ function ReceiptDetails({ shop, ownerPin }: { shop: NonNullable<SetupState['shop
   );
 }
 
+/** A picture the owner chose, made 256 px square (the middle of it) so it travels light: a WebP data: URL. */
+async function smallLogo(file: File): Promise<string> {
+  const img = await createImageBitmap(file);
+  const side = Math.min(img.width, img.height), size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  canvas.getContext('2d')?.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+  img.close();
+  return canvas.toDataURL('image/webp', 0.85);
+}
+
+/** The shop's logo beside its name in every screen's corner. Not on the receipt (the printer prints text). */
+function ShopLogo({ logo, ownerPin }: { logo: string; ownerPin?: string }) {
+  const [current, setCurrent] = useState(logo);
+  const [error, setError] = useState('');
+  const save = async (next: string | null) => {
+    setError('');
+    try {
+      await setupClient.setLogo(next, ownerPin);
+      setCurrent(next ?? '');
+      const now = shopDetails();
+      if (now) setShopDetails({ ...now, logo: next ?? '' });
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+  };
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    try { await save(await smallLogo(file)); }
+    catch { setError('That picture could not be opened. Try a PNG or JPEG.'); }
+  };
+  return (
+    <div className="setup__form" aria-label="Logo">
+      <h2 className="setup__subhead">Logo</h2>
+      <p className="setup__hint">Shown round, beside the shop's name on every screen. A square or round picture works best.</p>
+      <p className="setup__row">
+        {current && <img className="setup__logo" src={current} alt="Your logo" width={64} height={64} />}
+        <label className="chip setup__file">{current ? 'Change' : 'Choose a picture'}
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ''; }} /></label>
+        {current && <button type="button" className="chip" onClick={() => void save(null)}>Remove</button>}
+      </p>
+      {error && <p className="setup__error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
 /** "Did it come out? No": the most likely cause from what Windows knows, and clearing stuck receipts. */
 function PrinterTrouble({ ownerPin, onRetry }: { ownerPin?: string; onRetry: () => void }) {
   const [advice, setAdvice] = useState<Advice | null>(null);
@@ -273,6 +317,7 @@ function PrinterStep({ state, ownerPin, onNext, onRefresh }: { state: SetupState
         </div>
       )}
       {state.shop && <ReceiptDetails shop={state.shop} ownerPin={ownerPin} />}
+      {state.shop && <ShopLogo logo={state.shop.logo ?? ''} ownerPin={ownerPin} />}
       {chosen && (
         <>
           <p className="setup__row">

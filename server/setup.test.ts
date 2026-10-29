@@ -169,6 +169,22 @@ test("the shop's own name, town and receipt footer: for every screen, changed la
   await s.stop();
 });
 
+test("the shop's logo: beside its name on every screen, only a small picture, taken away with null", async () => {
+  const s = await start();
+  await s.post('/shop', { name: 'Bata Kade', place: 'Galle' });
+  await s.post('/staff', { name: 'Owner', role: 'owner', pin: '1234' });
+  await s.post('/finish');
+  const logo = 'data:image/webp;base64,UklGRg==';
+  assert.equal((await s.post('/logo', { logo })).status, 401);
+  assert.equal((await s.post('/logo', { logo: 'https://example.com/a.png', ownerPin: '1234' })).status, 400, 'a picture, never a link');
+  assert.equal((await s.post('/logo', { logo: `data:image/png;base64,${'A'.repeat(200_000)}`, ownerPin: '1234' })).status, 400, 'too big');
+  assert.equal((await s.post('/logo', { logo, ownerPin: '1234' })).status, 200);
+  assert.equal((await s.shop()).body.logo, logo);
+  assert.equal((await s.post('/logo', { logo: null, ownerPin: '1234' })).status, 200);
+  assert.equal((await s.shop()).body.logo, undefined);
+  await s.stop();
+});
+
 test('Shop setup → Shop: customers pay first, for every screen; changed later only with the owner\'s PIN', async () => {
   const s = await start();
   await s.post('/shop', { name: 'Rice Bowl', place: 'Galle' });

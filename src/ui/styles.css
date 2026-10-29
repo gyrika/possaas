@@ -100,7 +100,8 @@ button:active:not(:disabled) { transform: scale(0.97); transition: transform 60m
 /* ---------- shell ---------- */
 .register { height: 100dvh; display: flex; flex-direction: column; background: var(--ground); overflow: hidden; }
 .register__head { flex: 0 0 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; }
-.brand { font-size: 16px; font-weight: 500; letter-spacing: -0.3px; }
+.brand { font-size: 16px; font-weight: 500; letter-spacing: -0.3px; display: inline-flex; align-items: center; gap: 10px; }
+.brand__logo { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex: none; }
 .cashier { font-size: 14px; color: var(--ink-2); letter-spacing: -0.1px; }
 .corner { display: flex; align-items: center; gap: 6px; }
 .corner__who { font-size: 14px; font-weight: 600; letter-spacing: -0.1px; animation: fade 200ms var(--ease); }
@@ -590,6 +591,10 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
 .setup__field input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
 .setup__field--pin input { letter-spacing: 8px; max-width: 200px; }
 .setup__hint { margin: 0; font-size: 14px; color: var(--ink-2); }
+.setup__logo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+.setup__file { display: inline-flex; align-items: center; cursor: pointer; }
+.setup__file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.setup__file:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
 .setup__error { margin: 0; font-size: 15px; font-weight: 500; color: var(--bad); }
 .setup__foot { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 8px; }
 .setup__foot .cta { min-width: 200px; }

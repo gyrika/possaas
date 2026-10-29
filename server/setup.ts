@@ -44,7 +44,11 @@ export interface SetupContext {
 }
 
 /** What every screen and the receipt show (GET /api/v1/shop-details): the shop's own name, never the product's. */
-export interface ShopInfo { name: string; place: string; footer: string; paper: PaperWidth; payFirst: boolean }
+export interface ShopInfo { name: string; place: string; footer: string; paper: PaperWidth; payFirst: boolean; logo?: string }
+
+/** The logo the counter has already made small (256 px): a PNG, JPEG or WebP data: URL. */
+export const MAX_LOGO = 200_000;
+const LOGO = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
 
 export interface SetupState {
   done: boolean;
@@ -90,7 +94,7 @@ export function setupApi(ctx: SetupContext) {
     const s = ctx.settings.get();
     return s.shopId
       ? { id: s.shopId, name: s.shopName ?? s.shopId, place: s.place ?? '', footer: s.receiptFooter ?? DEFAULT_FOOTER, paper: s.paperWidth ?? 80,
-        payFirst: s.payFirst === true }
+        payFirst: s.payFirst === true, ...(s.logo ? { logo: s.logo } : {}) }
       : null;
   };
   const requireShop = () => {
@@ -124,7 +128,7 @@ export function setupApi(ctx: SetupContext) {
     /** For every screen on the shop's network (no PIN: it is printed on every receipt anyway). */
     publicShop(): ShopInfo | null {
       const s = shop();
-      return s ? { name: s.name, place: s.place, footer: s.footer, paper: s.paper, payFirst: s.payFirst } : null;
+      return s ? { name: s.name, place: s.place, footer: s.footer, paper: s.paper, payFirst: s.payFirst, ...(s.logo ? { logo: s.logo } : {}) } : null;
     },
 
     async state(): Promise<SetupState> {
@@ -166,6 +170,18 @@ export function setupApi(ctx: SetupContext) {
       const footer = typeof body.footer === 'string' ? body.footer.trim().slice(0, 120) : DEFAULT_FOOTER;
       ctx.settings.set({ shopName: name, place, receiptFooter: footer });
       return { shop: shop() };
+    },
+
+    /** Shop setup → Printer: the logo beside the shop's name on every screen; null takes it away. */
+    async setLogo(body: { logo?: unknown; ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      requireShop();
+      if (body.logo === null) { ctx.settings.set({ logo: undefined }); return { logo: null }; }
+      if (typeof body.logo !== 'string' || body.logo.length > MAX_LOGO || !LOGO.test(body.logo)) {
+        throw new SetupError(400, 'invalid', 'the logo is a PNG, JPEG or WebP picture under 200 KB');
+      }
+      ctx.settings.set({ logo: body.logo });
+      return { logo: body.logo };
     },
 
     /** Shop setup → Printer: 80 mm or 58 mm paper; the receipt is laid out for it. */

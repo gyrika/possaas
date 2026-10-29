@@ -9,7 +9,7 @@ import type { Station } from '../domain/types.ts';
 export interface StaffRow { id: string; name: string; role: Role; active: boolean }
 export interface SetupState {
   done: boolean;
-  shop: { id: string; name: string; place: string; footer: string; paper: 58 | 80; payFirst?: boolean } | null;
+  shop: { id: string; name: string; place: string; footer: string; paper: 58 | 80; payFirst?: boolean; logo?: string } | null;
   printer: string | null;
   printers: string[];
   /** USB printer ports with no printer: a receipt printer plugged in without its driver. */
@@ -34,6 +34,7 @@ export const setupClient = {
   nameShop: (name: string, place: string) => call<{ shopId: string; counterToken?: string }>('/shop', { name, place }),
   shopDetails: (d: { name: string; place: string; footer: string }, ownerPin?: string) =>
     call<{ shop: { id: string; name: string; place: string; footer: string } }>('/details', { ...d, ownerPin }),
+  setLogo: (logo: string | null, ownerPin?: string) => call<{ logo: string | null }>('/logo', { logo, ownerPin }),
   setPaper: (width: 58 | 80, ownerPin?: string) => call<{ paper: 58 | 80 }>('/paper', { width, ownerPin }),
   setPayWhen: (payFirst: boolean, ownerPin?: string) => call<{ payFirst: boolean }>('/pay-when', { payFirst, ownerPin }),
   printerState: (ownerPin?: string) => call<{ state: PrinterState }>('/printer/state', { ownerPin }),

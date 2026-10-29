@@ -195,7 +195,7 @@ export function createApp({ store, staticDir, printer, onStored, online, cloudSt
         const body = ((await readBody(req)) ?? {}) as Record<string, unknown>;
         const routes: Record<string, (b: Record<string, unknown>) => Promise<unknown>> = {
           '/shop': setup.nameShop, '/details': setup.shopDetails, '/printer': setup.setPrinter, '/printer/state': setup.printerState, '/printer/usb': setup.addUsbPrinter,
-          '/printer/clear': setup.clearPrinter, '/paper': setup.setPaper, '/pay-when': setup.setPayWhen, '/staff': setup.addStaff, '/staff/list': setup.staff,
+          '/printer/clear': setup.clearPrinter, '/logo': setup.setLogo, '/paper': setup.setPaper, '/pay-when': setup.setPayWhen, '/staff': setup.addStaff, '/staff/list': setup.staff,
           '/staff/remove': setup.removeStaff, '/pair': setup.pair, '/cloud': setup.connectCloud, '/finish': () => setup.finish(),
           '/support': setup.saveSupport, '/backup/drives': setup.backupDrives, '/backup/usb': setup.backupToUsb, '/update/check': setup.checkUpdate, '/update/install': setup.installUpdate, '/update/status': setup.updateStatus,
         };
