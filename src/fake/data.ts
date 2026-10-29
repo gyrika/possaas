@@ -7,7 +7,7 @@ import type { Actor } from '../domain/auth.ts';
 import type { StartingMenu } from '../domain/menuEdits.ts';
 import type { MenuItem, Order, Section } from '../domain/types.ts';
 
-export const FAKE_SHOP_ID = 'shop-demo-cheesybeez';
+export const FAKE_SHOP_ID = 'shop-demo-pizza';
 
 /** Fake staff and their PINs. PINs are not secrets; they only open the fake auth service. */
 export const FAKE_STAFF: { pin: string; actor: Actor }[] = [
@@ -43,7 +43,7 @@ export const fakeOrders = (now: number): Order[] => {
 };
 
 /** The rice & curry demo's shop (/?demo=rice): it takes payment before the order goes to the kitchen. */
-export const FAKE_RICE_SHOP_DETAILS = { name: 'Bata Kade · බත් කඩේ', place: 'Demo', footer: 'Thank you!', payFirst: true };
+export const FAKE_RICE_SHOP_DETAILS = { name: 'Bata Kade · බටකඩේ', place: 'Demo', footer: 'Thank you!', payFirst: true };
 
 /**
  * /?demo=rice: a rice & curry shop's menu, Medium and Large. The PRICES ARE PLACEHOLDERS, not any
@@ -77,7 +77,7 @@ export const FAKE_RICE_START: StartingMenu = {
 };
 
 /** The demo's shop (/?demo): its name, town and receipt footer, as Shop setup would give them. */
-export const FAKE_SHOP_DETAILS = { name: 'CheesyBeez', place: 'Thalwila', footer: 'Thank you!' };
+export const FAKE_SHOP_DETAILS = { name: 'Sample Pizza', place: 'Demo', footer: 'Thank you!' };
 
 /**
  * What the ordering page's /api/v1/shop answers in `npm run dev` (vite.config.ts), so the page shows a
@@ -85,7 +85,7 @@ export const FAKE_SHOP_DETAILS = { name: 'CheesyBeez', place: 'Thalwila', footer
  * page shows hours only once the owner gives them (the cloud's ORDER_HOURS).
  */
 export const FAKE_ORDER_SHOP = {
-  name: 'CheesyBeez Thalwila',
+  name: 'Sample Pizza',
   open: true,
   hours: { opens: 11 * 60, closes: 21 * 60 },
   phone: null,

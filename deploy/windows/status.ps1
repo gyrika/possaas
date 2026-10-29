@@ -1,4 +1,4 @@
-# CheesyBeez POS: one-screen health check, for when you connect from far away (AnyDesk).
+# Lume POS: one-screen health check, for when you connect from far away (AnyDesk).
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 function Show([string]$label, [bool]$ok, [string]$detail) {
@@ -9,7 +9,7 @@ function Show([string]$label, [bool]$ok, [string]$detail) {
 }
 
 Write-Host ''
-Write-Host "CheesyBeez POS on $env:COMPUTERNAME  ($(Get-Date -Format 'yyyy-MM-dd HH:mm'))"
+Write-Host "Lume POS on $env:COMPUTERNAME  ($(Get-Date -Format 'yyyy-MM-dd HH:mm'))"
 Write-Host ''
 
 $up = Test-Server
@@ -34,7 +34,7 @@ $task = Get-ScheduledTask -TaskName $TaskServer -ErrorAction SilentlyContinue
 Show 'Starts with PC' ([bool]$task) $(if ($task) { "task: $($task.State)" } else { 'missing: run install.ps1' })
 
 # The POS's own MySQL if it has one, otherwise the PC's.
-$mysql = Get-Service -Name 'CheesyBeezMySQL' -ErrorAction SilentlyContinue
+$mysql = Get-Service -Name 'LumePOSMySQL' -ErrorAction SilentlyContinue
 if (-not $mysql) { $mysql = Get-Service -Name 'MySQL*' -ErrorAction SilentlyContinue | Select-Object -First 1 }
 Show 'MySQL' ($mysql -and $mysql.Status -eq 'Running') $(if ($mysql) { "$($mysql.Name): $($mysql.Status)" } else { 'no MySQL service found' })
 
@@ -49,7 +49,7 @@ if ($envValues.ContainsKey('PRINTER')) {
   Show 'Printer' $false 'none set: receipts go to server\prints (dry run). Rerun install.ps1 to choose one.'
 }
 
-$last = Get-ChildItem $Backups -Filter 'cheesybeez-*.sql' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$last = Get-ChildItem $Backups -Filter 'lumepos-*.sql' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 $fresh = $last -and $last.LastWriteTime -gt (Get-Date).AddHours(-30)
 Show 'Backup' $fresh $(if ($last) { "$($last.Name), $([math]::Round((Get-Item $last.FullName).Length / 1KB)) KB" } else { 'none yet' })
 

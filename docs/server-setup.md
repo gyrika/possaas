@@ -68,10 +68,10 @@ The MySQL steps below remain for anyone who sets `DATABASE_URL`.
    npm run server
    ```
 6. Pair each device **once**. The shop id must be the one the app stamps on its events
-   (today `shop-demo-cheesybeez`, from `src/fake/data.ts`, until real logins: SCRUM-40/41):
+   (today `shop-demo-pizza`, from `src/fake/data.ts`, until real logins: SCRUM-40/41):
    ```sh
-   npm run server:device -- --kind counter --shop shop-demo-cheesybeez --name "CheesyBeez Thalwila"
-   npm run server:device -- --kind kitchen --shop shop-demo-cheesybeez --host <PC address>:8080
+   npm run server:device -- --kind counter --shop shop-demo-pizza --name "Bata Kade Galle"
+   npm run server:device -- --kind kitchen --shop shop-demo-pizza --host <PC address>:8080
    ```
    Each prints a link with `?pair=<token>`. Open it on that device; the app keeps the token and
    removes it from the address bar. The server stores only a hash of the token, so a lost link
@@ -79,9 +79,9 @@ The MySQL steps below remain for anyone who sets `DATABASE_URL`.
 7. Add the staff, each with their own 4-digit PIN (SCRUM-40). Roles: `cashier`, `manager`,
    `owner`, `kitchen`. Two people can never share a PIN.
    ```sh
-   npm run server:staff -- add --shop shop-demo-cheesybeez --name Nimal --role cashier --pin <4 digits>
-   npm run server:staff -- list --shop shop-demo-cheesybeez
-   npm run server:staff -- remove --shop shop-demo-cheesybeez --id <id from list>
+   npm run server:staff -- add --shop shop-demo-pizza --name Nimal --role cashier --pin <4 digits>
+   npm run server:staff -- list --shop shop-demo-pizza
+   npm run server:staff -- remove --shop shop-demo-pizza --id <id from list>
    ```
    Someone who leaves is removed (their PIN stops at once); to bring them back, add them again
    with a new PIN.

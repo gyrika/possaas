@@ -1,5 +1,5 @@
 /**
- * Photos for cheesybeez.com, by menu item id: src/order/photos/<item id>.webp (240 × 240, cards show
+ * Photos for the ordering page, by menu item id: src/order/photos/<item id>.webp (240 × 240, cards show
  * them at 96px). Imported, not in public/, so only the ordering site ships them, not the counter PC.
  *
  * For now these are stock photos from Unsplash (free licence, no attribution needed), chosen to

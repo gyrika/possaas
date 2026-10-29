@@ -4,7 +4,7 @@ import { nextCounterUpdate, type CounterUpdate, type HealthSeen } from '../domai
 import { isCloudSite } from '../services/pairing.ts';
 
 /**
- * Serves whoever walks up to the counter (or looks at the kitchen screen) while CheesyBeez updates
+ * Serves whoever walks up to the counter (or looks at the kitchen screen) while Lume POS updates
  * itself: they already know the POS; the one thing they need is why it stopped answering and when
  * it is back. Downloading: a small notice, the counter still works. Installing, starting or going
  * back: the whole screen says so. The new version answering: the screens reload into it, then

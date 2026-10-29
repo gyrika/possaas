@@ -1,5 +1,5 @@
 /**
- * What the counter shows while CheesyBeez Station updates itself (station-update.ps1).
+ * What the counter shows while Lume POS updates itself (station-update.ps1).
  * The updater writes its step to update-status.json; the shop server passes it on in its health
  * check; this decides what a cashier walking up to the counter sees, so nobody is left wondering
  * why the screen stopped answering. Pure: the screen (src/ui/UpdateScreen.tsx) only draws it.

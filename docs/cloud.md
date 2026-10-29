@@ -1,6 +1,6 @@
 # The cloud copy (SCRUM-61)
 
-**Live:** https://cheesybeez-cloud.cheesybeez-cloud.workers.dev (Cloudflare Workers + D1, free plan).
+**Live:** https://melo.cheesybeez-cloud.workers.dev (Cloudflare Workers + D1, free plan).
 
 ```
  Shop PC: server + MySQL            the truth for selling; works with no internet
@@ -34,26 +34,26 @@ starts copying at once; the owner's phone QR code works from then on. Later: Sho
 - The code is a Worker secret, never in the code or the repo. Give it only to whoever installs a shop.
   Change it any time (old shops keep working; only new shops need the new code):
   `npx wrangler secret put ENROL_CODE` (in `cloud/`), then type the new code.
-- Each shop's id ends in 4 random characters (`cheesybeez-thalwila-7b39`), so two shops with the same
+- Each shop's id ends in 4 random characters (`bata-kade-galle-7b39`), so two shops with the same
   name, or a test install, never mix in the cloud.
-- On Windows the key is kept in `C:\ProgramData\CheesyBeez`, readable by administrators and Windows only.
+- On Windows the key is kept in `C:\ProgramData\LumePOS`, readable by administrators and Windows only.
 
 ## Setting it up for a shop by hand (only for special cases)
 
 From your laptop, in `cloud/` (logged in with `npx wrangler login`):
 
 ```sh
-npm run device -- --shop cheesybeez-thalwila --name "CheesyBeez Thalwila" \
-  --url https://cheesybeez-cloud.cheesybeez-cloud.workers.dev
+npm run device -- --shop bata-kade-galle --name "Bata Kade Galle" \
+  --url https://melo.cheesybeez-cloud.workers.dev
 ```
 
 It prints three lines. Put them in the shop PC's `server\.env` (over AnyDesk) and restart the
 server (or run `deploy\windows\update.ps1 -Force`):
 
 ```
-CLOUD_URL=https://cheesybeez-cloud.cheesybeez-cloud.workers.dev
+CLOUD_URL=https://melo.cheesybeez-cloud.workers.dev
 CLOUD_TOKEN=…
-CLOUD_SHOP=cheesybeez-thalwila
+CLOUD_SHOP=bata-kade-galle
 ```
 
 Check: `http://localhost:8080/api/v1/health` shows `"cloud": { "upToDateAt": …, "lastError": null }`,
@@ -66,16 +66,16 @@ that holds only the Owner view, so nobody on the internet reaches a register the
 
 - Give the owner their link, once (from your laptop, in `cloud/`):
   ```sh
-  npm run device -- --shop cheesybeez-thalwila --kind owner --url https://cheesybeez-cloud.cheesybeez-cloud.workers.dev
+  npm run device -- --shop bata-kade-galle --kind owner --url https://melo.cheesybeez-cloud.workers.dev
   ```
   It prints `…/?owner=<secret>#owner`. Send it privately; opening it on the phone keeps the secret
   there and removes it from the address bar. "Add to Home Screen" makes it an app icon.
 - The phone reads the cloud copy: the first visit loads the shop's history, then every minute only
   what is new. The secret can read that shop's events and nothing else; it can never write.
-- **For the examiners:** `https://cheesybeez-cloud.cheesybeez-cloud.workers.dev/?demo#owner` shows the
+- **For the examiners:** `https://melo.cheesybeez-cloud.workers.dev/?demo#owner` shows the
   demo feed (made-up sales), no secret needed. The bare address shows a short welcome page.
 - A lost phone: there is no screen yet to withdraw a link; until there is, delete that device's row
-  in D1 (`npx wrangler d1 execute cheesybeez-cloud --remote --command "DELETE FROM devices WHERE id = '…'"`).
+  in D1 (`npx wrangler d1 execute melo --remote --command "DELETE FROM devices WHERE id = '…'"`).
   The phone then shows "This link is no longer valid".
 
 ## The manager's phone (SCRUM-94)
@@ -92,7 +92,7 @@ Add to Home Screen (iPhone) makes it an app (`/manager.webmanifest`).
   counts wait in the cloud and arrive when it is back.
 - **Shelf photos** for a big gap go to the cloud (`POST /api/v1/photos`, table `photos`, ~150 KB
   each, about 50 MB a year for one shop). The counter fetches one the first time it is shown
-  and keeps a copy in `C:\ProgramData\CheesyBeez\photos`.
+  and keeps a copy in `C:\ProgramData\LumePOS\photos`.
 - No PIN on the phone: it is that person's phone. A lost phone: delete its row in `devices`
   (as for the owner's phone).
 
@@ -103,14 +103,14 @@ needs: missing recipe amounts, menu items, receipt details. The key is a Worker 
 a wrong key shows "This link is not right". Every save is kept (`owner_answers`); the newest is the
 answer. Read it with `npm run answers` (in `cloud/`). New key: `npx wrangler secret put ANSWER_KEY`.
 
-## Online orders (cheesybeez.com)
+## Online orders
 
-Customers order ahead on **cheesybeez.com** (or `/order` on any cloud address), collect at the
+Customers order ahead on `/order` on the shop's cloud address, collect at the
 shop and pay there. Rules in `src/domain/online.ts`; the cloud side in `cloud/src/online.ts`;
 the shop side in `server/online.ts`; the counter's **Online** key in `src/ui/Online.tsx`; the
 customer page in `src/order/` (built as `order.html` by `npm run build:cloud`).
 
-On **cheesybeez.com**, customers can install the ordering page from their browser as a lightweight,
+On `/order`, customers can install the ordering page from their browser as a lightweight,
 full-screen app: use **Install app** when offered, or on iPhone/iPad use **Share → Add to Home
 Screen**. The app caches its page and static assets so it can open with a weak connection. Shop
 availability and order status are always fetched live; the cached menu may be stale offline.
@@ -140,7 +140,7 @@ the cloud address root.
 | Run it locally (simulated D1) | `npm run migrate:local` then `npm run dev` (port 8787) |
 | Deploy a new version (builds the owner's page too) | `npm run deploy` |
 | Apply a new schema file from `cloud/migrations/` | `npm run migrate` |
-| Look at the data | `npx wrangler d1 execute cheesybeez-cloud --remote --command "SELECT COUNT(*) FROM events"` |
+| Look at the data | `npx wrangler d1 execute melo --remote --command "SELECT COUNT(*) FROM events"` |
 
 **Release order: cloud first, then the shop PCs.** The cloud checks every event with the same
 rules as the shop server (`server/validate.ts`). An older cloud refuses event types it does not

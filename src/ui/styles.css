@@ -108,7 +108,7 @@ button:active:not(:disabled) { transform: scale(0.97); transition: transform 60m
 .corner__key:hover { background: var(--chip); color: var(--ink); }
 a.corner__key { text-decoration: none; }
 .kchip { margin-right: 6px; }
-/* Online orders (cheesybeez.com): a quiet key that pulses only while an order waits for an answer. */
+/* Online orders: a quiet key that pulses only while an order waits for an answer. */
 .ochip__dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .ochip__dot--on { background: var(--ok); }
 .ochip__dot--warn { background: var(--warn); }
@@ -246,7 +246,7 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
 .waiting--paid .waiting__no, .waiting--paid .waiting__total { color: var(--ink-2); }
 .status { flex: 0 0 auto; align-self: center; margin-left: 10px; padding: 4px 10px; border-radius: 980px; font-size: 12px; font-weight: 600; letter-spacing: 0; white-space: nowrap; vertical-align: middle; }
 .status--unpaid { background: var(--primary); color: var(--on-primary); }
-/* Online orders (cheesybeez.com): the one accent, outlined, so it reads as "where from", not "state". */
+/* Online orders: the one accent, outlined, so it reads as "where from", not "state". */
 .status--online { border: 1px solid var(--gold); color: var(--gold); padding: 3px 9px; }
 .status--paid { background: var(--chip); color: var(--ink-2); }
 .waiting__row .status { margin-left: 0; }
@@ -636,7 +636,7 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
 .shops__warn { color: var(--warn); }
 .shops__bad, .shops__error { color: var(--bad); }
 
-/* CheesyBeez updating itself (UpdateScreen.tsx): a small notice while it downloads, the whole screen while it restarts. */
+/* Lume POS updating itself (UpdateScreen.tsx): a small notice while it downloads, the whole screen while it restarts. */
 .upd-note { position: fixed; left: 40px; bottom: 28px; z-index: 30; max-width: min(560px, calc(100vw - 80px)); display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 22px; border-radius: 980px; background: var(--surface); color: var(--ink); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14); font-size: 15px; font-weight: 500; animation: rise 200ms var(--ease); }
 .upd-note__dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--warn); animation: kchip-pulse 1.4s var(--ease) infinite; }
 .upd { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: var(--ground); animation: fade 200ms var(--ease); }

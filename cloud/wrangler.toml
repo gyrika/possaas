@@ -1,4 +1,4 @@
-# The Lume POS cloud copy (its own, apart from the CheesyBeez cloud). Deploy from this folder: npm run deploy
+# The Lume POS cloud copy . Deploy from this folder: npm run deploy
 name = "melo"
 main = "src/worker.ts"
 compatibility_date = "2025-06-01"

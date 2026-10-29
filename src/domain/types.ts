@@ -21,7 +21,7 @@ export interface Section {
   /** A shop with two kitchens: which one makes it. Absent = the only (or the left) kitchen. */
   station?: Station;
 }
-/** Small labels on cheesybeez.com's cards. Each must come from the owner: never inferred. */
+/** Small labels on the ordering page's cards. Each must come from the owner: never inferred. */
 export type MenuTag = 'popular' | 'veg';
 
 export interface Variant {
@@ -124,7 +124,7 @@ export interface Order {
   adjust?: Adjustments;
   /** Latest manager change, shown on the order as "Edited by <name>, <time>". */
   edited?: { by: string; at: number };
-  /** Came from cheesybeez.com: the customer collects it, by the time the counter promised. */
+  /** Ordered online: the customer collects it, by the time the counter promised. */
   online?: OnlineMark;
 }
 

@@ -1,5 +1,5 @@
-# Every 5 minutes (as SYSTEM): if GitHub has a newer CheesyBeez Station, install it quietly. The
-# installer keeps the shop's data (C:\ProgramData\CheesyBeez) and restarts the POS.
+# Every 5 minutes (as SYSTEM): if GitHub has a newer Lume POS, install it quietly. The
+# installer keeps the shop's data (C:\ProgramData\LumePOS) and restarts the POS.
 # Never during service: it installs nothing if a sale was recorded in the last 15 minutes,
 # unless the owner pressed "Update now" in Shop setup (-Force). At 4 am (-Nightly) it first
 # makes the nightly backup of the shop's data.
@@ -12,7 +12,7 @@ param([switch]$Force, [switch]$Nightly)
 $UpdatesOn = $true
 $Releases = 'gyrika/lume-releases'
 $ErrorActionPreference = 'Stop'
-$data = Join-Path $env:ProgramData 'CheesyBeez'
+$data = Join-Path $env:ProgramData 'LumePOS'
 $log = Join-Path $data 'logs\update.log'
 function Note([string]$text) { Add-Content -Path $log -Value ("[{0:yyyy-MM-dd HH:mm}] {1}" -f (Get-Date), $text) }
 
@@ -57,7 +57,7 @@ function Answers([string]$version) {
 # Downloads with real progress: 5% to 60% of the bar.
 function Download([string]$url, [string]$file, [bool]$show) {
   $req = [Net.HttpWebRequest]::Create($url)
-  $req.UserAgent = 'CheesyBeez-Station'
+  $req.UserAgent = 'Lume-POS'
   $res = $req.GetResponse()
   $total = $res.ContentLength
   $in = $res.GetResponseStream()

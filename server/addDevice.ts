@@ -7,13 +7,13 @@ import { mysqlStore, type DeviceKind } from './store.ts';
  * device: the app keeps the token and starts syncing. The token is stored on
  * the server only as a SHA-256 hash, so a lost link means a new device entry.
  *
- *   npm run server:device -- --kind counter --shop shop-demo-cheesybeez --name "CheesyBeez Thalwila"
+ *   npm run server:device -- --kind counter --shop shop-demo-pizza --name "Bata Kade Galle"
  */
 const { values } = parseArgs({
   options: {
     kind: { type: 'string', default: 'counter' },
     shop: { type: 'string' },
-    name: { type: 'string', default: 'CheesyBeez' },
+    name: { type: 'string', default: 'Lume POS' },
     host: { type: 'string', default: `localhost:${process.env.PORT ?? 8080}` },
   },
 });

@@ -99,7 +99,7 @@ test("owners' phones: the shop server adds one, the phone reads, and a lost phon
 
 test('a new shop registers itself with the shop code, and only with it', async () => {
   const { call } = await setup();
-  const enrol = (code: string, shopId = 'shop-new-ab12') => call('/api/v1/enrol', null, { code, shopId, name: 'CheesyBeez Thalwila' });
+  const enrol = (code: string, shopId = 'shop-new-ab12') => call('/api/v1/enrol', null, { code, shopId, name: 'Bata Kade Galle' });
   assert.equal((await enrol('WRONG-CODE')).status, 403);
   assert.equal((await enrol('')).status, 403);
   assert.equal((await enrol('cb-7k3m-q9xz', 'Bad Id!')).status, 400);
@@ -120,24 +120,19 @@ test("the owner's app description carries this phone's key, and nothing else", a
   assert.equal(ownerManifest('"><script>').start_url, '/#owner', 'anything that is not a key is ignored');
   assert.equal(ownerManifest(key).display, 'standalone');
   assert.ok(ownerManifest(key).icons.some((i) => i.purpose === 'maskable'));
-  assert.equal(orderManifest(true).start_url, '/');
-  assert.equal(orderManifest(true).scope, '/');
-  assert.equal(orderManifest(false).start_url, '/order');
-  assert.equal(orderManifest(false).scope, '/order');
-  assert.equal(orderManifest(true).display, 'standalone');
-  assert.ok(orderManifest(true).icons.some((i) => i.purpose === 'maskable'));
+  assert.equal(orderManifest().start_url, '/order');
+  assert.equal(orderManifest().scope, '/order');
+  assert.equal(orderManifest().display, 'standalone');
+  assert.ok(orderManifest().icons.some((i) => i.purpose === 'maskable'));
 });
 
 test('customer and owner apps have separate home-screen scopes', async () => {
   const { default: worker } = await import('./worker.ts');
   const { d1 } = fakeD1();
   const env = { DB: d1, ORDER_SHOP: 'shop-a', ASSETS: { fetch: async () => new Response('asset') } };
-  const customer = await worker.fetch(new Request('https://cheesybeez.com/order.webmanifest'), env);
-  assert.equal(customer.status, 200);
-  assert.equal(customer.headers.get('content-type'), 'application/manifest+json');
-  assert.equal((await customer.json()).start_url, '/');
-
-  const cloud = await worker.fetch(new Request('https://cheesybeez-cloud.workers.dev/order.webmanifest'), env);
+  const cloud = await worker.fetch(new Request('https://melo.example.workers.dev/order.webmanifest'), env);
+  assert.equal(cloud.status, 200);
+  assert.equal(cloud.headers.get('content-type'), 'application/manifest+json');
   const cloudManifest = await cloud.json();
   assert.equal(cloudManifest.start_url, '/order');
   assert.equal(cloudManifest.scope, '/order', 'the customer app must not replace the owner app at /');

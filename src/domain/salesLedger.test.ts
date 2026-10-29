@@ -14,7 +14,7 @@ const sent = (id: string, ticketId: string, lines: OrderLine[]): OrderEvent =>
   ({ ...base(id), type: 'order.sent', ticketId, lines, addOn: false });
 
 test('Sri Lanka date and time, UTC+05:30', () => {
-  const at = Date.UTC(2026, 9, 14, 19, 0); // 19:00 UTC is 00:30 the next day in Thalwila
+  const at = Date.UTC(2026, 9, 14, 19, 0); // 19:00 UTC is 00:30 the next day in Sri Lanka
   assert.equal(lkDate(at), '2026-10-15');
   assert.equal(lkTime(at), '00:30');
 });

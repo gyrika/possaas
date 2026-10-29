@@ -1,4 +1,4 @@
-const CACHE_PREFIX = 'cheesybeez-order-';
+const CACHE_PREFIX = 'lume-order-';
 const CACHE = `${CACHE_PREFIX}v1`;
 const STATIC_PATHS = ['/assets/', '/icons/'];
 const APP_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, '') || '/';

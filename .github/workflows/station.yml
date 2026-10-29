@@ -1,4 +1,4 @@
-# Releases CheesyBeez on every merge to main, in the safe order:
+# Releases Lume POS on every merge to main, in the safe order:
 #   tests -> cloud staging -> cloud live -> Setup.exe (next version, e.g. 1.0.4 -> 1.0.5)
 #   -> installed and checked on Windows Server 2022 and 2025 -> GitHub Release.
 # Shop PCs look every 5 minutes and install it once their counter has been quiet for 15 minutes.
@@ -10,7 +10,7 @@
 # Setup.exe. The installers are published twice: here (private, with the code) and, when the secret
 # RELEASES_TOKEN is set (a token that may write only to gyrika/lume-releases), in gyrika/lume-releases,
 # the public place shop PCs update from and the cloud's /get page links to. Public goes last.
-name: CheesyBeez Station
+name: Lume POS
 
 on:
   push:
@@ -123,14 +123,14 @@ jobs:
           if ($LASTEXITCODE) { throw "The backup failed ($LASTEXITCODE)" }
           if (-not (Get-ChildItem (Join-Path $data 'backups') -Filter 'pos-*-nightly.sqlite')) { throw 'No backup file' }
 
-      - name: Build the counter app (CheesyBeez POS.exe)
-        run: dotnet build deploy/station/pos-app/CheesyBeezPOS.csproj -c Release -o deploy/station/stage/pos-app
+      - name: Build the counter app (LumePOS.exe)
+        run: dotnet build deploy/station/pos-app/LumePOS.csproj -c Release -o deploy/station/stage/pos-app
 
       - name: Check the counter app has everything it needs
         shell: pwsh
         run: |
           Get-ChildItem deploy/station/stage/pos-app -Recurse -File | ForEach-Object { $_.FullName.Replace((Resolve-Path deploy/station/stage/pos-app).Path, '') }
-          foreach ($need in 'CheesyBeezPOS.exe', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll') {
+          foreach ($need in 'LumePOS.exe', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll') {
             if (-not (Get-ChildItem deploy/station/stage/pos-app -Recurse -Filter $need)) { throw "The counter app is missing $need" }
           }
 
@@ -138,9 +138,9 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" deploy\station\CheesyBeez.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" deploy\station\LumePOS.iss
           if ($LASTEXITCODE) { throw "ISCC failed ($LASTEXITCODE)" }
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" /DOffline deploy\station\CheesyBeez.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Q "/DAppVersion=${{ steps.version.outputs.value }}" /DOffline deploy\station\LumePOS.iss
           if ($LASTEXITCODE) { throw "ISCC failed for the offline Setup.exe ($LASTEXITCODE)" }
           Get-ChildItem deploy\station\Output
 
@@ -172,8 +172,8 @@ jobs:
     name: install (${{ matrix.setup }}, ${{ matrix.os }})
     env:
       VERSION: ${{ needs.build.outputs.version }}
-      APP: C:\Program Files\CheesyBeez Station
-      DATA: C:\ProgramData\CheesyBeez
+      APP: C:\Program Files\Lume POS
+      DATA: C:\ProgramData\LumePOS
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -188,7 +188,7 @@ jobs:
           $p = Start-Process $exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$log" -Wait -PassThru
           if ($p.ExitCode) { Get-Content $log -Tail 60; throw "Setup.exe failed ($($p.ExitCode))" }
           # A test build is 0.0.N: the updater would replace it with the latest release, so it is switched off here.
-          Disable-ScheduledTask -TaskName 'CheesyBeez Station update' | Out-Null
+          Disable-ScheduledTask -TaskName 'Lume POS update' | Out-Null
 
       - name: The shop server answers as this version
         shell: pwsh
@@ -207,8 +207,8 @@ jobs:
       - name: Windows is set up (tasks, firewall, WebView2)
         shell: pwsh
         run: |
-          foreach ($t in 'CheesyBeez Station', 'CheesyBeez Station update', 'CheesyBeez Station nightly') { Get-ScheduledTask -TaskName $t | Out-Null }
-          $fw = Get-NetFirewallRule -DisplayName 'CheesyBeez POS'
+          foreach ($t in 'Lume POS', 'Lume POS update', 'Lume POS nightly') { Get-ScheduledTask -TaskName $t | Out-Null }
+          $fw = Get-NetFirewallRule -DisplayName 'Lume POS'
           if ("$($fw.Profile)" -ne 'Any') { throw "The firewall rule is for $($fw.Profile) networks only: tablets on a 'Public' Wi-Fi are kept out" }
           if ("$(($fw | Get-NetFirewallAddressFilter).RemoteAddress)" -ne 'LocalSubnet') { throw 'The firewall rule must let in the shop network only' }
           if (-not (Test-Path "$env:PUBLIC\Desktop\Lume POS.lnk")) { throw 'No "Lume POS" shortcut on the desktop' }
@@ -219,17 +219,17 @@ jobs:
       - name: The counter app starts and stays open
         shell: pwsh
         run: |
-          $already = @(Get-Process CheesyBeezPOS -ErrorAction SilentlyContinue)
+          $already = @(Get-Process LumePOS -ErrorAction SilentlyContinue)
           if ($already) { "Already running before the test: $($already | ForEach-Object { "$($_.Id) started $($_.StartTime)" })" }
-          $p = Start-Process "$env:APP\pos-app\CheesyBeezPOS.exe" -WorkingDirectory "$env:APP\pos-app" -PassThru
+          $p = Start-Process "$env:APP\pos-app\LumePOS.exe" -WorkingDirectory "$env:APP\pos-app" -PassThru
           Start-Sleep 15
           if ($p.HasExited) {
             # Evidence for why: another copy (it steps aside with exit 0), .NET or WebView2 errors.
-            Get-Process CheesyBeezPOS, msedgewebview2 -ErrorAction SilentlyContinue | Format-Table -AutoSize Id, ProcessName, StartTime
+            Get-Process LumePOS, msedgewebview2 -ErrorAction SilentlyContinue | Format-Table -AutoSize Id, ProcessName, StartTime
             Get-WinEvent -LogName Application -MaxEvents 60 -ErrorAction SilentlyContinue |
-              Where-Object { $_.ProviderName -match '\.NET Runtime|Application Error|Windows Error Reporting' -or $_.Message -match 'CheesyBeezPOS|msedgewebview2' } |
+              Where-Object { $_.ProviderName -match '\.NET Runtime|Application Error|Windows Error Reporting' -or $_.Message -match 'LumePOS|msedgewebview2' } |
               Format-List TimeCreated, ProviderName, Message
-            Get-ChildItem "$env:LOCALAPPDATA\CheesyBeez\pos-app" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 30 FullName
+            Get-ChildItem "$env:LOCALAPPDATA\LumePOS\pos-app" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 30 FullName
             throw "The counter app closed by itself (exit $($p.ExitCode))"
           }
           Stop-Process -Id $p.Id -Force
@@ -241,11 +241,11 @@ jobs:
           $out = 'C:\cb-receipt.prn'
           Add-PrinterDriver -Name 'Generic / Text Only'
           Add-PrinterPort -Name $out
-          Add-Printer -Name 'CheesyBeez test' -DriverName 'Generic / Text Only' -PortName $out
-          $bytes = [byte[]](0x1B, 0x40) + [Text.Encoding]::ASCII.GetBytes("CheesyBeez test`n") + [byte[]](0x1D, 0x56, 0x00)
+          Add-Printer -Name 'Lume POS test' -DriverName 'Generic / Text Only' -PortName $out
+          $bytes = [byte[]](0x1B, 0x40) + [Text.Encoding]::ASCII.GetBytes("Lume POS test`n") + [byte[]](0x1D, 0x56, 0x00)
           $in = Join-Path $env:RUNNER_TEMP 'receipt.bin'
           [IO.File]::WriteAllBytes($in, $bytes)
-          & "$env:APP\app\server\rawprint.ps1" -Printer 'CheesyBeez test' -Path $in
+          & "$env:APP\app\server\rawprint.ps1" -Printer 'Lume POS test' -Path $in
           foreach ($i in 1..15) { if ((Test-Path $out) -and (Get-Item $out).Length -ge $bytes.Length) { break }; Start-Sleep 1 }
           $got = [IO.File]::ReadAllBytes($out)
           if ([Convert]::ToBase64String($got) -ne [Convert]::ToBase64String($bytes)) { throw "The printer got $($got.Length) bytes, not the $($bytes.Length) sent" }
@@ -271,7 +271,7 @@ jobs:
         shell: pwsh
         run: |
           Start-Process "$env:APP\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait
-          if (Get-ScheduledTask -TaskName 'CheesyBeez Station' -ErrorAction SilentlyContinue) { throw 'The server task is still there' }
+          if (Get-ScheduledTask -TaskName 'Lume POS' -ErrorAction SilentlyContinue) { throw 'The server task is still there' }
           if (-not (Test-Path "$env:DATA\pos.sqlite")) { throw "The uninstall removed the shop's database" }
 
   release:

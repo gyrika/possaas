@@ -22,7 +22,7 @@ const sessionOf = (r: Response) => r.headers.get('set-cookie')!.split(';')[0];
 async function setup() {
   const { d1, db } = fakeD1();
   for (const [shop, token] of [['shop-a', 'server-a'], ['shop-b', 'server-b']]) {
-    db.prepare('INSERT INTO shops (id, name, created_at) VALUES (?, ?, 0)').run(shop, shop === 'shop-a' ? 'CheesyBeez Thalwila' : 'Test shop');
+    db.prepare('INSERT INTO shops (id, name, created_at) VALUES (?, ?, 0)').run(shop, shop === 'shop-a' ? 'Bata Kade Galle' : 'Test shop');
     db.prepare("INSERT INTO devices (id, tenant_id, kind, token_hash, created_at) VALUES (?, ?, 'shop_server', ?, 0)")
       .run(`dev-${token}`, shop, await sha256Hex(token));
   }
@@ -53,12 +53,12 @@ test('each copy pass tells the cloud the version and the last update; the admin 
 
   const page = await (await admin(req('/admin', { session })))!.text();
   assert.match(page, /1 of 2 online · latest release 1\.0\.5 · 1 still to update/);
-  assert.match(page, /CheesyBeez Thalwila/);
+  assert.match(page, /Bata Kade Galle/);
   assert.match(page, /Version 1\.0\.4 · 1\.0\.5 waiting/);
   assert.match(page, /Updated 1\.0\.4 · 5 min ago/);
   assert.match(page, /Last sale 1 min ago · 1 events today/);
   assert.match(page, /Offline · never/, 'the test shop never checked in');
-  assert.ok(page.indexOf('CheesyBeez Thalwila') < page.indexOf('Test shop'), 'online shops first');
+  assert.ok(page.indexOf('Bata Kade Galle') < page.indexOf('Test shop'), 'online shops first');
 });
 
 test('a shop server cannot store anything odd in its status', () => {
@@ -88,7 +88,7 @@ test('the admin reads any shop, and only once signed in', async () => {
   }
   const box = await (await admin(req('/admin')))!.text();
   assert.match(box, /Admin password/, 'not signed in: the sign-in box');
-  assert.doesNotMatch(box, /CheesyBeez Thalwila/, '...and nothing about any shop');
+  assert.doesNotMatch(box, /Bata Kade Galle/, '...and nothing about any shop');
 });
 
 test('signing in: the right password gives a 30-day session cookie no script can read; nothing else does', async () => {
@@ -120,7 +120,7 @@ test('the laptop\'s server reads the shop list and events with the password as a
   const { admin } = await setup();
   const key = (k: string) => ({ headers: { authorization: `Bearer ${k}` } });
   const list = await (await admin(req('/admin/api/shops', key(KEY))))!.json();
-  assert.deepEqual(list.shops.map((r: { name: string }) => r.name).sort(), ['CheesyBeez Thalwila', 'Test shop']);
+  assert.deepEqual(list.shops.map((r: { name: string }) => r.name).sort(), ['Bata Kade Galle', 'Test shop']);
   assert.equal(list.latest, '1.0.5');
   assert.equal((await admin(req('/admin/api/shops/shop-a/events', key(KEY))))!.status, 200);
   assert.equal((await admin(req('/admin/api/shops', key('wrong'))))!.status, 403);
@@ -147,7 +147,7 @@ test('times read the way the shop lives them', () => {
 
 test('shops with something wrong come first, each problem in one line', async () => {
   const { cloud, admin, db, session } = await setup();
-  // The test shop checks in now with a failed update; CheesyBeez Thalwila has never checked in.
+  // The test shop checks in now with a failed update; Bata Kade Galle has never checked in.
   const failed = JSON.stringify({ phase: 'failed', percent: 0, version: '1.0.5', at: NOW - 2 * 3_600_000 });
   await cloud(new Request('https://cloud.test/api/v1/replica', {
     method: 'POST',
@@ -166,7 +166,7 @@ test('shops with something wrong come first, each problem in one line', async ()
   const { shops } = await (await admin(req('/admin/api/shops', { session })))!.json();
   assert.deepEqual(shops.map((s: { name: string; problems: { level: string; text: string }[] }) => [s.name, s.problems.map((p) => `${p.level}: ${p.text}`)]), [
     ['Test shop', ['bad: Update to 1.0.5 failed 2 h ago', 'warn: Cash short at the last 3 closes: Rs 300 in all']],
-    ['CheesyBeez Thalwila', ['warn: Has not checked in yet']],
+    ['Bata Kade Galle', ['warn: Has not checked in yet']],
   ]);
   const page = await (await admin(req('/admin', { session })))!.text();
   assert.match(page, /2 need attention · 1 of 2 online/);

@@ -70,7 +70,7 @@ export interface CloudOptions {
    * setup wizard, and the shop server registers itself. Without it, nobody can add a shop.
    */
   enrolCode?: string;
-  /** The shop that cheesybeez.com takes online orders for (wrangler.toml ORDER_SHOP). */
+  /** The shop that /order takes online orders for (wrangler.toml ORDER_SHOP). */
   orderShop?: string;
   /** Its daily hours, "11:00-21:00" (wrangler.toml ORDER_HOURS); unset = the page shows no times. */
   orderHours?: string;

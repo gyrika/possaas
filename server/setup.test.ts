@@ -41,10 +41,10 @@ test('a new shop: name it (this PC becomes the counter), add staff, finish only 
   const { printers: _printers, usbPorts: _usb, ...fresh } = await s.state();
   assert.deepEqual(fresh, { done: false, shop: null, printer: null, cloud: false });
 
-  const named = await s.post('/shop', { name: 'CheesyBeez', place: 'Thalwila' });
-  assert.match(named.body.shopId, /^cheesybeez-thalwila-[0-9a-f]{4}$/, 'a short random ending keeps shops apart in the cloud');
+  const named = await s.post('/shop', { name: 'Bata Kade', place: 'Galle' });
+  assert.match(named.body.shopId, /^bata-kade-galle-[0-9a-f]{4}$/, 'a short random ending keeps shops apart in the cloud');
   assert.ok((await s.store.deviceByToken(named.body.counterToken))?.kind === 'counter', 'this PC is paired as the counter');
-  assert.equal((await s.post('/shop', { name: 'CheesyBeez', place: 'Thalwila' })).body.counterToken, undefined, 'only once');
+  assert.equal((await s.post('/shop', { name: 'Bata Kade', place: 'Galle' })).body.counterToken, undefined, 'only once');
 
   await s.post('/staff', { name: 'Nimal', role: 'cashier', pin: '1111' });
   assert.equal((await s.post('/finish')).status, 409, 'no owner yet');
@@ -60,7 +60,7 @@ test('a new shop: name it (this PC becomes the counter), add staff, finish only 
 
 test("after setup every change needs the owner's PIN; a manager's will not do", async () => {
   const s = await start();
-  await s.post('/shop', { name: 'CheesyBeez', place: 'Thalwila' });
+  await s.post('/shop', { name: 'Bata Kade', place: 'Galle' });
   await s.post('/staff', { name: 'Nisal Vimukthi', role: 'owner', pin: '1234' });
   await s.post('/staff', { name: 'Ravi', role: 'manager', pin: '2580' });
   await s.post('/finish');
@@ -82,11 +82,11 @@ test('QR links: a kitchen tablet on the Wi-Fi, an owner phone via the cloud', as
     return Response.json({ id: 'cloud-x', token: 'phone-token' });
   }) as typeof fetch;
   const s = await start(cloud);
-  await s.post('/shop', { name: 'CheesyBeez', place: 'Thalwila' });
+  await s.post('/shop', { name: 'Bata Kade', place: 'Galle' });
 
   const kitchen = await s.post('/pair', { kind: 'kitchen' });
   if (kitchen.status === 200) {
-    assert.match(kitchen.body.link, /^http:\/\/[\d.]+:8080\/\?pair=[\w-]+&shop=cheesybeez-thalwila-[0-9a-f]{4}&as=kitchen#kitchen$/);
+    assert.match(kitchen.body.link, /^http:\/\/[\d.]+:8080\/\?pair=[\w-]+&shop=bata-kade-galle-[0-9a-f]{4}&as=kitchen#kitchen$/);
   } else {
     assert.equal(kitchen.body.error, 'not_ready'); // a machine with no network at all
   }
@@ -100,7 +100,7 @@ test('QR links: a kitchen tablet on the Wi-Fi, an owner phone via the cloud', as
   await s.stop();
 
   const noCloud = await start();
-  await noCloud.post('/shop', { name: 'CheesyBeez' });
+  await noCloud.post('/shop', { name: 'Bata Kade' });
   assert.equal((await noCloud.post('/pair', { kind: 'owner' })).status, 409);
   await noCloud.stop();
 });
@@ -110,7 +110,7 @@ test('only the shop PC itself may set up', () => {
   assert.equal(isLocal(req('127.0.0.1')), true);
   assert.equal(isLocal(req('::1')), true);
   assert.equal(isLocal(req('192.168.1.20')), false, 'a tablet on the Wi-Fi');
-  assert.equal(shopIdFor('CheesyBeez', 'Thalwila'), 'cheesybeez-thalwila');
+  assert.equal(shopIdFor('Bata Kade', 'Galle'), 'bata-kade-galle');
   assert.equal(shopIdFor('Café  Ño!', ''), 'cafe-no');
 });
 
@@ -122,7 +122,7 @@ test('the cloud step: the shop code connects this shop, and copying starts witho
     return body.code === 'CB-7K3M-Q9XZ' ? Response.json({ token: 'new-server-token' }) : Response.json({}, { status: 403 });
   }) as typeof fetch;
   const s = await start(cloud, false);
-  const { body: { shopId } } = await s.post('/shop', { name: 'CheesyBeez', place: 'Thalwila' });
+  const { body: { shopId } } = await s.post('/shop', { name: 'Bata Kade', place: 'Galle' });
   assert.equal((await s.state()).cloud, false);
 
   const wrong = await s.post('/cloud', { code: 'NOPE' });
@@ -131,7 +131,7 @@ test('the cloud step: the shop code connects this shop, and copying starts witho
   assert.equal((await s.post('/cloud', { code: 'CB-7K3M-Q9XZ' })).status, 200);
   const secret = s.settings.get().cloudSecret!;
   assert.ok(secret.length >= 40, "the shop's own secret, kept in its settings");
-  assert.deepEqual(sent.at(-1), { url: 'https://cloud.test/api/v1/enrol', code: 'CB-7K3M-Q9XZ', shopId, name: 'CheesyBeez Thalwila', secret });
+  assert.deepEqual(sent.at(-1), { url: 'https://cloud.test/api/v1/enrol', code: 'CB-7K3M-Q9XZ', shopId, name: 'Bata Kade Galle', secret });
   assert.equal(sent[0].secret, secret, 'the same secret every time: a lost answer can be tried again');
   assert.equal(s.settings.get().cloudToken, 'new-server-token');
   assert.equal(s.connected(), 1, 'copying started straight away');
@@ -141,7 +141,7 @@ test('the cloud step: the shop code connects this shop, and copying starts witho
 
 test("updates: the owner's PIN after setup; development has nothing to install", async () => {
   const s = await start();
-  await s.post('/shop', { name: 'CheesyBeez', place: 'Thalwila' });
+  await s.post('/shop', { name: 'Bata Kade', place: 'Galle' });
   await s.post('/staff', { name: 'Nisal Vimukthi', role: 'owner', pin: '1234' });
   await s.post('/finish');
   assert.equal((await s.post('/update/check', {})).status, 401);

@@ -7,7 +7,7 @@ const rs = (n: number) => n * 100;
 const opt = (id: string, label: string, price = 0): Option => ({ id, label, price });
 
 /**
- * The real CheesyBeez printed menus (Pizza p1–2, Burger, Pasta): the SAMPLE menu, for the demo
+ * A real pizza shop's printed menus (Pizza p1–2, Burger, Pasta): the SAMPLE menu, for the demo
  * and the tests (which lock its prices). A new shop starts empty and builds its own (menuEdits.ts).
  * Names, descriptions and prices are copied from the printed menus; item numbers are the
  * numbers staff and customers use. Sinhala/Tamil labels are not filled in
@@ -121,7 +121,7 @@ const TAGS: Readonly<Record<string, MenuTag[]>> = {
 
 export const MENU: MenuItem[] = PRINTED.map((m) => (TAGS[m.id] ? { ...m, tags: TAGS[m.id] } : m));
 
-/** The sample's sections: cook times from the CheesyBeez owner (2026-10-12). */
+/** The sample's sections: cook times from the sample pizza shop's owner (2026-10-12). */
 export const SAMPLE_SECTIONS: Section[] = [
   { id: 'pizza', name: 'Pizza', cookMinutes: 10, sizes: pizzaSizes(0, 0).map(({ price: _p, ...z }) => z), adds: PIZZA_ADDS },
   { id: 'burger', name: 'Burgers', cookMinutes: 3, sizes: [], adds: BURGER_ADDS },

@@ -8,7 +8,7 @@ using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
-namespace CheesyBeez
+namespace LumePOS
 {
     /// <summary>
     /// The counter's window onto the shop server on this PC (http://localhost:8080): full screen,
@@ -24,7 +24,7 @@ namespace CheesyBeez
         private static void Main()
         {
             // One window is enough: a second start just brings the first one forward.
-            using (var single = new Mutex(true, "CheesyBeezPOS.Counter", out var first))
+            using (var single = new Mutex(true, "LumePOS.Counter", out var first))
             {
                 if (!first) { NativeFocus.Existing("Lume POS"); return; }
                 NativeFocus.SharpOnScaledScreens();
@@ -46,7 +46,7 @@ namespace CheesyBeez
         {
             this.url = url;
             Text = "Lume POS";
-            Icon = new Icon(typeof(Program).Assembly.GetManifestResourceStream("CheesyBeez.app.ico"));
+            Icon = new Icon(typeof(Program).Assembly.GetManifestResourceStream("LumePOS.app.ico"));
             BackColor = Color.FromArgb(0xF2, 0xF1, 0xEF);
             FormBorderStyle = FormBorderStyle.None;     // full screen: no title bar, no edges
             WindowState = FormWindowState.Maximized;    // borderless + maximised covers the taskbar too
@@ -57,7 +57,7 @@ namespace CheesyBeez
         private async Task StartAsync()
         {
             // The app's own storage (the counter's pairing, its settings), apart from any browser.
-            var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CheesyBeez", "pos-app");
+            var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LumePOS", "pos-app");
             var env = await CoreWebView2Environment.CreateAsync(null, data);
             await web.EnsureCoreWebView2Async(env);
             var core = web.CoreWebView2;

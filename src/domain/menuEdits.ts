@@ -3,7 +3,7 @@ import type { Category, Cents, MenuItem, Option, Section, SizeId } from './types
 
 /**
  * The owner's own menu, as events on top of a starting menu (a new shop starts empty; the demo
- * starts from the CheesyBeez sample in menu.ts, and "Back to how it was" is always one tap).
+ * starts from the pizza sample in menu.ts, and "Back to how it was" is always one tap).
  * Each change is an event like a sale: who, when, before and after, so it reaches every screen,
  * the cloud and online ordering, is audited, and can be undone.
  *

@@ -1,4 +1,4 @@
-// Draws the CheesyBeez icon (one honey-amber honeycomb cell on the app's near-black) at every size the
+// Draws the Lume POS icon (one honey-amber honeycomb cell on the app's near-black) at every size the
 // apps need, with no image tools: PNG and ICO are written by hand. Run: node scripts/make-icons.mjs
 import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';

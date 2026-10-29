@@ -1,4 +1,4 @@
-# CheesyBeez POS: installs the newest version from GitHub (main). Run as administrator,
+# Lume POS: installs the newest version from GitHub (main). Run as administrator,
 # over AnyDesk, or by itself at 4 am if install.ps1 was told to.
 #   update.ps1          refuses while orders are coming in (any event in the last 15 minutes)
 #   update.ps1 -Force   updates anyway

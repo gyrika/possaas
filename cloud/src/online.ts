@@ -15,7 +15,7 @@ import { HttpError, json, randomToken, sha256Hex } from './http.ts';
 export interface OnlineContext {
   db: D1Like;
   now: () => number;
-  /** The shop that cheesybeez.com takes orders for (wrangler.toml ORDER_SHOP). */
+  /** The shop that /order takes orders for (wrangler.toml ORDER_SHOP). */
   orderShop?: string;
   /** Its daily hours, "11:00-21:00" (wrangler.toml ORDER_HOURS). */
   orderHours?: string;

@@ -30,7 +30,7 @@ export interface AppOptions {
   printer?: RawPrinter;
   /** New events were stored for this shop (the cloud copy follows; online orders become ready or collected). */
   onStored?: (tenantId: string, events: SyncEvent[]) => void;
-  /** Online orders from cheesybeez.com (server/online.ts), once the cloud is connected. */
+  /** Online orders (the cloud's /order page) (server/online.ts), once the cloud is connected. */
   online?: () => Online | null;
   /** The cloud copy's state, shown by the health check (null: no cloud copy set up). */
   cloudStatus?: () => ReplicaStatus | null;

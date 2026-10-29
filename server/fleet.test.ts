@@ -10,7 +10,7 @@ const cloud = (async (url: string | URL | Request, init?: RequestInit) => {
   const auth = new Headers(init?.headers).get('authorization');
   if (auth !== 'Bearer the-admin-password') return new Response('{}', { status: 403 });
   const path = new URL(String(url)).pathname + new URL(String(url)).search;
-  if (path === '/admin/api/shops') return Response.json({ shops: [{ id: 'shop-a', name: 'CheesyBeez Thalwila' }], latest: '1.0.5' });
+  if (path === '/admin/api/shops') return Response.json({ shops: [{ id: 'shop-a', name: 'Bata Kade Galle' }], latest: '1.0.5' });
   if (path === '/admin/api/shops/shop-a/events?after=0&limit=500') return Response.json({ events: [], lastSeq: 0, more: false, serverTime: 1 });
   return new Response('{}', { status: 404 });
 }) as typeof fetch;
@@ -26,7 +26,7 @@ async function start(key: string | null) {
 test('with the admin password, this computer sees every shop and a shop\'s events', async () => {
   const s = await start('the-admin-password');
   assert.deepEqual(await (await s.get('/api/v1/fleet')).json(), { available: true });
-  assert.equal((await (await s.get('/api/v1/fleet/shops')).json()).shops[0].name, 'CheesyBeez Thalwila');
+  assert.equal((await (await s.get('/api/v1/fleet/shops')).json()).shops[0].name, 'Bata Kade Galle');
   assert.equal((await s.get('/api/v1/fleet/shops/shop-a/events?after=0')).status, 200);
   await s.stop();
 });

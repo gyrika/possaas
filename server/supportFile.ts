@@ -44,9 +44,9 @@ const ps = (script: string): [string, string[]] => ['powershell.exe', ['-NoProfi
 const WINDOWS_CHECKS: [string, [string, string[]]][] = [
   ['Windows', ps('Get-CimInstance Win32_OperatingSystem | Format-List Caption, Version, BuildNumber, OSArchitecture, LastBootUpTime')],
   ['Printers', ps('Get-Printer | Format-Table -AutoSize Name, DriverName, PortName, PrinterStatus')],
-  ['Scheduled tasks', ps("Get-ScheduledTask -TaskName 'CheesyBeez Station*' | ForEach-Object { $i = $_ | Get-ScheduledTaskInfo; '{0}: {1}, last run {2}, result {3}' -f $_.TaskName, $_.State, $i.LastRunTime, $i.LastTaskResult }")],
+  ['Scheduled tasks', ps("Get-ScheduledTask -TaskName 'Lume POS*' | ForEach-Object { $i = $_ | Get-ScheduledTaskInfo; '{0}: {1}, last run {2}, result {3}' -f $_.TaskName, $_.State, $i.LastRunTime, $i.LastTaskResult }")],
   ['WebView2', ['reg.exe', ['query', 'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', '/v', 'pv']]],
-  ['Firewall', ps("Get-NetFirewallRule -DisplayName 'CheesyBeez POS' | Format-List DisplayName, Enabled, Profile, Action")],
+  ['Firewall', ps("Get-NetFirewallRule -DisplayName 'Lume POS' | Format-List DisplayName, Enabled, Profile, Action")],
   ['Network', ps("Get-NetConnectionProfile | Format-Table -AutoSize Name, InterfaceAlias, NetworkCategory, IPv4Connectivity")],
   ['Antivirus', ps("Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntivirusProduct | Format-Table -AutoSize displayName, productState")],
 ];
@@ -148,7 +148,7 @@ export async function saveSupportFile(o: SupportOptions): Promise<{ path: string
 // The Start menu's "Lume POS support file" (station-support.ps1): works even when the POS does not start.
 if (import.meta.main) {
   const station = fileURLToPath(new URL('../../', import.meta.url));
-  const dataDir = process.argv[2] ?? process.env.DATA_DIR ?? join(process.env.ProgramData ?? 'C:\\ProgramData', 'CheesyBeez');
+  const dataDir = process.argv[2] ?? process.env.DATA_DIR ?? join(process.env.ProgramData ?? 'C:\\ProgramData', 'LumePOS');
   const version = existsSync(join(station, 'version.txt')) ? readFileSync(join(station, 'version.txt'), 'utf8').trim() : 'development';
   const envFile = join(dataDir, 'station.env');
   const port = Number((existsSync(envFile) && /^\s*PORT\s*=\s*(\d+)/m.exec(readFileSync(envFile, 'utf8'))?.[1]) || process.env.PORT || 8080);

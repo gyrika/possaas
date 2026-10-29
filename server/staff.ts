@@ -6,9 +6,9 @@ import { PinTaken, mysqlStore } from './store.ts';
 
 /**
  * Staff and PINs, until the owner gets a screen for it (Owner view).
- *   npm run server:staff -- list   --shop shop-demo-cheesybeez
- *   npm run server:staff -- add    --shop shop-demo-cheesybeez --name Nimal --role cashier --pin 1234
- *   npm run server:staff -- remove --shop shop-demo-cheesybeez --id staff-…
+ *   npm run server:staff -- list   --shop shop-demo-pizza
+ *   npm run server:staff -- add    --shop shop-demo-pizza --name Nimal --role cashier --pin 1234
+ *   npm run server:staff -- remove --shop shop-demo-pizza --id staff-…
  * Roles: cashier, manager, owner, kitchen. The PIN is stored only as a hash.
  */
 const { values, positionals } = parseArgs({

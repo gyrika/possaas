@@ -7,7 +7,7 @@ import type { OrderLine, SizeId } from '../domain/types.ts';
 import { FAKE_SHOP_ID, FAKE_STAFF } from './data.ts';
 
 /**
- * FAKE: five weeks of believable CheesyBeez trading, for the Owner view in
+ * FAKE: five weeks of believable pizza-shop trading, for the Owner view in
  * /?demo and for tests. Deterministic (seeded), so a demo looks the same every
  * time. Normal days have a lunch and a dinner rush, mostly cash, a discount or
  * a void now and then. TODAY is deliberately a bad day, so every kind of

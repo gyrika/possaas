@@ -4,7 +4,7 @@ import { CMD, RECEIPT_WIDTH, escpos, opensDrawer, receipt, receiptText, twoCols,
 import { totals } from './totals.ts';
 import type { Order, PaidOrder, Tender } from './types.ts';
 
-const SHOP = { name: 'CheesyBeez', lines: ['Thalwila'], footer: 'Thank you!' };
+const SHOP = { name: 'Sample Pizza', lines: ['Galle'], footer: 'Thank you!' };
 
 const at = new Date(2026, 9, 12, 19, 42).getTime(); // local time, as the receipt prints it
 
@@ -27,8 +27,8 @@ const busy: Order = {
 test('the receipt as it prints: items, adjustments, discount, cash and change', () => {
   const text = receiptText(receipt(pay(busy, 'cash', 1000000), { shop: SHOP, cashier: 'Nimal' }));
   assert.equal(text, [
-    '              C h e e s y B e e z',
-    '                    Thalwila',
+    '            S a m p l e   P i z z a',
+    '                     Galle',
     '------------------------------------------------',
     'Order 1043                     12 Oct 2026 19:42',
     'Cashier: Nimal',
@@ -84,7 +84,7 @@ test('ESC/POS bytes: init, drawer first, styles reset, ASCII only, then feed and
   assert.ok(![...escpos([{ text: 'x' }])].some((b, i, a) => b === 0x1b && a[i + 1] === 0x70), 'no drawer kick unless asked');
   assert.deepEqual([...escpos([{ text: 'é' }])].slice(5, 6), [0x3f], 'non-ASCII prints as ? rather than garbage');
   const text = (t: string) => String.fromCharCode(...[...escpos([{ text: t }])].slice(5, -8)); // after init + left, before the newline, left and cut
-  assert.equal(text('Bata Kade · බත් කඩේ'), 'Bata Kade', 'Sinhala words are left off, not printed as ????');
+  assert.equal(text('Bata Kade · බටකඩේ'), 'Bata Kade', 'Sinhala words are left off, not printed as ????');
 });
 
 test('two columns and wrapping', () => {

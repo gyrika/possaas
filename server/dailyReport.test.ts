@@ -67,6 +67,6 @@ test('daily reports: a PDF the moment the day is closed; after 5 am one from the
 });
 
 test("on Windows the reports go where the counter finds them: Public Documents", () => {
-  assert.match(defaultReportsDir('C:\\ProgramData\\CheesyBeez', 'win32'), /Documents[\\/]Lume POS daily reports$/);
+  assert.match(defaultReportsDir('C:\\ProgramData\\LumePOS', 'win32'), /Documents[\\/]Lume POS daily reports$/);
   assert.equal(existsSync(defaultReportsDir('/nowhere', 'linux')), false);
 });

@@ -21,7 +21,7 @@ beforeEach(() => {
     if (url !== '/api/v1/shop') throw new Error(`unexpected ${url}`);
     const next = answers.shift() ?? 'open';
     if (next === 'fail') throw new TypeError('Failed to fetch');
-    return new Response(JSON.stringify({ name: 'CheesyBeez Thalwila', open: next === 'open', hours, phone }), { status: 200 });
+    return new Response(JSON.stringify({ name: 'Bata Kade Galle', open: next === 'open', hours, phone }), { status: 200 });
   }));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); setMenuState(EMPTY_MENU_STATE); });
@@ -138,8 +138,8 @@ test('pickup info: the town with a Maps link, how to pay; hours, Call and WhatsA
   render(<OrderSite />);
   await screen.findByText('Open for pickup');
   let info = within(screen.getByRole('region', { name: 'Pickup info' }));
-  expect(info.getByText(/CheesyBeez, Thalwila/)).toBeTruthy();
-  expect(info.getByRole('link', { name: 'Open in Maps' }).getAttribute('href')).toBe('https://www.google.com/maps/search/?api=1&query=CheesyBeez%20Thalwila');
+  expect(info.getByText(/Bata Kade Galle/)).toBeTruthy();
+  expect(info.getByRole('link', { name: 'Open in Maps' }).getAttribute('href')).toBe('https://www.google.com/maps/search/?api=1&query=Bata%20Kade%20Galle');
   expect(info.getByText('Pay when you collect: cash or bank transfer')).toBeTruthy();
   expect(info.queryByText(/Daily/)).toBeNull();
   expect(info.queryByRole('link', { name: 'Call' })).toBeNull();
@@ -160,7 +160,7 @@ test('mood strips: two at most, after Pizza and before the footer, never back to
   render(<OrderSite />);
   await screen.findByText('Open for pickup');
   const strips = [...document.querySelectorAll<HTMLElement>('.o-strip')];
-  expect(strips.map((el) => el.querySelector('.o-strip__line')!.textContent)).toEqual(['Stone-baked. Straight from the fire.', 'Thalwila. Collect it hot.']);
+  expect(strips.map((el) => el.querySelector('.o-strip__line')!.textContent)).toEqual(['Stone-baked. Straight from the fire.', 'Order ahead. Collect it hot.']);
   expect(document.getElementById('pizza')!.nextElementSibling).toBe(strips[0]);
   expect(strips[0].compareDocumentPosition(document.getElementById('pizza')!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   // Between the two: at least one section of 3+ items.
@@ -169,7 +169,7 @@ test('mood strips: two at most, after Pizza and before the footer, never back to
   expect(between.some((sec) => sec.querySelectorAll('.o-items > li').length >= 3)).toBe(true);
   expect(strips[1].nextElementSibling?.tagName).toBe('FOOTER');
   const end = within(strips[1]);
-  expect(end.getByText(/CheesyBeez, Thalwila/)).toBeTruthy();
+  expect(end.getByText(/Bata Kade Galle/)).toBeTruthy();
   expect(end.queryByText(/Daily/)).toBeNull();
   expect(end.getByRole('link', { name: 'Open in Maps' })).toBeTruthy();
   for (const img of document.querySelectorAll('.o-strip img')) expect([img.getAttribute('loading'), img.getAttribute('width'), img.getAttribute('height')]).toEqual(['lazy', '800', '600']);

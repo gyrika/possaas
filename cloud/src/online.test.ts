@@ -4,11 +4,11 @@ import { ONLINE_ANSWER_MS, ONLINE_SEEN_MS } from '../../src/domain/online.ts';
 import { createCloud, sha256Hex } from './cloud.ts';
 import { fakeD1 } from './fakeD1.ts';
 
-const SHOP = 'cheesybeez-thalwila-ab12';
+const SHOP = 'bata-kade-galle-ab12';
 
 async function setup(order: { orderHours?: string; orderPhone?: string; orderAddress?: string } = {}) {
   const { d1, db } = fakeD1();
-  db.prepare("INSERT INTO shops (id, name, created_at) VALUES (?, 'CheesyBeez Thalwila', 0)").run(SHOP);
+  db.prepare("INSERT INTO shops (id, name, created_at) VALUES (?, 'Bata Kade Galle', 0)").run(SHOP);
   db.prepare("INSERT INTO shops (id, name, created_at) VALUES ('other-shop', 'Other', 0)").run();
   for (const [tenant, token] of [[SHOP, 'server-a'], ['other-shop', 'server-b']]) {
     db.prepare("INSERT INTO devices (id, tenant_id, kind, token_hash, created_at) VALUES (?, ?, 'shop_server', ?, 0)")
@@ -33,7 +33,7 @@ const customer = (phone = '0771234567', lines: unknown[] = [pizza]) => ({ name: 
 test('closed until the counter switches it on and the shop server is heard from', async () => {
   const { call, clock } = await setup();
   const shop = (await call('/api/v1/shop')).body;
-  assert.deepEqual([shop.name, shop.open, shop.hours, shop.phone, shop.address, shop.menuState], ['CheesyBeez Thalwila', false, null, null, null, { overrides: {}, soldOut: {}, added: {}, sections: {} }]);
+  assert.deepEqual([shop.name, shop.open, shop.hours, shop.phone, shop.address, shop.menuState], ['Bata Kade Galle', false, null, null, null, { overrides: {}, soldOut: {}, added: {}, sections: {} }]);
   assert.deepEqual((await (await setup({ orderHours: '11:00-21:00' })).call('/api/v1/shop')).body.hours, { opens: 660, closes: 1260 }, 'the hours, when set');
   const contact = (await (await setup({ orderPhone: '077 181 7968', orderAddress: ' 12 Main St ' })).call('/api/v1/shop')).body;
   assert.deepEqual([contact.phone, contact.address], ['0771817968', '12 Main St'], 'the contact, when set');

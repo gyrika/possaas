@@ -153,7 +153,7 @@ export const CMD = {
 const LOCAL_SCRIPT = /\s*[·•-]?\s*[\u0B80-\u0BFF\u0D80-\u0DFF\u200C\u200D]+(?:\s+[\u0B80-\u0BFF\u0D80-\u0DFF\u200C\u200D]+)*/g;
 
 /**
- * The printer's default code page is ASCII-safe; Sinhala or Tamil words are left off ("Bata Kade · බත් කඩේ"
+ * The printer's default code page is ASCII-safe; Sinhala or Tamil words are left off ("Bata Kade · බටකඩේ"
  * prints "Bata Kade"), and anything else becomes '?' rather than garbage.
  */
 const ascii = (s: string): number[] =>

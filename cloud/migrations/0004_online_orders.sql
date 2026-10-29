@@ -1,4 +1,4 @@
--- Online orders from cheesybeez.com: order ahead, collect and pay at the shop (src/domain/online.ts).
+-- Online orders (the cloud's /order page): order ahead, collect and pay at the shop (src/domain/online.ts).
 -- The customer's name and phone stay only here, and are blanked after 30 days.
 CREATE TABLE online_orders (
   id            TEXT    PRIMARY KEY,

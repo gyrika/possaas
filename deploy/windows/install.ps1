@@ -1,4 +1,4 @@
-# CheesyBeez POS: sets up the counter PC (Windows 10/11), in one go. Run as administrator.
+# Lume POS: sets up the counter PC (Windows 10/11), in one go. Run as administrator.
 # Safe to run again: every step checks what is already there and skips it.
 # The written-down guide is docs/install-windows.md.
 
@@ -64,14 +64,14 @@ try {
   Write-Step 'MySQL'
   $rootPassword = $null
   $mysqlPort = 3306
-  $own = Get-Service -Name 'CheesyBeezMySQL' -ErrorAction SilentlyContinue
+  $own = Get-Service -Name 'LumePOSMySQL' -ErrorAction SilentlyContinue
   $existing = Find-MySqlBin
   if ($own) {
     # Ours, from an earlier run: its port and admin password are on file.
     $bin = Join-Path $MySqlHome 'bin'
     $portLine = Select-String -Path (Join-Path $MySqlHome 'my.ini') -Pattern '^port=(\d+)' | Select-Object -First 1
     if ($portLine) { $mysqlPort = [int]$portLine.Matches[0].Groups[1].Value }
-    if ($own.Status -ne 'Running') { Start-Service 'CheesyBeezMySQL' }
+    if ($own.Status -ne 'Running') { Start-Service 'LumePOSMySQL' }
     if (Test-Path $RootPwFile) { $rootPassword = (Get-Content $RootPwFile -Raw).Trim() }
     Write-Ok "The POS's own MySQL is installed (port $mysqlPort)."
   } else {
@@ -117,19 +117,19 @@ character-set-server=utf8mb4
       if (-not (Test-Path $MySqlData)) {
         Invoke-Native (Join-Path $bin 'mysqld.exe') @("--defaults-file=$MySqlHome\my.ini", '--initialize-insecure', '--console')
       }
-      Invoke-Native (Join-Path $bin 'mysqld.exe') @('--install', 'CheesyBeezMySQL', "--defaults-file=$MySqlHome\my.ini")
-      Start-Service 'CheesyBeezMySQL'
+      Invoke-Native (Join-Path $bin 'mysqld.exe') @('--install', 'LumePOSMySQL', "--defaults-file=$MySqlHome\my.ini")
+      Start-Service 'LumePOSMySQL'
       $ready = $false
       for ($i = 0; $i -lt 60 -and -not $ready; $i++) {
         try { Invoke-MySql -Bin $bin -Port $mysqlPort -User 'root' -Password '' -Sql 'SELECT 1;' | Out-Null; $ready = $true } catch { Start-Sleep -Seconds 1 }
       }
-      if (-not $ready) { throw 'MySQL did not start. See C:\CheesyBeez\mysql-data\*.err' }
+      if (-not $ready) { throw 'MySQL did not start. See C:\LumePOS\mysql-data\*.err' }
       # It starts with an empty root password: give it a random one and keep it for the owner.
       $rootPassword = New-Secret
       Invoke-MySql -Bin $bin -Port $mysqlPort -User 'root' -Password '' -Sql "ALTER USER 'root'@'localhost' IDENTIFIED BY '$rootPassword';" | Out-Null
       [IO.File]::WriteAllText($RootPwFile, $rootPassword)
       Protect-File $RootPwFile
-      Write-Ok "MySQL $MySqlVersion installed as the CheesyBeezMySQL service (port $mysqlPort)."
+      Write-Ok "MySQL $MySqlVersion installed as the LumePOSMySQL service (port $mysqlPort)."
       Write-Note "Its admin password is in $RootPwFile (administrators only). Keep a copy with the owner."
     }
   }
@@ -181,8 +181,8 @@ character-set-server=utf8mb4
   if (Test-Path $shopFile) {
     $shop = (Get-Content $shopFile -Raw).Trim()
   } else {
-    $shop = Read-Host '   Shop id (Enter for cheesybeez-thalwila)'
-    if (-not $shop) { $shop = 'cheesybeez-thalwila' }
+    $shop = Read-Host '   Shop id (Enter for bata-kade-galle)'
+    if (-not $shop) { $shop = 'bata-kade-galle' }
     [IO.File]::WriteAllText($shopFile, $shop)
   }
 
@@ -231,7 +231,7 @@ character-set-server=utf8mb4
   if (-not (Test-Path (Join-Path $Base 'counter-paired.txt'))) {
     Push-Location $Root
     try {
-      $out = & npm.cmd run -s server:device -- --kind counter --shop $shop --name 'CheesyBeez'
+      $out = & npm.cmd run -s server:device -- --kind counter --shop $shop --name 'Lume POS'
       if ($LASTEXITCODE -ne 0) { throw 'Could not register the counter.' }
     } finally { Pop-Location }
     $link = ($out | Select-String -Pattern 'http://\S+').Matches[0].Value
@@ -241,7 +241,7 @@ character-set-server=utf8mb4
   }
   $startup = [Environment]::GetFolderPath('CommonStartup')   # whoever logs in at the counter
   $shell = New-Object -ComObject WScript.Shell
-  $lnk = $shell.CreateShortcut((Join-Path $startup 'CheesyBeez POS.lnk'))
+  $lnk = $shell.CreateShortcut((Join-Path $startup 'Lume POS.lnk'))
   $lnk.TargetPath = Join-Path $PSScriptRoot 'open-pos.cmd'
   $lnk.WorkingDirectory = $PSScriptRoot
   $lnk.WindowStyle = 7   # minimised: only the POS shows
@@ -255,8 +255,8 @@ character-set-server=utf8mb4
   Invoke-Native 'powercfg.exe' @('/change', 'monitor-timeout-ac', '0')
   Write-Ok 'The PC never sleeps on mains power.'
   # For a kitchen tablet later, on the shop Wi-Fi only (private networks), never from outside.
-  if (-not (Get-NetFirewallRule -DisplayName 'CheesyBeez POS' -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -DisplayName 'CheesyBeez POS' -Direction Inbound -Protocol TCP -LocalPort $Port -Profile Private -Action Allow | Out-Null
+  if (-not (Get-NetFirewallRule -DisplayName 'Lume POS' -ErrorAction SilentlyContinue)) {
+    New-NetFirewallRule -DisplayName 'Lume POS' -Direction Inbound -Protocol TCP -LocalPort $Port -Profile Private -Action Allow | Out-Null
   }
   Write-Ok "Port $Port open to devices on the shop's private network only."
 

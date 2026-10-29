@@ -1,4 +1,4 @@
-# Gathers what CheesyBeez Station installs into deploy/station/stage/ (run from the repo root after
+# Gathers what Lume POS installs into deploy/station/stage/ (run from the repo root after
 # `npm ci` and `npm run build`): Node.js for Windows, the server, the built app, and only the
 # runtime packages. Used by .github/workflows/station.yml.
 # -OfflineWebView2: also Microsoft's full WebView2 installer, for the offline Setup.exe (iscc /DOffline).
@@ -35,4 +35,4 @@ if ($OfflineWebView2) {
 }
 
 Set-Content -Path "$stage\version.txt" -Value $AppVersion -NoNewline
-Write-Host "Staged CheesyBeez Station $AppVersion ($([math]::Round((Get-ChildItem $stage -Recurse | Measure-Object Length -Sum).Sum / 1MB)) MB)"
+Write-Host "Staged Lume POS $AppVersion ($([math]::Round((Get-ChildItem $stage -Recurse | Measure-Object Length -Sum).Sum / 1MB)) MB)"

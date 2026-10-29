@@ -41,7 +41,7 @@ const serial = (printer: Omit<RawPrinter, 'print'> & { send(bytes: Uint8Array): 
 };
 
 const withTempFile = async (bytes: Uint8Array, fn: (path: string) => Promise<void>) => {
-  const path = join(tmpdir(), `cheesybeez-receipt-${process.pid}-${Date.now()}.bin`);
+  const path = join(tmpdir(), `lume-receipt-${process.pid}-${Date.now()}.bin`);
   await writeFile(path, bytes);
   try { await fn(path); } finally { await unlink(path).catch(() => {}); }
 };

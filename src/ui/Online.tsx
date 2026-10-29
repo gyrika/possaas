@@ -6,7 +6,7 @@ import { chime } from './chime.ts';
 import { describe } from './ShorthandBar.tsx';
 
 /**
- * Online orders at the counter (cheesybeez.com). Serves the cashier: a customer at home
+ * Online orders at the counter. Serves the cashier: a customer at home
  * has ordered for pickup and waits to hear back. What they need next: see the order,
  * accept it with a time (it goes straight to the kitchen) or decline it with a reason.
  */

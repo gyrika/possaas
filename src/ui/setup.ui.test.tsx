@@ -25,7 +25,7 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
     if (String(url) === '/api/v1/health') { if (s.down) throw new TypeError('fetch failed'); return ok({ ok: true, version: s.version }); }
     if (step === '') return ok({ done: s.done, shop: s.shop, printer: s.printer, printers: s.printers, usbPorts: s.usbPorts, cloud: s.cloud, ...(s.done ? {} : { staff: pub() }) });
     if (!ownerOk(body.ownerPin)) return no(401, "that is not the owner's PIN");
-    if (step === '/shop') { const first = !s.shop; s.shop = { id: 'cheesybeez-thalwila', name: body.name, place: body.place, footer: 'Thank you!' }; return ok({ shopId: s.shop.id, ...(first ? { counterToken: 'counter-token' } : {}) }); }
+    if (step === '/shop') { const first = !s.shop; s.shop = { id: 'bata-kade-galle', name: body.name, place: body.place, footer: 'Thank you!' }; return ok({ shopId: s.shop.id, ...(first ? { counterToken: 'counter-token' } : {}) }); }
     if (step === '/printer/usb') { s.usbPorts = []; s.printers = [...s.printers, `Receipt printer (${body.port})`]; s.printer = `Receipt printer (${body.port})`; return ok({ printer: s.printer }); }
     if (step === '/pay-when') { s.shop = { ...s.shop!, payFirst: body.payFirst }; return ok({ payFirst: body.payFirst }); }
     if (step === '/paper') { s.shop = { ...s.shop!, paper: body.width }; return ok({ paper: body.width }); }
@@ -39,7 +39,7 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
       return ok({ staff: pub() });
     }
     if (step === '/staff/list') return ok({ staff: pub() });
-    if (step === '/pair') return ok(body.kind === 'counter' ? { counterToken: 'second-screen', shopId: 'cheesybeez-thalwila' } : { link: `http://10.0.0.5:8080/?pair=k&as=${body.kind}` });
+    if (step === '/pair') return ok(body.kind === 'counter' ? { counterToken: 'second-screen', shopId: 'bata-kade-galle' } : { link: `http://10.0.0.5:8080/?pair=k&as=${body.kind}` });
     if (step === '/cloud') { if (body.code !== 'CB-7K3M-Q9XZ') return no(403, 'that shop code is not right'); s.cloud = true; return ok({ cloud: true }); }
     if (step === '/finish') { s.done = true; return ok({ done: true }); }
     if (step === '/update/check') return ok(updatesOff ? { current: s.version, latest: null, newer: false, off: true } : { current: s.version, latest: '1.0.1', newer: s.version !== '1.0.1' });
@@ -76,8 +76,8 @@ test('a new shop: name, printer, staff (owner first), a QR code, finish', async 
   render(<Root />);
 
   expect(await screen.findByRole('heading', { name: 'Name your shop' })).toBeTruthy();
-  await user.type(screen.getByRole('textbox', { name: 'Shop name' }), 'CheesyBeez');
-  await user.type(screen.getByRole('textbox', { name: 'Town' }), 'Thalwila{Enter}');
+  await user.type(screen.getByRole('textbox', { name: 'Shop name' }), 'Bata Kade');
+  await user.type(screen.getByRole('textbox', { name: 'Town' }), 'Galle{Enter}');
   expect(await screen.findByRole('heading', { name: 'Your receipt printer' })).toBeTruthy();
   expect(localStorage.getItem('cb.sync.token')).toBe('counter-token'); // the PC paired itself as the counter
 

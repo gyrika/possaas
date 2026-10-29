@@ -121,7 +121,7 @@ const field = (id: string, q: string, kind: Kind): string => Array.isArray(kind)
 
 export const questionsPage = (): string => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>CheesyBeez questions</title>
+<title>Owner questions</title>
 <link rel="icon" type="image/png" href="/icons/favicon-32.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap">
 <meta name="robots" content="noindex">
@@ -153,7 +153,7 @@ button:disabled{opacity:.4}
 .closed{text-align:center;margin-top:20vh}
 </style></head><body>
 <main id="form" hidden>
-  <span class="brand">CheesyBeez</span>
+  <span class="brand">Lume POS</span>
   <h1>Last questions, Nisal</h1>
   <p class="lead">For Nisal Vimukthi. Answer what you know and leave the rest empty. Press <b>Save</b> any time; you can open this link again later and change your answers.</p>
   <p class="have">Already received, thank you: kitchen times (pizza 10 min, burger 3 min, pasta 20 min), your toppings, burger breading, pasta sizes, half &amp; half and the receipt. After this page there are no more questions.</p>
@@ -161,7 +161,7 @@ button:disabled{opacity:.4}
   ${s.questions.map(([id, q, kind]) => field(id, q, kind)).join('\n  ')}
   </section>`).join('\n  ')}
 </main>
-<main id="closed" class="closed" hidden><span class="brand">CheesyBeez</span><h1>This link is not right</h1><p class="lead">Ask for the link again: it has to be opened exactly as it was sent.</p></main>
+<main id="closed" class="closed" hidden><span class="brand">Lume POS</span><h1>This link is not right</h1><p class="lead">Ask for the link again: it has to be opened exactly as it was sent.</p></main>
 <div class="bar" id="bar" hidden><button id="save" type="button">Save</button><span id="status" role="status">Not saved yet</span></div>
 <script>
 const key = new URLSearchParams(location.search).get('k') || '';

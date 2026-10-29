@@ -38,7 +38,7 @@ public static class RawPrint {
     if (!OpenPrinter(printer, out h, IntPtr.Zero))
       throw new Exception("Printer not found: " + printer + " (error " + Marshal.GetLastWin32Error() + ")");
     try {
-      var doc = new DOCINFO { pDocName = "CheesyBeez receipt", pDataType = "RAW" };
+      var doc = new DOCINFO { pDocName = "Lume POS receipt", pDataType = "RAW" };
       if (StartDocPrinter(h, 1, doc) == 0) throw new Exception("StartDocPrinter error " + Marshal.GetLastWin32Error());
       try {
         if (!StartPagePrinter(h)) throw new Exception("StartPagePrinter error " + Marshal.GetLastWin32Error());

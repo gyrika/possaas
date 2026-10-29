@@ -8,12 +8,10 @@ import { useInstall } from '../services/ownerApp.ts';
 import { api, remembered, type MyOrder, type Placed, type ShopInfo } from './api.ts';
 import { HERO, PHOTOS, STRIPS, type StripId } from './photos.ts';
 
-/** The ordering site is still CheesyBeez's own (cheesybeez.com); other shops get theirs with the cloud. */
-const SHOP_HEADER = { name: 'CheesyBeez', lines: ['Thalwila'] };
 import { isOrderAppHost, setUpOrderApp } from './pwa.ts';
 
 /**
- * cheesybeez.com: order ahead, collect it hot, pay at the shop.
+ * The shop's ordering page (/order on its cloud): order ahead, collect it hot, pay at the shop.
  * Serves the customer at home on their phone: hungry, knows what they like, and
  * wants one thing next: their order placed in under a minute, then to know when it
  * is ready. So: the menu, a basket, name and phone, and a live status. No account.
@@ -311,7 +309,7 @@ function CartPanel({ basket, onChange, onCheckout }: { basket: OnlineLine[]; onC
 /** The line on each mood strip: white, then the amber part. */
 const STRIP_LINES: Record<StripId, [string, string]> = {
   pizza: ['Stone-baked.', 'Straight from the fire.'],
-  end: ['Thalwila.', 'Collect it hot.'],
+  end: ['Order ahead.', 'Collect it hot.'],
 };
 
 /**
@@ -360,10 +358,10 @@ const phoneText = (p: string) => `${p.slice(0, 3)} ${p.slice(3, 6)} ${p.slice(6)
  * Desktop, under the order: where to collect, when, how to pay, and a way to ask. Only what the
  * owner has given (the cloud's ORDER_PHONE / ORDER_ADDRESS / ORDER_HOURS); a missing one is left out.
  */
-/** Where to collect: the owner's address once given (ORDER_ADDRESS), else the town, and a Maps search for it. */
+/** Where to collect: the shop's name and the owner's address once given (ORDER_ADDRESS), and a Maps search for it. */
 const pickupPlace = (shop: ShopInfo | null) => {
-  const place = shop?.address ?? SHOP_HEADER.lines.join(', ');
-  return { place, maps: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${SHOP_HEADER.name} ${place}`)}` };
+  const place = [shop?.name, shop?.address].filter(Boolean).join(', ');
+  return { place, maps: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}` };
 };
 
 function PickupInfo({ shop }: { shop: ShopInfo | null }) {
@@ -373,7 +371,7 @@ function PickupInfo({ shop }: { shop: ShopInfo | null }) {
     <section className="o-panel o-info" aria-label="Pickup info">
       <h2 className="o-panel__title">Pickup info</h2>
       <ul className="o-info__rows">
-        <li><MapPin aria-hidden /><span>{SHOP_HEADER.name}, {place}<br /><a href={maps} target="_blank" rel="noopener noreferrer">Open in Maps</a></span></li>
+        <li><MapPin aria-hidden /><span>{place}<br /><a href={maps} target="_blank" rel="noopener noreferrer">Open in Maps</a></span></li>
         {shop?.hours && <li><Clock aria-hidden /><span>Daily {clockText(shop.hours.opens)} – {clockText(shop.hours.closes)}</span></li>}
         <li><Banknote aria-hidden /><span>Pay when you collect: cash or bank transfer</span></li>
       </ul>
@@ -488,7 +486,7 @@ function Status({ placed, onDone, onAgain }: { placed: Placed; onDone: () => voi
           </>)}
           {order.status === 'collected' && (<>
             <h1>Enjoy your meal</h1>
-            <p className="o-lead">Thank you for ordering from CheesyBeez.</p>
+            <p className="o-lead">Thank you for ordering with us.</p>
           </>)}
           {order.status === 'declined' && (<>
             <h1>Sorry, the shop couldn’t take this order</h1>
@@ -636,12 +634,12 @@ export function OrderSite() {
           </main>
           <MoodStrip id="end">
             <p className="o-strip__meta">
-              {SHOP_HEADER.name}, {pickupPlace(shop).place}
+              {pickupPlace(shop).place}
               {shop?.hours && <> · Daily {clockText(shop.hours.opens)} – {clockText(shop.hours.closes)}</>}
               {' · '}<a href={pickupPlace(shop).maps} target="_blank" rel="noopener noreferrer">Open in Maps</a>
             </p>
           </MoodStrip>
-          <footer className="o-foot">CheesyBeez · Pizza, burgers and pasta</footer>
+          <footer className="o-foot">{shop?.name}</footer>
         </div>
         <aside className="o-side" aria-label="Your order and pickup">
           <CartPanel basket={basket} onChange={setBasket} onCheckout={() => setCheckout(true)} />
@@ -679,7 +677,7 @@ function Header({ taking, shop, onRetry }: { taking: Taking; shop: ShopInfo | nu
     <header className="o-head">
       <div className="o-wrap o-head__in">
         <span className="o-brand">
-          <img src="/icons/icon-192.png" alt="" width={32} height={32} />CheesyBeez
+          <img src="/icons/icon-192.png" alt="" width={32} height={32} />{shop?.name}
         </span>
         {taking === 'loading' && <span className="o-pill o-pill--loading" aria-hidden />}
         {(taking === 'open' || taking === 'closed') && (

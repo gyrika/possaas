@@ -10,7 +10,7 @@ interface Env {
   ENROL_CODE?: string;
   /** The key in the owner's questions link (npx wrangler secret put ANSWER_KEY). */
   ANSWER_KEY?: string;
-  /** The shop that cheesybeez.com takes online orders for (wrangler.toml [vars]). */
+  /** The shop that /order takes online orders for (wrangler.toml [vars]). */
   ORDER_SHOP?: string;
   /** Its daily hours for the page's status pill, "11:00-21:00" in Sri Lanka time (wrangler.toml [vars]). */
   ORDER_HOURS?: string;
@@ -45,12 +45,12 @@ export const ownerManifest = (key: string | null) => ({
   ],
 });
 
-export const orderManifest = (customerDomain: boolean) => ({
-  name: 'CheesyBeez Ordering',
-  short_name: 'CheesyBeez',
-  description: 'Order pizza, burgers and pasta for pickup at CheesyBeez.',
-  start_url: customerDomain ? '/' : '/order',
-  scope: customerDomain ? '/' : '/order',
+export const orderManifest = () => ({
+  name: 'Order online',
+  short_name: 'Order',
+  description: 'Order ahead, collect it and pay at the shop.',
+  start_url: '/order',
+  scope: '/order',
   display: 'standalone',
   background_color: '#FAF6EF',
   theme_color: '#FAF6EF',
@@ -61,23 +61,16 @@ export const orderManifest = (customerDomain: boolean) => ({
   ],
 });
 
-/** Customers' address: its home page is the ordering page (order.html); /order shows it on any address. */
-const CUSTOMER_HOST = 'cheesybeez.com';
-
 /** Cloudflare Workers entry point: customer ordering, its API, and the separate owner app. */
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    if (url.hostname === `www.${CUSTOMER_HOST}`) {
-      return Promise.resolve(Response.redirect(`https://${CUSTOMER_HOST}${url.pathname}${url.search}`, 301));
-    }
-    if (url.hostname === CUSTOMER_HOST && url.pathname === '/') return env.ASSETS.fetch(new Request(new URL('/order', url), request));
-    // Online ordering and the owner's questions are CheesyBeez's own (cheesybeez.com): a cloud without
-    // its ORDER_SHOP / ANSWER_KEY has neither page, not an empty copy of CheesyBeez's.
+    // Online ordering (/order) and the owner's questions are set up per cloud: without its
+    // ORDER_SHOP / ANSWER_KEY it has neither page.
     if (!env.ORDER_SHOP && /^\/order(\.html|\.webmanifest|\/)?$/.test(url.pathname)) return Promise.resolve(new Response('Not found', { status: 404 }));
     if (!env.ANSWER_KEY && url.pathname === '/questions') return Promise.resolve(new Response('Not found', { status: 404 }));
     if (url.pathname === '/order.webmanifest') {
-      return Promise.resolve(new Response(JSON.stringify(orderManifest(url.hostname === CUSTOMER_HOST)), {
+      return Promise.resolve(new Response(JSON.stringify(orderManifest()), {
         headers: { 'content-type': 'application/manifest+json', 'cache-control': 'public, max-age=3600' },
       }));
     }

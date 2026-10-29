@@ -3,7 +3,7 @@ import { unitPrice } from './money.ts';
 import type { Cents, LineSpec, MenuItem, SizeId } from './types.ts';
 
 /**
- * Online orders (cheesybeez.com): order ahead, collect at the shop, pay there.
+ * Online orders: order ahead, collect at the shop, pay there.
  * The customer's phone sends what they chose; the cloud checks it and prices it
  * with these rules (never trusting a price from the phone); the counter accepts
  * or declines it, and the customer's page follows its status.

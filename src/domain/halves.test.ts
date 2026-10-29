@@ -10,7 +10,7 @@ import { receipt, receiptText } from './receipt.ts';
 import { totals } from './totals.ts';
 import type { LineSpec, PaidOrder } from './types.ts';
 
-const SHOP = { name: 'CheesyBeez', lines: ['Thalwila'], footer: 'Thank you!' };
+const SHOP = { name: 'Sample Pizza', lines: ['Galle'], footer: 'Thank you!' };
 
 // Half-and-half pizzas: "Half price for each half" (the owner, October 2026).
 

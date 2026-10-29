@@ -1,34 +1,34 @@
 # Installing the POS on the shop PC (and looking after it from far away)
 
-> **Use CheesyBeez Station (the Setup.exe).** Download `LumePOS-Setup-x.y.z.exe` from the
+> **Use Lume POS (the Setup.exe).** Download `LumePOS-Setup-x.y.z.exe` from the
 > repository's **Releases** page and double-click it on the shop PC (Windows 10 version 2004 or newer,
 > or Windows 11, 64-bit; older Windows gets a "needs Windows 10" message). A PC without internet:
 > `LumePOS-Offline-Setup-x.y.z.exe`, which also carries Microsoft's WebView2. The first
 > time, Windows says "Windows protected your PC": click **More info → Run anyway** (the file is not
 > code-signed). It installs everything, nothing else is needed (no Node.js, no MySQL), then opens
 > the POS on the setup wizard: shop, printer, staff, QR codes for the kitchen tablet and the
-> owner's phone. The shop's data is kept in `C:\ProgramData\CheesyBeez`; logs in its `logs` folder.
+> owner's phone. The shop's data is kept in `C:\ProgramData\LumePOS`; logs in its `logs` folder.
 > Releases come from **gyrika/lume-releases** (public, installers only; the code stays private). Automatic
 > updates are on (`$UpdatesOn` in `station-update.ps1`, `AUTO_UPDATES` in `server/updates.ts`, switched together):
 > it updates itself within minutes of a new Release, once the counter has been quiet for 15 minutes. To publish a new version, merge a pull request into
 > `main`: GitHub tests it, puts the cloud live, builds the next Setup.exe and releases it.
 >
-> **Updates never touch the sales.** The program lives in `C:\Program Files\CheesyBeez Station`,
-> the data in `C:\ProgramData\CheesyBeez`. Every night at 4 am, and again right before an update,
-> a checked copy of the database goes to `C:\ProgramData\CheesyBeez\backups` (newest 14 kept). After
+> **Updates never touch the sales.** The program lives in `C:\Program Files\Lume POS`,
+> the data in `C:\ProgramData\LumePOS`. Every night at 4 am, and again right before an update,
+> a checked copy of the database goes to `C:\ProgramData\LumePOS\backups` (newest 14 kept). After
 > installing, the updater waits up to 3 minutes for the new version to answer; if it does not, it
 > puts the previous version back by itself and skips that version until a newer one is published.
 > All of it is written in `logs\update.log`. Back up by hand (PowerShell as administrator):
-> `& "C:\Program Files\CheesyBeez Station\node\node.exe" --experimental-strip-types "C:\Program Files\CheesyBeez Station\app\server\sqliteBackup.ts" C:\ProgramData\CheesyBeez manual`
+> `& "C:\Program Files\Lume POS\node\node.exe" --experimental-strip-types "C:\Program Files\Lume POS\app\server\sqliteBackup.ts" C:\ProgramData\LumePOS manual`
 >
 > **Restoring a backup** (only if the data itself went wrong; it loses the sales made after that
-> backup): `schtasks /End /TN "CheesyBeez Station"`, copy the chosen `backups\pos-….sqlite` over
-> `C:\ProgramData\CheesyBeez\pos.sqlite`, delete `pos.sqlite-wal` and `pos.sqlite-shm` beside it,
-> then `schtasks /Run /TN "CheesyBeez Station"`. The cloud copy still has every sale it received.
+> backup): `schtasks /End /TN "Lume POS"`, copy the chosen `backups\pos-….sqlite` over
+> `C:\ProgramData\LumePOS\pos.sqlite`, delete `pos.sqlite-wal` and `pos.sqlite-shm` beside it,
+> then `schtasks /Run /TN "Lume POS"`. The cloud copy still has every sale it received.
 >
 > The PowerShell route below is the older way (it uses MySQL); keep it only for a PC that must run MySQL.
 
-The shop is in Thalwila; development happens in Galle. So the shop PC is set up **once**, by
+The shops are far from development in Galle. So the shop PC is set up **once**, by
 one script, and after that everything (updates, checks, fixes) is done remotely.
 
 ## Before you start (with whoever is at the shop, on the phone)
@@ -46,23 +46,23 @@ one script, and after that everything (updates, checks, fixes) is done remotely.
 On the shop PC: Start > type **PowerShell** > right-click > **Run as administrator**, then paste:
 
 ```powershell
-irm https://raw.githubusercontent.com/gyrika/ERP/main/deploy/windows/get.ps1 | iex
+irm https://raw.githubusercontent.com/gyrika/possaas/main/deploy/windows/get.ps1 | iex
 ```
 
-It downloads the POS to `C:\CheesyBeez\ERP` and runs `deploy\windows\install.ps1`, which:
+It downloads the POS to `C:\LumePOS\app` and runs `deploy\windows\install.ps1`, which:
 
 - installs **Node.js**, and its **own MySQL** (a Windows service that starts with the PC), with
   random passwords it saves for the server (administrators only). If the PC already has a MySQL,
   it asks: a separate one just for the POS on port 3307 (recommended: needs no password, never
   touches the other one) or the existing one (needs its admin password; it is started and set to
   start with Windows);
-  the MySQL admin password ends up in `C:\CheesyBeez\mysql-root-password.txt` (give the owner a copy);
+  the MySQL admin password ends up in `C:\LumePOS\mysql-root-password.txt` (give the owner a copy);
 - creates the database and its two users, builds the app, applies the database changes;
 - asks **which printer** prints receipts (a numbered list);
 - asks for the **staff**: name, role (cashier, manager, owner, kitchen), 4-digit PIN each;
 - makes the server start with Windows (it restarts itself if it ever stops), and the POS open
   **full screen** whenever someone logs in to Windows;
-- schedules a **backup every night at 3 am** (14 days kept, in `C:\CheesyBeez\backups`);
+- schedules a **backup every night at 3 am** (14 days kept, in `C:\LumePOS\backups`);
 - asks whether to **install updates by themselves at 4 am** (say no until you trust it);
 - stops the PC from sleeping, and opens port 8080 to the shop's private Wi-Fi only (for a
   kitchen tablet later).
@@ -92,13 +92,13 @@ Connect with AnyDesk, open PowerShell **as administrator**, then:
 
 | What | Command |
 |---|---|
-| Is everything all right? | `C:\CheesyBeez\ERP\deploy\windows\status.ps1` |
-| Install the newest version | `C:\CheesyBeez\ERP\deploy\windows\update.ps1` |
-| …even while orders come in | `C:\CheesyBeez\ERP\deploy\windows\update.ps1 -Force` |
-| Add or remove staff | `cd C:\CheesyBeez\ERP` then `npm run server:staff -- add --shop cheesybeez-thalwila --name … --role … --pin …` |
-| Back up right now | `C:\CheesyBeez\ERP\deploy\windows\backup.ps1` |
+| Is everything all right? | `C:\LumePOS\app\deploy\windows\status.ps1` |
+| Install the newest version | `C:\LumePOS\app\deploy\windows\update.ps1` |
+| …even while orders come in | `C:\LumePOS\app\deploy\windows\update.ps1 -Force` |
+| Add or remove staff | `cd C:\LumePOS\app` then `npm run server:staff -- add --shop bata-kade-galle --name … --role … --pin …` |
+| Back up right now | `C:\LumePOS\app\deploy\windows\backup.ps1` |
 | Change the printer | run `install.ps1` again (it keeps everything else) |
-| Remove the POS from a PC (a test PC, an old counter) | `C:\CheesyBeez\ERP\deploy\windows\uninstall.ps1` (asks before deleting any data) |
+| Remove the POS from a PC (a test PC, an old counter) | `C:\LumePOS\app\deploy\windows\uninstall.ps1` (asks before deleting any data) |
 
 `status.ps1` shows, in one screen: server, start-up task, MySQL, version, printer (and jobs
 stuck in its queue), last backup, free disk, and the end of the server log.
@@ -106,7 +106,7 @@ stuck in its queue), last backup, free disk, and the end of the server log.
 `update.ps1` refuses while orders are coming in (any activity in the last 15 minutes) unless
 you add `-Force`. It builds the new version while the old one keeps running, applies database
 changes, then switches over; if anything fails, it **puts the old version back** by itself.
-Logs of every install and update are in `C:\CheesyBeez\logs`.
+Logs of every install and update are in `C:\LumePOS\logs`.
 
 
 ## The support file (looking after a shop from far away)
@@ -121,19 +121,19 @@ hidden, and `station.env` with names only. Never the sales, the database, staff 
 
 ## Backups, and putting one back
 
-Every night at 4 am the Station copies the sales to `C:\ProgramData\CheesyBeez\backups` (the newest 14 are
+Every night at 4 am the Station copies the sales to `C:\ProgramData\LumePOS\backups` (the newest 14 are
 kept). That copy dies with the PC's disk, so the owner also saves one to a USB stick once a week: Shop setup →
 **Backup** → **Save a copy on …** (it lands in `Lume POS backups` on the stick).
 
-Putting a backup back (a support job, over AnyDesk): stop the **CheesyBeez Station** task in Task Scheduler,
-copy the backup over `C:\ProgramData\CheesyBeez\pos.sqlite`, delete `pos.sqlite-wal` and `pos.sqlite-shm`
+Putting a backup back (a support job, over AnyDesk): stop the **Lume POS** task in Task Scheduler,
+copy the backup over `C:\ProgramData\LumePOS\pos.sqlite`, delete `pos.sqlite-wal` and `pos.sqlite-shm`
 beside it, then start the task again. Sales made after that backup are lost, so take the newest one.
 
 ## Good to know
 
 - The internet at the shop only matters for AnyDesk and updates. The POS itself runs entirely
   on the PC: no internet needed to sell.
-- Keep a USB stick with a folder named `CheesyBeezBackup` plugged in: the nightly backup is
+- Keep a USB stick with a folder named `LumePOSBackup` plugged in: the nightly backup is
   copied there too. Until the cloud copy (SCRUM-61) exists, that is the copy that survives if
   the PC dies.
 - These scripts were written and syntax-checked on Linux; their first real run is on a Windows

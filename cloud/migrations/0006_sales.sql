@@ -18,7 +18,7 @@ CREATE TABLE sales (
   tendered      INTEGER NOT NULL,
   change_given  INTEGER NOT NULL,
   cashier       TEXT    NOT NULL,
-  online        INTEGER NOT NULL DEFAULT 0,         -- 1 = ordered on cheesybeez.com
+  online        INTEGER NOT NULL DEFAULT 0,         -- 1 = ordered online
   status        TEXT    NOT NULL DEFAULT 'paid' CHECK (status IN ('paid', 'undone')),
   undone_at     INTEGER,
   event_seq     INTEGER NOT NULL                    -- events.seq of the payment

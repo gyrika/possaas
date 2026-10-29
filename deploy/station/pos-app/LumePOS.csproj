@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    CheesyBeez POS: the counter's app. A small Windows program that shows the POS in Windows'
+    Lume POS: the counter's app. A small Windows program that shows the POS in Windows'
     own web engine (WebView2): its own window and icon, full screen, no browser. .NET Framework 4.8
     is part of Windows 10 and 11, so nothing extra is installed. Built by GitHub on Windows
     (.github/workflows/station.yml); the Station installer puts it beside the server.
@@ -10,13 +10,13 @@
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <PlatformTarget>x64</PlatformTarget>
-    <AssemblyName>CheesyBeezPOS</AssemblyName>
-    <RootNamespace>CheesyBeez</RootNamespace>
+    <AssemblyName>LumePOS</AssemblyName>
+    <RootNamespace>LumePOS</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Product>CheesyBeez POS</Product>
-    <Company>CheesyBeez POS team</Company>
+    <Product>Lume POS</Product>
+    <Company>Lume POS team</Company>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>

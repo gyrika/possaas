@@ -72,7 +72,7 @@ const ROLES: Role[] = ['cashier', 'manager', 'owner', 'kitchen'];
 const LOCAL = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 export const isLocal = (req: IncomingMessage): boolean => LOCAL.has(req.socket.remoteAddress ?? '');
 
-/** "CheesyBeez", "Thalwila" -> "cheesybeez-thalwila". */
+/** "Bata Kade", "Galle" -> "bata-kade-galle". */
 export const shopIdFor = (name: string, place: string): string =>
   `${name} ${place}`.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'shop';
 

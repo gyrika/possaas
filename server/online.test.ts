@@ -5,13 +5,13 @@ import { createCloud, sha256Hex } from '../cloud/src/cloud.ts';
 import { fakeD1 } from '../cloud/src/fakeD1.ts';
 import { startOnline } from './online.ts';
 
-const SHOP = 'cheesybeez-thalwila-ab12';
+const SHOP = 'bata-kade-galle-ab12';
 const pizza = { itemId: 'devilled-chicken', qty: 1, size: 'L', adds: [], outs: [] };
 
 /** The real cloud on Node's SQLite, a shop server talking to it, and a switch for the internet. */
 async function setup(at = new Date(2026, 9, 13, 19, 0).getTime()) {
   const { d1, db } = fakeD1();
-  db.prepare("INSERT INTO shops (id, name, created_at) VALUES (?, 'CheesyBeez Thalwila', 0)").run(SHOP);
+  db.prepare("INSERT INTO shops (id, name, created_at) VALUES (?, 'Bata Kade Galle', 0)").run(SHOP);
   db.prepare("INSERT INTO devices (id, tenant_id, kind, token_hash, created_at) VALUES ('d', ?, 'shop_server', ?, 0)").run(SHOP, await sha256Hex('server-key'));
   const clock = { t: at };
   const cloud = createCloud(d1, { now: () => clock.t, orderShop: SHOP });

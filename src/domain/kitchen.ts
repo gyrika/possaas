@@ -47,7 +47,7 @@ export type NewTicket = Pick<KitchenTicket, 'id' | 'shopId' | 'number' | 'lines'
 
 export type Urgency = 'ok' | 'warn' | 'bad';
 
-/** The sample menu's cook times (the CheesyBeez owner, 2026-10-12). A shop sets its own per section. */
+/** The sample menu's cook times (the sample pizza shop's owner, 2026-10-12). A shop sets its own per section. */
 export const COOK_MINUTES: Record<Category, number> = Object.fromEntries(SAMPLE_SECTIONS.map((x) => [x.id, x.cookMinutes]));
 /** An item whose section is unknown (should not happen): a pizza's time. */
 const DEFAULT_COOK_MINUTES = 10;

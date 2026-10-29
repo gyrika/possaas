@@ -31,7 +31,7 @@ import { updatesApi } from './updates.ts';
  */
 const port = Number(process.env.PORT ?? 8080);
 const dataDir = (process.env.DATA_DIR ?? fileURLToPath(new URL('./data/', import.meta.url))).replace(/[\\/]$/, '');
-// Dry-run receipts live with the data when there is a data folder (CheesyBeez Station: C:\ProgramData\CheesyBeez).
+// Dry-run receipts live with the data when there is a data folder (Lume POS: C:\ProgramData\LumePOS).
 const printsDir = process.env.DATA_DIR ? `${dataDir}/prints` : fileURLToPath(new URL('./prints', import.meta.url));
 
 let store: EventStore;
@@ -61,7 +61,7 @@ const cloudLink = () => {
   return s.cloudUrl && s.cloudToken ? { url: s.cloudUrl, token: s.cloudToken } : null;
 };
 const cloudShop = () => process.env.CLOUD_SHOP || settings.get().shopId; // empty = unset
-// CheesyBeez Station puts these beside the program ({app}\version.txt, {app}\station-update.ps1).
+// Lume POS puts these beside the program ({app}\version.txt, {app}\station-update.ps1).
 const updates = updatesApi({
   versionFile: fileURLToPath(new URL('../../version.txt', import.meta.url)),
   updaterScript: fileURLToPath(new URL('../../station-update.ps1', import.meta.url)),

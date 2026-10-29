@@ -6,9 +6,9 @@ import { DatabaseSync } from 'node:sqlite';
  * A safe copy of the shop's built-in database, taken while the POS keeps running
  * (VACUUM INTO reads one consistent moment; selling is never blocked). The copy is
  * checked before it counts, and only the newest `keep` copies stay.
- * CheesyBeez Station runs it every night and right before installing an update:
+ * Lume POS runs it every night and right before installing an update:
  *   node server/sqliteBackup.ts <data folder> <label>
- * To restore one: stop the "CheesyBeez Station" task, copy the backup over pos.sqlite
+ * To restore one: stop the "Lume POS" task, copy the backup over pos.sqlite
  * (and delete pos.sqlite-wal and pos.sqlite-shm), start the task (docs/install-windows.md).
  */
 export function backupDatabase(dataDir: string, label: string, keep = 14, now = new Date()) {

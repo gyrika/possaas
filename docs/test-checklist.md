@@ -49,7 +49,7 @@ and every printer you can borrow (the XP-80T with its cash drawer, a 58 mm one).
 - [ ] Support file from Shop setup → Help, and from the Start menu: the zip appears on the desktop
 
 ## 7. Uninstall and reinstall
-- [ ] Uninstall from Windows Settings → Apps → the data folder `C:\ProgramData\CheesyBeez` stays
+- [ ] Uninstall from Windows Settings → Apps → the data folder `C:\ProgramData\LumePOS` stays
 - [ ] Install again → the shop, menu, staff and sales are all back
 
 **Result:** pass / fail · Biggest problem: ______________________________________________
