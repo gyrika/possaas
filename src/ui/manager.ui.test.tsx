@@ -6,7 +6,6 @@ import { FAKE_STAFF } from '../fake/data.ts';
 import { App } from './App.tsx';
 import { Kitchen } from './Kitchen.tsx';
 import { readEvents } from './eventLog.ts';
-import { MANAGER_IDLE_MS } from './useManagerMode.ts';
 
 beforeEach(() => localStorage.clear());
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -135,20 +134,16 @@ test('every change creates exactly one audit entry with the manager name and bef
   }
 });
 
-test('auto-return after 10 s idle, and any key press resets the timer', async () => {
+test('manager mode stays on while nobody touches the screen, until Esc', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
   render(<App />);
   await sendAndReopen(user);
   await unlock(user);
-  act(() => { vi.advanceTimersByTime(MANAGER_IDLE_MS - 1000); });
+  act(() => { vi.advanceTimersByTime(60_000); });
   expect(managing()).toBe(true);
-  await user.keyboard('{ArrowDown}'); // a key press resets it
-  act(() => { vi.advanceTimersByTime(MANAGER_IDLE_MS - 1000); });
-  expect(managing()).toBe(true);
-  act(() => { vi.advanceTimersByTime(1500); });
+  await user.keyboard('{Escape}');
   expect(managing()).toBe(false);
-  expect(screen.getByRole('complementary', { name: 'Current order' }).className).not.toContain('panel--managing');
 });
 
 test('Esc leaves manager mode from any state', async () => {

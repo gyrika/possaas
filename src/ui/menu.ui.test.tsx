@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { SAMPLE_START, setMenuState, setStartingMenu } from '../domain/menu.ts';
 import { EMPTY_MENU_STATE, EMPTY_START } from '../domain/menuEdits.ts';
 import { readAll } from './eventLog.ts';
+import { MenuView } from './MenuView.tsx';
 import { Root } from './Root.tsx';
 
 beforeEach(() => { localStorage.clear(); history.replaceState(null, '', '/'); setMenuState(EMPTY_MENU_STATE); });
@@ -36,6 +37,24 @@ test("the owner changes a price and a name: the counter shows it at once; an ord
   await user.keyboard('{Escape}');
   expect(screen.getAllByRole('button', { name: 'M 1600' }).length).toBeGreaterThan(0);
   expect(within(panel().getByRole('region', { name: 'Waiting to pay' })).getByRole('button', { name: /^1001/ }).textContent).toContain('1,450');
+});
+
+test("a manager changes a price, never the name: one price event, Undo puts it back", async () => {
+  const user = userEvent.setup();
+  render(<MenuView owner={false} onBack={() => {}} />);
+  await user.click(screen.getByRole('button', { name: 'Price of Margherita' }));
+  const sheet = within(screen.getByRole('dialog', { name: 'Change Margherita' }));
+  expect(sheet.queryByLabelText('English')).toBeNull();
+  expect(sheet.queryByText(/Hide from the menu/)).toBeNull();
+  await user.clear(sheet.getByLabelText('Large price'));
+  await user.type(sheet.getByLabelText('Large price'), '2100');
+  await user.click(sheet.getByRole('button', { name: 'Save' }));
+  expect(screen.getByText('M 1,450 · L 2,100')).toBeTruthy();
+  expect(readAll().filter((e) => e.type.startsWith('menu.')).map((e) => e)).toMatchObject([
+    { type: 'menu.price_set', itemId: 'margherita', before: {}, after: { prices: { L: 210000 } } },
+  ]);
+  await user.click(within(screen.getByRole('status')).getByRole('button', { name: 'Undo' }));
+  expect(screen.queryByText('M 1,450 · L 2,100')).toBeNull();
 });
 
 test('sold out for today: greyed on the counter, cannot be added; Undo brings it back', async () => {

@@ -38,6 +38,9 @@ function EmptyMenu() {
   );
 }
 
+/** "Short Eats · කෙටි කෑම" → "Short Eats": every section fits on one line at the counter; the cards keep both names. */
+const shortName = (name: string): string => name.split(' · ')[0] || name;
+
 export function Menu({ category, onCategory, onQuickAdd, onCustomise, hint }: Props) {
   useMenu();
   if (menuIsEmpty()) return <EmptyMenu />;
@@ -49,7 +52,7 @@ export function Menu({ category, onCategory, onQuickAdd, onCustomise, hint }: Pr
       <nav className="cats" aria-label="Menu">
         {tabs.map((c) => (
           <button key={c.id} type="button" className="pill" aria-pressed={shown === c.id} onClick={() => onCategory(c.id)}>
-            {c.name}
+            {shortName(c.name)}
           </button>
         ))}
         <span className="hint">{hint}</span>

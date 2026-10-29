@@ -51,9 +51,12 @@ export interface AppOptions {
 const MAX_BODY = 1_000_000; // 100 events are far below this
 const MAX_PRINT = 64_000; // a long receipt is ~3 KB of ESC/POS
 
-/** A shift login lasts a working day; manager mode a few minutes (it ends after 10 s idle anyway). */
+/**
+ * A shift login lasts a working day. Manager mode too: it stays on until Esc (or the screen locks),
+ * so a shorter login would refuse a long session's changes.
+ */
 export const SHIFT_MS = 14 * 60 * 60_000;
-export const MANAGER_MS = 15 * 60_000;
+export const MANAGER_MS = SHIFT_MS;
 /** Device clocks drift a little from the server's; on the counter PC they are the same clock. */
 const CLOCK_SLACK_MS = 2 * 60_000;
 /** Wrong PINs: after this many in a row, the device waits before it may try again. */

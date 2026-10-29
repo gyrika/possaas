@@ -4,9 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { App } from './App.tsx';
 import { readEvents } from './eventLog.ts';
 import { setShopDetails } from '../services/shop.ts';
+import { setBusy } from './busy.ts';
 
 beforeEach(() => localStorage.clear());
-afterEach(() => { cleanup(); setShopDetails({ name: 'Shop', place: '', footer: '', payFirst: false }); });
+afterEach(() => { cleanup(); setBusy(false); setShopDetails({ name: 'Shop', place: '', footer: '', payFirst: false }); });
 
 const panel = () => within(screen.getByRole('complementary', { name: 'Current order' }));
 const sendBtn = () => panel().getByRole('button', { name: 'Send to kitchen' }) as HTMLButtonElement;
@@ -220,4 +221,43 @@ test('a pay-first shop: Charge is the one action, and paying sends the order to 
   expect(document.querySelector('.toast')?.textContent).toContain('Paid 2,500 · 1001 to kitchen');
   expect(readEvents().map((e) => e.type)).toEqual(['order.sent', 'order.paid']);
   expect(panel().queryByRole('region', { name: 'Waiting to pay' })).toBeNull();
+});
+
+test('busy mode: item, Collected: paid in cash, sent to the kitchen, next order on screen; Undo brings it back', async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByRole('button', { name: /^Busy/ }));
+  expect(screen.getByRole('button', { name: /^Busy · no bill/ }).getAttribute('aria-pressed')).toBe('true');
+  expect(panel().queryByRole('button', { name: 'Send to kitchen' })).toBeNull();
+
+  await user.click(screen.getAllByRole('button', { name: 'L 2500' })[0]); // click 1
+  await user.click(panel().getByRole('button', { name: 'Collected' })); // click 2
+  expect(screen.queryByRole('dialog', { name: 'Payment' })).toBeNull(); // no change screen
+  expect(panel().queryByText('Devilled Chicken')).toBeNull();
+  expect(panel().getByText('1002')).toBeTruthy(); // the next customer's order
+  expect(readEvents().map((e) => e.type)).toEqual(['order.sent', 'order.paid']);
+  const paid = readEvents().find((e) => e.type === 'order.paid');
+  expect(paid && 'tender' in paid && paid.tender).toBe('cash');
+
+  await user.click(screen.getByRole('button', { name: 'Undo' }));
+  expect(panel().getByText('Devilled Chicken')).toBeTruthy();
+  expect(readEvents().map((e) => e.type)).toContain('order.payment_undone');
+
+  await user.keyboard('{F6}'); // back to bills
+  expect(panel().getByRole('button', { name: 'Charge' })).toBeTruthy();
+});
+
+test('Popular follows the sales from the first order, but never moves while an order is open', async () => {
+  const user = userEvent.setup();
+  const { container } = render(<App />);
+  const first = () => container.querySelector('.card__name')?.textContent ?? '';
+  expect(first()).toContain('Margherita');
+
+  await user.keyboard('2 crispy chicken burger');
+  await user.keyboard('{Enter}');
+  expect(panel().getByText('2 × Crispy Chicken Burger')).toBeTruthy();
+  expect(first()).toContain('Margherita'); // mid-order: the buttons stay put
+
+  await user.click(sendBtn());
+  expect(first()).toContain('Crispy Chicken Burger'); // the next customer sees it first
 });

@@ -51,11 +51,16 @@ export const SIZE_KEY = /^([SML]|[a-z0-9][a-z0-9-]{0,39})$/;
 export const slug = (text: string, max = 40): string =>
   text.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, max);
 
+/** What a manager may change on an item: its prices, nothing else. */
+export type PriceChange = Pick<ItemOverride, 'prices' | 'adds'>;
+
 interface MenuBase { id: string; shopId: string; at: number; orderNumber: 0; actor: Actor; itemId: string }
 interface SectionBase { id: string; shopId: string; at: number; orderNumber: 0; actor: Actor; sectionId: string }
 export type MenuEvent =
   /** Owner only: names, description, prices, hidden. `after: {}` = back to the printed menu. */
   | (MenuBase & { type: 'menu.item_set'; before: ItemOverride; after: ItemOverride })
+  /** Owners and managers: only the prices (sizes and extras); names and what is on offer stay the owner's. */
+  | (MenuBase & { type: 'menu.price_set'; before: PriceChange; after: PriceChange })
   /** Owners and managers: sold out until `until` (the next morning), or back (`null`). */
   | (MenuBase & { type: 'menu.sold_out'; until: number | null })
   /** Owner only: a new item, or `null` to take back an item just added (Undo). */
@@ -63,7 +68,7 @@ export type MenuEvent =
   /** Owner only: a section made or changed (the whole definition), or `null` to take it off the menu. */
   | (SectionBase & { type: 'menu.section_set'; section: SectionDef | null });
 
-export const MENU_EVENT_TYPES = ['menu.item_set', 'menu.sold_out', 'menu.item_added', 'menu.section_set'] as const satisfies readonly MenuEvent['type'][];
+export const MENU_EVENT_TYPES = ['menu.item_set', 'menu.price_set', 'menu.sold_out', 'menu.item_added', 'menu.section_set'] as const satisfies readonly MenuEvent['type'][];
 
 /** Where a shop's menu starts before its own events: empty for a new shop, the sample for the demo. */
 export interface StartingMenu { sections: Section[]; items: MenuItem[] }
@@ -93,6 +98,12 @@ export const menuStateFromEvents = (events: readonly { type: string }[]): MenuSt
     if (e.type === 'menu.item_set') {
       const m = e as Extract<MenuEvent, { type: 'menu.item_set' }>;
       if (Object.keys(m.after).length) overrides[m.itemId] = m.after;
+      else delete overrides[m.itemId];
+    } else if (e.type === 'menu.price_set') {
+      const m = e as Extract<MenuEvent, { type: 'menu.price_set' }>;
+      const { prices: _p, adds: _a, ...rest } = overrides[m.itemId] ?? {};
+      const next: ItemOverride = { ...rest, ...(m.after.prices ? { prices: m.after.prices } : {}), ...(m.after.adds ? { adds: m.after.adds } : {}) };
+      if (Object.keys(next).length) overrides[m.itemId] = next;
       else delete overrides[m.itemId];
     } else if (e.type === 'menu.sold_out') {
       const m = e as Extract<MenuEvent, { type: 'menu.sold_out' }>;

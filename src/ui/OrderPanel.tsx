@@ -42,10 +42,12 @@ function OnlineTag({ order, time = true }: { order: Order; time?: boolean }) {
     : null;
 }
 
+/** A pay-first shop hands meals over (its kitchen is the Serving list): Serving / Served; otherwise Cooking / Done. */
 function Cook({ tickets, number }: { tickets: KitchenTicket[]; number: number }) {
+  const serving = usePayFirst();
   return cookState(tickets, number) === 'cooking'
-    ? <span className="status status--cooking">Cooking</span>
-    : <span className="status status--done">Done</span>;
+    ? <span className="status status--cooking">{serving ? 'Serving' : 'Cooking'}</span>
+    : <span className="status status--done">{serving ? 'Served' : 'Done'}</span>;
 }
 
 /** Manager mode state and actions, owned by App (which also maps the keys). */
@@ -70,7 +72,7 @@ interface Props {
   open: Order[];
   /** Paid today, newest first. Read-only: nothing left to do on them. */
   paidToday: PaidOrder[];
-  /** Live kitchen tickets, to show Cooking / Done beside Paid / Unpaid. */
+  /** Live kitchen tickets, to show Cooking / Done (pay-first: Serving / Served) beside Paid / Unpaid. */
   tickets: KitchenTicket[];
   paid: PaidOrder | null;
   /** Present while manager mode is on. */
@@ -79,6 +81,8 @@ interface Props {
   onSend: () => void;
   onCharge: () => void;
   onCloseFree: () => void;
+  /** Busy mode: replaces Send and Charge with one "Collected" (cash, no bill, next order). */
+  onCollect?: () => void;
   onOpen: (number: number) => void;
   onNext: () => void;
   onUndo: () => void;
@@ -145,7 +149,7 @@ function AdjustField({ line, order, onAdjust }: { line: OrderLine; order: Order;
  * and changeable, discount chips under the order. No dialogs, no banners.
  */
 export function OrderPanel({
-  order, open, paidToday, tickets, paid, manage, onEdit, onSend, onCharge, onCloseFree, onOpen, onNext, onUndo, printState, onReprint,
+  order, open, paidToday, tickets, paid, manage, onEdit, onSend, onCharge, onCloseFree, onCollect, onOpen, onNext, onUndo, printState, onReprint,
 }: Props) {
   const panelClass = `panel${manage ? ' panel--managing' : ''}`;
 
@@ -323,7 +327,9 @@ export function OrderPanel({
           </div>
         )}
         <span className="total num">{fmt(total)}</span>
-        {!payFirst && (hasNew || !isOpen)
+        {onCollect && !comped && !manage
+          ? <button type="button" className="cta" disabled={listing} onClick={onCollect}>Collected</button>
+          : !payFirst && (hasNew || !isOpen)
           ? <button type="button" className="cta" disabled={!hasNew} onClick={onSend}>Send to kitchen</button>
           : comped
             ? <button type="button" className="cta" disabled={listing} onClick={onCloseFree}>Close · Free</button>

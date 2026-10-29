@@ -1,5 +1,6 @@
 import { EMPTY_MENU_STATE, allSections, effectiveMenu, type MenuState, type StartingMenu } from './menuEdits.ts';
 import type { Category, MenuItem, MenuTag, Option, Section, Variant } from './types.ts';
+import { rankPopular, type Scores } from './popularity.ts';
 
 /** Rupees → cents. */
 const rs = (n: number) => n * 100;
@@ -183,13 +184,25 @@ export const sizeTag = (v: { id: string; label: string }): string => (v.id.lengt
 export const sectionOf = (id: Category): (Section & { removed?: true }) | undefined => sections.find((x) => x.id === id);
 /** Nothing to sell yet: a new shop before its menu. */
 export const menuIsEmpty = (): boolean => !current.some((m) => !m.hidden);
-/** "Popular": the sample's best sellers, or a shop's first items until sales rank them (step 3d). */
+/** What each item has sold lately (popularity.ts); the counter sets it between orders (src/ui/popularStore.ts). */
+let popularScores: Scores = {};
+export const setPopularScores = (next: Scores): void => {
+  if (JSON.stringify(next) === JSON.stringify(popularScores)) return;
+  popularScores = next;
+  version++;
+  listeners.forEach((l) => l());
+};
+/**
+ * "Popular": what the shop sells most (step 3d), then, for items not sold yet, the sample's
+ * best sellers or the shop's own items in section order.
+ */
 export const popularItems = (): MenuItem[] => {
   const shown = current.filter((m) => !m.hidden);
   const picked = POPULAR_IDS.map((id) => shown.find((m) => m.id === id)).filter((m): m is MenuItem => Boolean(m));
-  if (picked.length) return picked;
   const order = new Map(menuSections().map((x, i) => [x.id, i]));
-  return [...shown].sort((a, b) => (order.get(a.category) ?? 99) - (order.get(b.category) ?? 99)).slice(0, 9);
+  const bySection = [...shown].sort((a, b) => (order.get(a.category) ?? 99) - (order.get(b.category) ?? 99));
+  const fallback = picked.length ? picked : bySection;
+  return rankPopular(shown, popularScores, fallback);
 };
 /** All items, hidden ones included (old orders still show them); screens offer `!hidden`. */
 export const menuItems = (): MenuItem[] => current;

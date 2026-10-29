@@ -46,6 +46,15 @@ test('menu edits and sold-out events are accepted only with valid event data', (
   assert.ok('reason' in invalidSoldOut);
 });
 
+test("a manager's price change carries prices only, in whole rupees", () => {
+  const price = (after: object) => ({ ...base, type: 'menu.price_set', itemId: 'margherita', before: {}, after });
+  const ok = price({ prices: { M: 160000 }, adds: { 'full-cheese': 70000 } });
+  assert.deepEqual(validatePush({ events: [ok] }, 'shop-1'), { events: [ok] });
+  assert.ok('reason' in validatePush({ events: [price({ prices: { M: 160000 }, name: { en: 'Free pizza' } })] }, 'shop-1'), 'never a name');
+  assert.ok('reason' in validatePush({ events: [price({ hidden: true })] }, 'shop-1'), 'never hiding');
+  assert.ok('reason' in validatePush({ events: [price({ prices: { M: 160001 } })] }, 'shop-1'));
+});
+
 test("the owner's new items are accepted only with an added-item id and whole-rupee prices", () => {
   const owner = { ...base, actor: { id: 'owner-1', name: 'Nisal', role: 'owner' } };
   const item = { category: 'pasta', name: { en: 'Chicken Alfredo', si: '' }, description: '', prices: { S: 110000, M: 210000, L: 290000 } };

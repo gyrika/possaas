@@ -6,7 +6,7 @@ import { bareLine, orderTotal, unsentLines } from '../domain/order.ts';
 import { twoKitchens } from '../domain/kitchen.ts';
 import type { MenuItem, OrderLine, PaidOrder, SizeId, Station, Tender } from '../domain/types.ts';
 import { currentCashier } from '../services/auth.ts';
-import { canPrint, printReceipt } from '../services/printer.ts';
+import { canPrint, openDrawer, printReceipt } from '../services/printer.ts';
 import { usePayFirst } from '../services/shop.ts';
 import { CommandPalette, type Command } from './CommandPalette.tsx';
 import { ExtrasSheet } from './ExtrasSheet.tsx';
@@ -23,9 +23,11 @@ import { SyncSign } from './SyncSign.tsx';
 import { KitchenFlight } from './KitchenFlight.tsx';
 import { useKitchenTickets } from './kitchenStore.ts';
 import { setSoundOn, soundOn } from './sound.ts';
+import { setBusy, useBusy } from './busy.ts';
 import { useManagerMode } from './useManagerMode.ts';
 import { useRegister } from './useRegister.ts';
 import { useMenu } from './menuStore.ts';
+import { refreshPopular } from './popularStore.ts';
 import { THEME_LABEL, setTheme, themeChoice, type ThemeChoice } from './theme.ts';
 import { useFleet } from './ShopsView.tsx';
 import { lineItemName } from '../domain/halves.ts';
@@ -83,6 +85,11 @@ export function App({
     const paid = reg.pay(tender, tendered);
     if (paid) print(paid);
   }, [reg, print]);
+  const busy = useBusy();
+  /** Busy mode: cash taken, order to its kitchen, next order on screen. No change screen, no receipt; the drawer opens. */
+  const collect = useCallback(() => {
+    if (reg.pay('cash', orderTotal(reg.order), { next: true }) && canPrint()) void openDrawer();
+  }, [reg]);
   const total = orderTotal(reg.order);
   const hasNew = unsentLines(reg.order).length > 0;
   /** A waiting order opened from the list, with nothing new on it: Charge, or go back. */
@@ -99,7 +106,7 @@ export function App({
   const fleet = useFleet();
   const { endManagerSession } = reg;
   const mode = useManagerMode(useCallback(() => {
-    // However manager mode ends (Esc, Exit, 10 s idle), nothing of it stays open.
+    // However manager mode ends (Esc, Done, the screen lock), nothing of it stays open.
     setPalette(false);
     setPendingVoid(null);
     setAdjusting(null);
@@ -139,6 +146,10 @@ export function App({
     const on = JSON.stringify(reg.order.adjust?.discount ?? null) === JSON.stringify(chip.discount);
     manage({ kind: 'discount', discount: on ? null : chip.discount });
   }, [listing, manage, reg.order.adjust]);
+
+  // Popular re-ranks from the sales only between customers, so buttons never move mid-order.
+  const orderEmpty = reg.order.lines.length === 0;
+  useEffect(() => { if (orderEmpty) refreshPopular(); }, [orderEmpty]);
 
   // Keep the selection on a real row as lines are voided or restored.
   useEffect(() => {
@@ -185,16 +196,18 @@ export function App({
       if (mod && key === 'z') { e.preventDefault(); reg.undo(); return; }
       if (mod && e.key === 'Enter' && !sheet && !reg.paid) {
         e.preventDefault();
-        if (payFirst ? reg.order.lines.length > 0 : canCharge) setSheet({ kind: 'pay' }); else if (hasNew) reg.send();
+        if (busy && reg.order.lines.length > 0 && reg.order.adjust?.discount?.kind !== 'comp') collect();
+        else if (payFirst ? reg.order.lines.length > 0 : canCharge) setSheet({ kind: 'pay' }); else if (hasNew) reg.send();
         return;
       }
+      if (e.key === 'F6' && !sheet) { e.preventDefault(); setBusy(!busy); return; }
       if (sheet || typed !== null || mod || e.altKey || isTypingTarget(e.target)) return;
       if (e.key === 'Escape' && canCharge) { reg.startNew(); return; }
       if (e.key.length === 1 && /[a-z0-9]/i.test(e.key)) { e.preventDefault(); setTyped(e.key); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [reg, sheet, typed, hasNew, canCharge, payFirst, manager, mode, palette, adjusting, pendingVoid, listing, lines.length,
+  }, [reg, sheet, typed, hasNew, canCharge, payFirst, busy, collect, manager, mode, palette, adjusting, pendingVoid, listing, lines.length,
     selected, selectedLine, askVoid, askAdjust, toggleChip, manage]);
 
   // Tapping empty space outside an opened order goes back to the "Waiting to pay" list.
@@ -276,6 +289,10 @@ export function App({
               ? (['left', 'right'] as const).map((k) => <KitchenChip key={k} tickets={tickets} station={k} onOpen={() => onKitchen(k)} />)
               : <KitchenChip tickets={tickets} onOpen={() => onKitchen()} />)}
             <SyncSign />
+            <button type="button" className={`corner__key${busy ? ' corner__key--on' : ''}`} aria-pressed={busy} onClick={() => setBusy(!busy)}
+              title={busy ? 'Busy: Collected takes the cash, no bill. F6 for bills again' : 'Busy time: one tap takes the cash, no bill'}>
+              {busy ? 'Busy · no bill' : 'Busy'} <kbd>F6</kbd>
+            </button>
             {/* The owner and managers see their own screen without any shortcut. */}
             {onOwner && <button type="button" className="corner__key" onClick={onOwner}>Owner view <kbd>F3</kbd></button>}
             {onSwitch
@@ -319,6 +336,7 @@ export function App({
           onEdit={(line) => setSheet({ kind: 'edit', line })}
           onSend={reg.send}
           onCharge={() => setSheet({ kind: 'pay' })}
+          onCollect={busy ? collect : undefined}
           onCloseFree={() => pay('comp', 0)}
           printState={canPrint() && reg.paid && printing?.number === reg.paid.number ? printing.state : null}
           onReprint={canPrint() ? () => { if (reg.paid) print(reg.paid, true); } : undefined}

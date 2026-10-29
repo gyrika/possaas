@@ -46,6 +46,9 @@ const validSection = (value: unknown): boolean =>
   value === null || (isObj(value) && Object.keys(value).every((key) => ['name', 'cookMinutes', 'sizes', 'adds', 'station'].includes(key)) &&
     Array.isArray(value.sizes) && value.sizes.every(validOption) && Array.isArray(value.adds) && value.adds.every(validOption) &&
     checkSection(value as unknown as SectionDef) === null);
+/** A manager's price change carries prices and extras' prices only. */
+const onlyPrices = (value: unknown): boolean => isObj(value) && Object.keys(value).every((k) => k === 'prices' || k === 'adds');
+
 const validOverride = (itemId: unknown, value: unknown): boolean => {
   if (!isObj(value)) return false;
   const item = MENU.find((entry) => entry.id === itemId) ?? (isAddedId(itemId) ? anyAdded(value) : undefined);
@@ -95,6 +98,11 @@ export const validatePush = (body: unknown, tenantId: string): { events: SyncEve
     if (e.type === 'menu.item_set' &&
         (!shortString(e.itemId) || !validOverride(e.itemId, e.before) || !validOverride(e.itemId, e.after))) {
       return { reason: `event ${e.id} has an invalid menu change` };
+    }
+    if (e.type === 'menu.price_set' &&
+        (!shortString(e.itemId) || !onlyPrices(e.before) || !onlyPrices(e.after) ||
+          !validOverride(e.itemId, e.before) || !validOverride(e.itemId, e.after))) {
+      return { reason: `event ${e.id} has an invalid price change` };
     }
     if (e.type === 'menu.sold_out' &&
         (!shortString(e.itemId) || !onMenu(e.itemId) ||

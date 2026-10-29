@@ -59,9 +59,28 @@ test('a price change never alters an order already sent; a new order gets the ne
   }
 });
 
+test("a manager's price change: only the prices move; the owner's name and hiding stay; {} goes back to print", () => {
+  const manager = { id: 'm', name: 'Ravi', role: 'manager' as const };
+  const price = (itemId: string, after: object, at: number) =>
+    ({ id: `p${at}`, shopId: 's', at, orderNumber: 0, actor: manager, type: 'menu.price_set', itemId, before: {}, after });
+  const state = menuStateFromEvents([
+    set('margherita', { name: { en: 'Margherita Classic' }, prices: { M: 150000 } }, 1),
+    price('margherita', { prices: { L: 230000 } }, 2),
+    price('chicken-burger', { prices: { one: 50000 } }, 3),
+    price('chicken-burger', {}, 4),
+  ]);
+  assert.deepEqual(state.overrides.margherita, { name: { en: 'Margherita Classic' }, prices: { L: 230000 } });
+  assert.equal(state.overrides['chicken-burger'], undefined);
+  const m = effectiveMenu(SAMPLE_START, state, 0).find((x) => x.id === 'margherita')!;
+  assert.equal(m.name.en, 'Margherita Classic');
+  assert.deepEqual(m.variants!.map((v) => v.price), [MENU.find((x) => x.id === 'margherita')!.variants![0].price, 230000]);
+});
+
 test('only the owner changes the menu; managers may mark things sold out; changes are checked', () => {
   assert.equal(mayRecord('owner', 'menu.item_set'), true);
   assert.equal(mayRecord('manager', 'menu.item_set'), false);
+  assert.equal(mayRecord('manager', 'menu.price_set'), true);
+  assert.equal(mayRecord('cashier', 'menu.price_set'), false);
   assert.equal(mayRecord('manager', 'menu.sold_out'), true);
   assert.equal(mayRecord('cashier', 'menu.sold_out'), false);
   const m = MENU.find((x) => x.id === 'margherita')!;

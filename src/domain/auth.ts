@@ -42,9 +42,9 @@ export const mayRecord = (role: Role, type: string): boolean => {
   if (type.startsWith('kitchen.')) return true;
   if (CASHIER_EVENTS.has(type)) return role !== 'kitchen';
   if (MANAGER_EVENTS.has(type)) return managesRole(role);
-  // The menu is the owner's; marking something sold out is a manager's job during service.
+  // The menu is the owner's; prices and sold out are a manager's job too.
   if (type === 'menu.item_set' || type === 'menu.item_added' || type === 'menu.section_set') return role === 'owner';
-  if (type === 'menu.sold_out') return managesRole(role);
+  if (type === 'menu.price_set' || type === 'menu.sold_out') return managesRole(role);
   // Closing the day counts the cash: the cashier who took it does not sign it off.
   if (type === 'day.closed') return managesRole(role);
   return false;

@@ -253,8 +253,11 @@ export function useRegister() {
     return number;
   }, [seal]);
 
-  /** Returns the paid order (for its receipt), or undefined when there was nothing to pay. */
-  const pay = useCallback((tender: Tender, tendered: number): PaidOrder | undefined => {
+  /**
+   * Returns the paid order (for its receipt), or undefined when there was nothing to pay.
+   * `next`: busy mode, the next order is on screen at once (no change screen); Undo still brings this one back.
+   */
+  const pay = useCallback((tender: Tender, tendered: number, { next = false } = {}): PaidOrder | undefined => {
     const total = orderTotal(ref.current.order);
     // A comped order (Free) closes at 0 with tender 'comp'; anything else needs something to pay.
     const comped = ref.current.order.adjust?.discount?.kind === 'comp';
@@ -273,7 +276,8 @@ export function useRegister() {
     };
     commit((s) => ({
       ...s,
-      paid,
+      paid: next ? null : paid,
+      ...(next ? { order: blank(s) } : {}),
       open: s.open.filter((o) => o.number !== order.number),
       sales: [...s.sales, paid],
     }), `${comped ? `Closed ${order.number} · Free` : `Paid ${fmt(total)}`}${sent.tickets.length ? ` · ${order.number} to kitchen` : ''}`);
@@ -385,8 +389,10 @@ export function useRegister() {
       recalled.forEach((ticketId) =>
         appendEvent({ type: 'order.send_undone', at, actor, orderNumber: prev.order.number, ticketId }));
     }
-    if (cur.paid && cur.paid.number !== prev.paid?.number) {
-      appendEvent({ type: 'order.payment_undone', at, actor, orderNumber: cur.paid.number });
+    // By the sales list, not `paid`: a busy-mode sale is off the screen at once.
+    const undonePay = cur.sales.length > prev.sales.length ? cur.sales[cur.sales.length - 1] : undefined;
+    if (undonePay) {
+      appendEvent({ type: 'order.payment_undone', at, actor, orderNumber: undonePay.number });
     }
   }, [setHistory]);
 
