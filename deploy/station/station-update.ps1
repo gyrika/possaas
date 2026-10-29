@@ -7,10 +7,10 @@
 # 3 minutes, the version that was running is put back by itself. Everything goes in logs\update.log.
 param([switch]$Force, [switch]$Nightly)
 
-# Releases come from gyrika/lume-releases: public, installers only (the code stays private), filled
-# by .github/workflows/station.yml. Turned off and on together with AUTO_UPDATES in server/updates.ts.
+# Releases come from possaas' own GitHub Releases (public; no other repository), made by
+# .github/workflows/station.yml. Turned off and on together with AUTO_UPDATES in server/updates.ts.
 $UpdatesOn = $true
-$Releases = 'gyrika/lume-releases'
+$Releases = 'gyrika/possaas'
 $ErrorActionPreference = 'Stop'
 $data = Join-Path $env:ProgramData 'LumePOS'
 $log = Join-Path $data 'logs\update.log'

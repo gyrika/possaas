@@ -12,11 +12,10 @@ export { isNewer };
  * owner says so, runs that updater straight away. In development there is no
  * Station, so there is nothing to update.
  */
-const LATEST = 'https://api.github.com/repos/gyrika/lume-releases/releases/latest';
+const LATEST = 'https://api.github.com/repos/gyrika/possaas/releases/latest';
 
 /**
- * On: LATEST is Lume POS's own public releases (gyrika/lume-releases: installers only, the code stays
- * private). Turned off and on together with $UpdatesOn in deploy/station/station-update.ps1.
+ * On: LATEST is possaas' own public releases (no other repository). Turned off and on together with $UpdatesOn in deploy/station/station-update.ps1.
  */
 export const AUTO_UPDATES = true;
 

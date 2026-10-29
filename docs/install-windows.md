@@ -8,7 +8,7 @@
 > code-signed). It installs everything, nothing else is needed (no Node.js, no MySQL), then opens
 > the POS on the setup wizard: shop, printer, staff, QR codes for the kitchen tablet and the
 > owner's phone. The shop's data is kept in `C:\ProgramData\LumePOS`; logs in its `logs` folder.
-> Releases come from **gyrika/lume-releases** (public, installers only; the code stays private). Automatic
+> Releases come from possaas' own GitHub Releases (public; no other repository). Automatic
 > updates are on (`$UpdatesOn` in `station-update.ps1`, `AUTO_UPDATES` in `server/updates.ts`, switched together):
 > it updates itself within minutes of a new Release, once the counter has been quiet for 15 minutes. To publish a new version, merge a pull request into
 > `main`: GitHub tests it, puts the cloud live, builds the next Setup.exe and releases it.

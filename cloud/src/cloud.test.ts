@@ -164,15 +164,15 @@ test('the download page: always the newest installer, and a plain fallback if Gi
     { name: 'notes.txt', size: 1, browser_download_url: 'https://x/notes.txt' },
     // The offline one (with WebView2, ~200 MB) is never the download page's link.
     { name: 'LumePOS-Offline-Setup-1.0.2.exe', size: 230_000_000, browser_download_url: 'https://x/offline.exe' },
-    { name: 'LumePOS-Setup-1.0.2.exe', size: 25_931_228, browser_download_url: 'https://github.com/gyrika/lume-releases/releases/download/v1.0.2/LumePOS-Setup-1.0.2.exe' },
+    { name: 'LumePOS-Setup-1.0.2.exe', size: 25_931_228, browser_download_url: 'https://github.com/gyrika/possaas/releases/download/v1.0.2/LumePOS-Setup-1.0.2.exe' },
   ] })) as unknown as typeof fetch;
   const rel = await latestRelease(github);
-  assert.deepEqual(rel, { version: '1.0.2', url: 'https://github.com/gyrika/lume-releases/releases/download/v1.0.2/LumePOS-Setup-1.0.2.exe', sizeMb: 25 });
+  assert.deepEqual(rel, { version: '1.0.2', url: 'https://github.com/gyrika/possaas/releases/download/v1.0.2/LumePOS-Setup-1.0.2.exe', sizeMb: 25 });
   const page = downloadPage(rel);
-  assert.ok(page.includes('href="https://github.com/gyrika/lume-releases/releases/download/v1.0.2/LumePOS-Setup-1.0.2.exe"'));
+  assert.ok(page.includes('href="https://github.com/gyrika/possaas/releases/download/v1.0.2/LumePOS-Setup-1.0.2.exe"'));
   assert.ok(page.includes('25 MB · version 1.0.2'));
   assert.equal(await latestRelease((async () => new Response('', { status: 503 })) as unknown as typeof fetch), null);
-  assert.ok(downloadPage(null).includes('href="https://github.com/gyrika/lume-releases/releases/latest"'), 'GitHub away: the releases page');
+  assert.ok(downloadPage(null).includes('href="https://github.com/gyrika/possaas/releases/latest"'), 'GitHub away: the releases page');
 });
 
 test("the shop code only makes new shops: an existing one takes back only its own server", async () => {
