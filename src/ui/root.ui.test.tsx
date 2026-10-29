@@ -19,7 +19,7 @@ const sendOne = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(panel().getByRole('button', { name: 'Send to kitchen' }));
 };
 
-test('one counter PC: F2 flips Register ⇄ Kitchen, the chip shows what is cooking, Space bumps the oldest', async () => {
+test('one counter PC: the Kitchen key opens the Kitchen, shows what is cooking; Space bumps the oldest', async () => {
   const user = userEvent.setup();
   render(<Root />);
   expect(screen.getByRole('button', { name: 'Kitchen: nothing cooking' })).toBeTruthy();
@@ -27,7 +27,7 @@ test('one counter PC: F2 flips Register ⇄ Kitchen, the chip shows what is cook
   await sendOne(user);
   expect(screen.getByRole('button', { name: 'Kitchen: 1 cooking, oldest waiting 00:00' })).toBeTruthy();
 
-  await user.keyboard('{F2}');
+  await user.click(screen.getByRole('button', { name: /^Kitchen: 1 cooking/ }));
   expect(location.hash).toBe('#kitchen');
   expect(kitchen().getByRole('article', { name: 'Order 1001' })).toBeTruthy();
 
@@ -37,16 +37,16 @@ test('one counter PC: F2 flips Register ⇄ Kitchen, the chip shows what is cook
   await user.keyboard('{Control>}z{/Control}');
   expect(kitchen().getByRole('article', { name: 'Order 1001' })).toBeTruthy();
 
-  await user.keyboard('{F2}');
+  await user.keyboard('{Escape}');
   expect(location.hash).toBe('');
   expect(screen.getByRole('complementary', { name: 'Current order' })).toBeTruthy();
 
-  // Touch works too: the chip opens the Kitchen, the Register key (or Esc) comes back.
+  // The Register key comes back too; F2 no longer does anything.
   await user.click(screen.getByRole('button', { name: /^Kitchen: 1 cooking/ }));
   await user.click(screen.getByRole('button', { name: /^Register/ }));
   expect(screen.getByRole('complementary', { name: 'Current order' })).toBeTruthy();
-  await user.keyboard('{F2}{Escape}');
-  expect(screen.getByRole('complementary', { name: 'Current order' })).toBeTruthy();
+  await user.keyboard('{F2}');
+  expect(location.hash).toBe('');
 });
 
 test('a kitchen device opened at /#kitchen has no Register key', () => {

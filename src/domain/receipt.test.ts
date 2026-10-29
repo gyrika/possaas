@@ -82,7 +82,9 @@ test('ESC/POS bytes: init, drawer first, styles reset, ASCII only, then feed and
     ...CMD.left, ...CMD.feedCut,
   ]);
   assert.ok(![...escpos([{ text: 'x' }])].some((b, i, a) => b === 0x1b && a[i + 1] === 0x70), 'no drawer kick unless asked');
-  assert.deepEqual([...escpos([{ text: 'අ' }])].slice(5, 6), [0x3f], 'non-ASCII prints as ? rather than garbage');
+  assert.deepEqual([...escpos([{ text: 'é' }])].slice(5, 6), [0x3f], 'non-ASCII prints as ? rather than garbage');
+  const text = (t: string) => String.fromCharCode(...[...escpos([{ text: t }])].slice(5, -8)); // after init + left, before the newline, left and cut
+  assert.equal(text('Bata Kade · බත් කඩේ'), 'Bata Kade', 'Sinhala words are left off, not printed as ????');
 });
 
 test('two columns and wrapping', () => {

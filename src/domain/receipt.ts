@@ -149,9 +149,15 @@ export const CMD = {
   feedCut: [GS, 0x56, 0x42, 0x04],
 } as const;
 
-/** The printer's default code page is ASCII-safe; anything else becomes '?' rather than garbage. */
+/** Sinhala and Tamil script (with the joiners Sinhala uses): the printer's code page has neither. */
+const LOCAL_SCRIPT = /\s*[·•-]?\s*[\u0B80-\u0BFF\u0D80-\u0DFF\u200C\u200D]+(?:\s+[\u0B80-\u0BFF\u0D80-\u0DFF\u200C\u200D]+)*/g;
+
+/**
+ * The printer's default code page is ASCII-safe; Sinhala or Tamil words are left off ("Bata Kade · බත් කඩේ"
+ * prints "Bata Kade"), and anything else becomes '?' rather than garbage.
+ */
 const ascii = (s: string): number[] =>
-  [...s.replace(/×/g, 'x').replace(/[·•]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"')]
+  [...s.replace(LOCAL_SCRIPT, '').replace(/×/g, 'x').replace(/[·•]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"')]
     .map((c) => { const n = c.charCodeAt(0); return n >= 0x20 && n < 0x7f ? n : 0x3f; });
 
 /**

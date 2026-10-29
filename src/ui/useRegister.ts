@@ -4,7 +4,7 @@ import { fmt } from '../domain/money.ts';
 import {
   addLine, addLines, emptyOrder, markSent, newLineId, orderTotal, removeLine, unsentLines, updateLine,
 } from '../domain/order.ts';
-import type { NewTicket } from '../domain/kitchen.ts';
+import { splitByStation, type NewTicket } from '../domain/kitchen.ts';
 import {
   applyManagerChange, isRefusal, undoManagerChange, type Applied, type Inverse,
   type ManagerChange, type Refusal,
@@ -14,7 +14,8 @@ import type { LineSpec, Order, OrderLine, PaidOrder, Tender } from '../domain/ty
 import { demoSnapshot } from '../fake/demo.ts';
 import { currentCashier, shopId } from '../services/auth.ts';
 import { appendEvent } from './eventLog.ts';
-import { isDemo, storageKey } from './storage.ts';
+import { flyToKitchens } from './flight.ts';
+import { isDemo, isRiceDemo, storageKey } from './storage.ts';
 import { lineItemName } from '../domain/halves.ts';
 
 /**
@@ -24,7 +25,8 @@ import { lineItemName } from '../domain/halves.ts';
  * through the event log, which is the sync outbox.
  *
  * Customers eat first and pay after: an order is sent to the kitchen, waits in
- * `open` until the customer pays, and can take more rounds in between.
+ * `open` until the customer pays, and can take more rounds in between. A pay-first
+ * shop (Shop setup → Shop) only charges: paying sends the order to the kitchen.
  * Sends, payments and manager changes are written to the event log; the
  * kitchen screen is built from those events alone.
  */
@@ -77,7 +79,7 @@ const load = (): Snapshot => {
       }
     }
   } catch { /* corrupted or unavailable storage: start clean */ }
-  if (isDemo()) return { ...fresh(), ...demoSnapshot(Date.now()) };
+  if (isDemo() && !isRiceDemo()) return { ...fresh(), ...demoSnapshot(Date.now()) };
   return fresh();
 };
 
@@ -101,33 +103,40 @@ const withOrder = (s: Snapshot, order: Order): Snapshot => {
 };
 
 /**
- * Marks the order's unsent lines as sent and builds their kitchen ticket.
- * The first send of a new order claims its number; later sends are add-ons.
+ * Marks the order's unsent lines as sent and builds their kitchen tickets: one, or one per
+ * kitchen in a shop with two. The first send of a new order claims its number; later sends are add-ons.
  */
-const sendUnsent = (s: Snapshot, at: number): { s: Snapshot; order: Order; ticket: NewTicket | null } => {
+const sendUnsent = (s: Snapshot, at: number): { s: Snapshot; order: Order; tickets: NewTicket[] } => {
   const lines = unsentLines(s.order);
-  if (!lines.length) return { s, order: s.order, ticket: null };
+  if (!lines.length) return { s, order: s.order, tickets: [] };
   const order = markSent(s.order, at);
-  const ticket: NewTicket = {
-    id: newLineId(), shopId: shopId(), number: order.number, lines: lines.map((l) => ({ ...l, sent: true })), firedAt: at,
-    addOn: s.order.sentAt !== undefined,
-  };
+  const tickets = kitchenTickets(order.number, lines.map((l) => ({ ...l, sent: true })), at, { addOn: s.order.sentAt !== undefined });
   return {
     order,
-    ticket,
+    tickets,
     s: {
       ...s,
       nextNumber: order.number === s.nextNumber ? s.nextNumber + 1 : s.nextNumber,
-      fired: [...s.fired.slice(-(FIRED_KEPT - 1)), ticket.id],
+      fired: [...s.fired, ...tickets.map((t) => t.id)].slice(-FIRED_KEPT),
     },
   };
 };
 
-const fireTicket = (ticket: NewTicket) => {
-  appendEvent({
-    type: 'order.sent', at: ticket.firedAt, actor: currentCashier(), orderNumber: ticket.number,
-    ticketId: ticket.id, lines: ticket.lines, addOn: Boolean(ticket.addOn), ...(ticket.online ? { online: ticket.online } : {}),
-  });
+const kitchenTickets = (number: number, lines: OrderLine[], at: number, extra: Pick<NewTicket, 'addOn' | 'online'>): NewTicket[] =>
+  splitByStation(lines).map((g) => ({
+    id: newLineId(), shopId: shopId(), number, lines: g.lines, firedAt: at, ...extra, ...(g.station ? { station: g.station } : {}),
+  }));
+
+/** Each ticket becomes an event; in a shop with two kitchens each one also flies off to its side. */
+const fireTickets = (tickets: NewTicket[]) => {
+  for (const ticket of tickets) {
+    appendEvent({
+      type: 'order.sent', at: ticket.firedAt, actor: currentCashier(), orderNumber: ticket.number,
+      ticketId: ticket.id, lines: ticket.lines, addOn: Boolean(ticket.addOn),
+      ...(ticket.online ? { online: ticket.online } : {}), ...(ticket.station ? { station: ticket.station } : {}),
+    });
+  }
+  flyToKitchens(tickets);
 };
 
 export function useRegister() {
@@ -207,15 +216,15 @@ export function useRegister() {
 
   /** Sends the new lines to the kitchen and frees the register for the next customer. */
   const send = useCallback(() => {
-    const { s, order, ticket } = sendUnsent(ref.current, Date.now());
-    if (!ticket) return;
+    const { s, order, tickets } = sendUnsent(ref.current, Date.now());
+    if (!tickets.length) return;
     commit(() => ({
       ...s,
       open: [...s.open.filter((o) => o.number !== order.number), order],
       order: blank(s),
-    }), ticket.addOn ? `Sent more for ${order.number}` : `Sent ${order.number} to kitchen`);
+    }), tickets[0].addOn ? `Sent more for ${order.number}` : `Sent ${order.number} to kitchen`);
     sendOpen.current = true;
-    fireTicket(ticket);
+    fireTickets(tickets);
   }, [commit]);
 
   /**
@@ -230,17 +239,17 @@ export function useRegister() {
     const number = s.nextNumber;
     const online = { pickupBy };
     const order = { ...markSent(addLines(emptyOrder(number), specs), at), online };
-    const ticket: NewTicket = { id: newLineId(), shopId: shopId(), number, lines: order.lines, firedAt: at, addOn: false, online };
+    const tickets = kitchenTickets(number, order.lines, at, { addOn: false, online });
     const onScreen = !s.paid && s.order.sentAt === undefined && s.order.number === number ? { ...s.order, number: number + 1 } : s.order;
     const next: Snapshot = {
       ...s, order: onScreen, nextNumber: number + 1,
       open: [...s.open, order].sort((a, b) => a.number - b.number),
-      fired: [...s.fired.slice(-(FIRED_KEPT - 1)), ticket.id],
+      fired: [...s.fired, ...tickets.map((t) => t.id)].slice(-FIRED_KEPT),
     };
     ref.current = next;
     setSnap(next);
     setToast({ id: ++toastSeq.current, message: `Online order ${number} sent to kitchen` });
-    fireTicket(ticket);
+    fireTickets(tickets);
     return number;
   }, [seal]);
 
@@ -253,11 +262,10 @@ export function useRegister() {
     // Anything not yet sent goes to the kitchen first (a sealed send), so
     // undoing the payment later never pulls food back off the kitchen screen.
     const sent = sendUnsent(ref.current, Date.now());
-    if (sent.ticket) {
-      const { ticket } = sent;
+    if (sent.tickets.length) {
       commit(() => ({ ...sent.s, order: sent.order }), `Sent ${sent.order.number} to kitchen`);
       sendOpen.current = true; // sealed by the payment commit below
-      fireTicket(ticket);
+      fireTickets(sent.tickets);
     }
     const order = ref.current.order;
     const paid: PaidOrder = {
@@ -268,7 +276,7 @@ export function useRegister() {
       paid,
       open: s.open.filter((o) => o.number !== order.number),
       sales: [...s.sales, paid],
-    }), comped ? `Closed ${order.number} · Free` : `Paid ${fmt(total)}`);
+    }), `${comped ? `Closed ${order.number} · Free` : `Paid ${fmt(total)}`}${sent.tickets.length ? ` · ${order.number} to kitchen` : ''}`);
     appendEvent({ type: 'order.paid', at: paid.paidAt, actor: currentCashier(), orderNumber: paid.number, total, tender, tendered });
     return paid;
   }, [commit]);

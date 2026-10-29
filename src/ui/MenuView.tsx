@@ -5,7 +5,7 @@ import {
   type ItemOverride, type NewItem, type SectionDef,
 } from '../domain/menuEdits.ts';
 import { fmt } from '../domain/money.ts';
-import type { Category, Cents, MenuItem, Section, SizeId } from '../domain/types.ts';
+import type { Category, Cents, MenuItem, Section, SizeId, Station } from '../domain/types.ts';
 import { currentCashier } from '../services/auth.ts';
 import { appendEvent } from './eventLog.ts';
 import { useMenu } from './menuStore.ts';
@@ -86,6 +86,7 @@ function SectionSheet({ section, onSaved, onClose }: {
 }) {
   const [name, setName] = useState(section?.name ?? '');
   const [cook, setCook] = useState(String(section?.cookMinutes ?? 10));
+  const [station, setStation] = useState<Station | undefined>(section?.station);
   const [sizes, setSizes] = useState<Row[]>(section?.sizes.map((z) => ({ id: z.id, label: z.label, price: '' })) ?? []);
   const [adds, setAdds] = useState<Row[]>(section?.adds.map((a) => ({ id: a.id, label: a.label, price: String(a.price / 100) })) ?? []);
   const [error, setError] = useState('');
@@ -116,6 +117,7 @@ function SectionSheet({ section, onSaved, onClose }: {
       cookMinutes: Number.isInteger(minutes) ? minutes : 0,
       sizes: keptSizes.map((r, i) => ({ id: sizeIds[i], label: r.label.trim() })),
       adds: keptAdds.map((r, i) => ({ id: addIds[i], label: r.label.trim(), price: addPrices[i]! })),
+      ...(station ? { station } : {}),
     };
     const bad = checkSection(def);
     if (bad) { setError(sentence(bad)); return; }
@@ -170,6 +172,15 @@ function SectionSheet({ section, onSaved, onClose }: {
               <label>Ready in (minutes)<input className="num" inputMode="numeric" value={cook} onChange={(e) => setCook(e.target.value.replace(/\D/g, ''))} /></label>
             </div>
             <p className="menued__note">The kitchen sees an order turn amber after this long, and red at one and a half times it.</p>
+          </section>
+          <section className="group">
+            <h2>Kitchen</h2>
+            <p className="menued__note">Two kitchens? Pick the one that makes this section. Its orders go to that kitchen's screen and fly off to its side.</p>
+            <div className="menued__stations" role="group" aria-label="Kitchen">
+              {([[undefined, 'One kitchen'], ['left', 'Left kitchen'], ['right', 'Right kitchen']] as const).map(([v, label]) => (
+                <button key={label} type="button" className="pill" aria-pressed={station === v} onClick={() => setStation(v)}>{label}</button>
+              ))}
+            </div>
           </section>
           <section className="group">
             <h2>Sizes</h2>
@@ -469,6 +480,7 @@ export function MenuView({ owner, onBack }: { owner: boolean; onBack: () => void
           <p className="menuv__section">
             <span>
               Ready in {section.cookMinutes} min
+              {section.station && ` · ${section.station === 'left' ? 'Left' : 'Right'} kitchen`}
               {section.sizes.length > 0 && ` · ${section.sizes.map((z) => z.label).join(', ')}`}
               {section.adds.length > 0 && ` · extras: ${section.adds.map((a) => a.label).join(', ')}`}
             </span>

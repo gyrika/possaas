@@ -1,6 +1,6 @@
-import { SAMPLE_SECTIONS, itemById, sectionOf } from './menu.ts';
+import { SAMPLE_SECTIONS, itemById, menuSections, sectionOf } from './menu.ts';
 import type { SyncEvent } from './sync.ts';
-import type { Category, OnlineMark, OrderLine } from './types.ts';
+import type { Category, OnlineMark, OrderLine, Station } from './types.ts';
 import { leaveOutsOf, lineItemName, secondHalf } from './halves.ts';
 
 /**
@@ -14,6 +14,8 @@ export interface KitchenLine extends OrderLine {
   /** What this line was before the latest manager change. */
   was?: OrderLine;
   cancelled?: boolean;
+  /** Portions handed over at a pay-first counter (the serving list); absent = none. */
+  served?: number;
 }
 
 /**
@@ -31,6 +33,8 @@ export interface KitchenTicket {
   addOn?: boolean;
   /** An online order: the customer comes to collect it by `pickupBy`. */
   online?: OnlineMark;
+  /** A shop with two kitchens: the one that makes it. Absent = the only kitchen. */
+  station?: Station;
   /** A manager changed or cancelled something on it. */
   changed?: boolean;
   /** Last arrival or change. The ticket flashes until `seenAt` catches up. */
@@ -39,7 +43,7 @@ export interface KitchenTicket {
   doneAt?: number;
 }
 
-export type NewTicket = Pick<KitchenTicket, 'id' | 'shopId' | 'number' | 'lines' | 'firedAt' | 'addOn' | 'online'>;
+export type NewTicket = Pick<KitchenTicket, 'id' | 'shopId' | 'number' | 'lines' | 'firedAt' | 'addOn' | 'online' | 'station'>;
 
 export type Urgency = 'ok' | 'warn' | 'bad';
 
@@ -68,6 +72,29 @@ export const elapsedLabel = (elapsedMs: number): string => {
   const s = Math.max(0, Math.floor(elapsedMs / 1000));
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 };
+
+/** The kitchen that makes an item: its section's. Absent = the only kitchen. */
+export const stationOf = (itemId: string): Station | undefined => sectionOf(itemById(itemId).category)?.station;
+
+/**
+ * A shop with two kitchens sends each kitchen its own ticket, so each one's Done is its own.
+ * Lines whose section names no kitchen go to the left one (the shop's first). A shop with one
+ * kitchen gets one group with no station, exactly as before.
+ */
+export const splitByStation = <L extends Pick<OrderLine, 'itemId'>>(lines: readonly L[]): { station?: Station; lines: L[] }[] => {
+  const of = lines.map((l) => stationOf(l.itemId));
+  if (!of.some(Boolean)) return lines.length ? [{ lines: [...lines] }] : [];
+  return (['left', 'right'] as const)
+    .map((station) => ({ station, lines: lines.filter((_, i) => (of[i] ?? 'left') === station) }))
+    .filter((g) => g.lines.length > 0);
+};
+
+/** The shop has a right kitchen as well as the left one: a section of its menu is made there. */
+export const twoKitchens = (): boolean => menuSections().some((x) => x.station === 'right');
+
+/** A kitchen screen set to one kitchen shows that kitchen's tickets; unset, it shows them all. */
+export const forStation = (tickets: KitchenTicket[], station: Station | null): KitchenTicket[] =>
+  station ? tickets.filter((t) => (t.station ?? 'left') === station) : tickets;
 
 /** Adds a ticket, alerting the kitchen. Re-firing the same id replaces it (idempotent). */
 export const fire = (tickets: KitchenTicket[], ticket: NewTicket): KitchenTicket[] => [
@@ -134,6 +161,29 @@ export const unbump = (tickets: KitchenTicket[], id: string): KitchenTicket[] =>
     return open;
   });
 
+/** Portions of a line still to hand over; a cancelled line has none. */
+export const toServe = (l: KitchenLine): number => (l.cancelled ? 0 : Math.max(0, l.qty - (l.served ?? 0)));
+
+/**
+ * A pay-first counter hands food over one portion at a time. The ticket is
+ * done once nothing is left to serve (Done also counts as seen); taking a
+ * portion back reopens it.
+ */
+export const serve = (tickets: KitchenTicket[], id: string, lineId: string, at: number): KitchenTicket[] =>
+  tickets.map((t) => {
+    if (t.id !== id || !t.lines.some((l) => l.id === lineId && toServe(l) > 0)) return t;
+    const lines = t.lines.map((l) => (l.id === lineId ? { ...l, served: (l.served ?? 0) + 1 } : l));
+    const next = { ...t, lines };
+    return lines.some((l) => toServe(l) > 0) || t.doneAt !== undefined ? next : { ...next, doneAt: at, seenAt: Math.max(at, t.alertAt) };
+  });
+
+export const unserve = (tickets: KitchenTicket[], id: string, lineId: string): KitchenTicket[] =>
+  tickets.map((t) => {
+    if (t.id !== id || !t.lines.some((l) => l.id === lineId && (l.served ?? 0) > 0)) return t;
+    const { doneAt: _done, ...open } = t;
+    return { ...open, lines: t.lines.map((l) => (l.id === lineId ? { ...l, served: (l.served ?? 0) - 1 } : l)) };
+  });
+
 /** What to make next: open tickets, oldest first. */
 export const queue = (tickets: KitchenTicket[]): KitchenTicket[] =>
   tickets
@@ -192,6 +242,56 @@ export const ticketLines = (t: KitchenTicket): TicketLine[] =>
     ...(l.was && !l.cancelled ? { was: view(l.was) } : {}),
   }));
 
+/**
+ * The serving list of a pay-first counter: everything paid for and not yet
+ * handed over, grouped by what goes on the plate ("Large chicken rice x 8"),
+ * longest wait first. Serving staff never give more of a meal than was paid.
+ */
+export interface ServingRow extends Omit<LineView, 'qty'> {
+  key: string;
+  /** Portions still to hand over. */
+  count: number;
+  oldestAt: number;
+  /** The slowest cook time among them, for the urgency colour. */
+  cookMs: number;
+  /** The portion one tap serves: the oldest one. */
+  next: { ticketId: string; lineId: string; number: number };
+  /** Every ticket waiting on this row (an arrival or change flashes the row). */
+  ticketIds: string[];
+}
+
+export const servingRows = (tickets: KitchenTicket[]): ServingRow[] => {
+  const rows = new Map<string, ServingRow>();
+  for (const t of queue(tickets)) {
+    for (const l of t.lines) {
+      const left = toServe(l);
+      if (left === 0) continue;
+      const { qty: _qty, ...v } = view(l);
+      const key = [v.name, v.detail, v.outs.join(','), v.note ?? ''].join('|');
+      const row = rows.get(key);
+      const cookMs = cookTimeMs({ lines: [l] });
+      if (row) {
+        row.count += left;
+        row.cookMs = Math.max(row.cookMs, cookMs);
+        if (!row.ticketIds.includes(t.id)) row.ticketIds.push(t.id);
+      } else {
+        rows.set(key, { ...v, key, count: left, oldestAt: t.firedAt, cookMs, next: { ticketId: t.id, lineId: l.id, number: t.number }, ticketIds: [t.id] });
+      }
+    }
+  }
+  return [...rows.values()];
+};
+
+/** An open ticket with nothing left to hand over. */
+export const nothingToServe = (t: KitchenTicket): boolean => t.lines.every((l) => toServe(l) === 0);
+
+/**
+ * A manager cancelled everything left on a paid order: it is no longer on the
+ * serving list, but the counter must see that once (a plate may be ready) and
+ * tap it away.
+ */
+export const cancelledToServe = (tickets: KitchenTicket[]): KitchenTicket[] => queue(tickets).filter(nothingToServe);
+
 /** Events older than this cannot hold a ticket worth showing; skipping them keeps the fold cheap. */
 export const TICKET_HORIZON_MS = 24 * 60 * 60_000;
 
@@ -208,7 +308,7 @@ export const ticketsFromEvents = (events: readonly SyncEvent[], now: number): Ki
     if (now - e.at > TICKET_HORIZON_MS) continue;
     switch (e.type) {
       case 'order.sent':
-        t = fire(t, { id: e.ticketId, shopId: e.shopId, number: e.orderNumber, lines: e.lines, firedAt: e.at, addOn: e.addOn, ...(e.online ? { online: e.online } : {}) });
+        t = fire(t, { id: e.ticketId, shopId: e.shopId, number: e.orderNumber, lines: e.lines, firedAt: e.at, addOn: e.addOn, ...(e.online ? { online: e.online } : {}), ...(e.station ? { station: e.station } : {}) });
         break;
       case 'order.send_undone': t = recall(t, e.ticketId); break;
       case 'order.item_changed':
@@ -227,6 +327,8 @@ export const ticketsFromEvents = (events: readonly SyncEvent[], now: number): Ki
       case 'kitchen.seen': t = ack(t, e.ticketId, e.at); break;
       case 'kitchen.bumped': t = bump(t, e.ticketId, e.at); break;
       case 'kitchen.unbumped': t = unbump(t, e.ticketId); break;
+      case 'kitchen.served': t = serve(t, e.ticketId, e.lineId, e.at); break;
+      case 'kitchen.unserved': t = unserve(t, e.ticketId, e.lineId); break;
       default: break; // payments and price changes do not concern the kitchen
     }
   }

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { PIN_LENGTH, type Role } from '../domain/auth.ts';
 import { DEFAULT_FOOTER, PRODUCT_NAME } from '../domain/brand.ts';
 import { printerAdvice, type Advice } from '../domain/printerHelp.ts';
+import { menuSections } from '../domain/menu.ts';
+import type { Station } from '../domain/types.ts';
 import { pairAsCounter } from '../services/pairing.ts';
 import { openDrawer, printReceipt } from '../services/printer.ts';
 import { setupClient, type SetupState, type StaffRow } from '../services/setupClient.ts';
@@ -25,8 +27,8 @@ const FIRST: Step[] = ['shop', 'printer', 'staff', 'cloud', 'devices'];
 const TITLES: Record<Step, string> = {
   shop: 'Name your shop', printer: 'Your receipt printer', staff: 'Your staff', cloud: 'Connect to the cloud', devices: 'Connect your devices',
 };
-type Tab = Exclude<Step, 'shop'> | 'updates' | 'backup' | 'help';
-const TAB_LABEL: Record<Tab, string> = { staff: 'Staff', printer: 'Printer', cloud: 'Cloud', devices: 'Devices', updates: 'Updates', backup: 'Backup', help: 'Help' };
+type Tab = Step | 'updates' | 'backup' | 'help';
+const TAB_LABEL: Record<Tab, string> = { shop: 'Shop', staff: 'Staff', printer: 'Printer', cloud: 'Cloud', devices: 'Devices', updates: 'Updates', backup: 'Backup', help: 'Help' };
 const ROLES: { id: Role; label: string }[] = [
   { id: 'cashier', label: 'Cashier' }, { id: 'manager', label: 'Manager' }, { id: 'owner', label: 'Owner' }, { id: 'kitchen', label: 'Kitchen' },
 ];
@@ -48,9 +50,50 @@ function OwnerPin({ title, onPin, error }: { title: string; onPin: (pin: string)
   );
 }
 
+const PAY_WHEN = [
+  { payFirst: false, label: 'They eat first, then pay', hint: 'Send to kitchen, then Charge (a restaurant)' },
+  { payFirst: true, label: 'They pay first', hint: 'Charge sends the order to the kitchen (a rice & curry counter, a take-away)' },
+] as const;
+
+/** When customers pay: the register's one action follows it. */
+function PayWhenChoice({ value, onPick }: { value: boolean; onPick: (payFirst: boolean) => void }) {
+  return (
+    <div className="setup__choices" role="radiogroup" aria-label="When customers pay">
+      {PAY_WHEN.map((w) => (
+        <button key={w.label} type="button" role="radio" aria-checked={value === w.payFirst} className="setup__choice" onClick={() => onPick(w.payFirst)}>
+          {w.label} <span className="setup__hint">· {w.hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Shop setup → Shop: changes when customers pay; the register follows at once. */
+function PayWhenTab({ state, ownerPin }: { state: SetupState; ownerPin?: string }) {
+  const [payFirst, setPayFirst] = useState(Boolean(state.shop?.payFirst));
+  const [error, setError] = useState('');
+  const pick = async (next: boolean) => {
+    setError('');
+    try {
+      await setupClient.setPayWhen(next, ownerPin);
+      setPayFirst(next);
+      const now = shopDetails();
+      if (now) setShopDetails({ ...now, payFirst: next });
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  return (
+    <div className="setup__form">
+      <h2 className="setup__subhead">When do customers pay?</h2>
+      <PayWhenChoice value={payFirst} onPick={(p) => void pick(p)} />
+      {error && <p className="setup__error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
 function ShopStep({ state, onDone }: { state: SetupState; onDone: () => void }) {
   const [name, setName] = useState(state.shop?.name ?? '');
   const [place, setPlace] = useState(state.shop?.place ?? '');
+  const [payFirst, setPayFirst] = useState(Boolean(state.shop?.payFirst));
   const [error, setError] = useState('');
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -58,7 +101,8 @@ function ShopStep({ state, onDone }: { state: SetupState; onDone: () => void }) 
       const r = await setupClient.nameShop(name, place);
       // The shop PC pairs itself as the counter: no link to open, nothing to type.
       if (r.counterToken) pairAsCounter(r.counterToken, r.shopId);
-      setShopDetails({ name: name.trim(), place: place.trim(), footer: state.shop?.footer ?? DEFAULT_FOOTER });
+      await setupClient.setPayWhen(payFirst);
+      setShopDetails({ name: name.trim(), place: place.trim(), footer: state.shop?.footer ?? DEFAULT_FOOTER, payFirst });
       onDone();
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
   };
@@ -68,6 +112,8 @@ function ShopStep({ state, onDone }: { state: SetupState; onDone: () => void }) 
         <input autoFocus value={name} placeholder="e.g. Rasika's Kitchen" onChange={(e) => setName(e.target.value)} /></label>
       <label className="setup__field"><span>Town</span>
         <input value={place} placeholder="e.g. Kandy" onChange={(e) => setPlace(e.target.value)} /></label>
+      <h2 className="setup__subhead">When do customers pay?</h2>
+      <PayWhenChoice value={payFirst} onPick={setPayFirst} />
       {error && <p className="setup__error" role="alert">{error}</p>}
       <div className="setup__foot"><button type="submit" className="cta" disabled={!name.trim()}>Next</button></div>
     </form>
@@ -568,27 +614,35 @@ function HelpTab({ ownerPin }: { ownerPin?: string }) {
 }
 
 function DevicesStep({ state, ownerPin, onFinish }: { state: SetupState; ownerPin?: string; onFinish?: () => void }) {
-  const [links, setLinks] = useState<{ kitchen?: string; owner?: string }>({});
+  const [links, setLinks] = useState<Partial<Record<Device, string>>>({});
   const [error, setError] = useState('');
-  const show = async (kind: 'kitchen' | 'owner') => {
+  // A menu with a section in the right kitchen means two kitchens: one screen for each.
+  const twoKitchens = menuSections().some((x) => x.station === 'right');
+  const show = async (device: Device) => {
     setError('');
-    try { const { link } = await setupClient.pair(kind, ownerPin); setLinks((l) => ({ ...l, [kind]: link })); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    try {
+      const { link } = device === 'owner' ? await setupClient.pair('owner', ownerPin)
+        : await setupClient.pair('kitchen', ownerPin, device === 'kitchen' ? undefined : device.slice('kitchen-'.length) as Station);
+      setLinks((l) => ({ ...l, [device]: link }));
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
-  const card = (kind: 'kitchen' | 'owner', title: string, how: string, available: boolean, why: string) => (
+  const card = (device: Device, title: string, how: string, available: boolean, why: string) => (
     <section className="setup__device" aria-label={title}>
       <h2>{title}</h2>
-      {links[kind]
-        ? <><QrCode text={links[kind]!} label={`QR code for the ${title.toLowerCase()}`} /><p className="setup__hint">{how}</p></>
+      {links[device]
+        ? <><QrCode text={links[device]!} label={`QR code for the ${title.toLowerCase()}`} /><p className="setup__hint">{how}</p></>
         : available
-          ? <button type="button" className="chip chip--solid" onClick={() => void show(kind)}>Show QR code</button>
+          ? <button type="button" className="chip chip--solid" onClick={() => void show(device)}>Show QR code</button>
           : <p className="setup__hint">{why}</p>}
     </section>
   );
+  const kitchenHow = "Scan it with the kitchen screen's camera. It must be on the shop's Wi-Fi.";
   return (
     <div className="setup__form">
       <div className="setup__devices">
-        {card('kitchen', 'Kitchen tablet', "Scan it with the tablet's camera. The tablet must be on the shop's Wi-Fi.", true, '')}
+        {twoKitchens
+          ? <>{card('kitchen-left', 'Left kitchen', kitchenHow, true, '')}{card('kitchen-right', 'Right kitchen', kitchenHow, true, '')}</>
+          : card('kitchen', 'Kitchen tablet', "Scan it with the tablet's camera. The tablet must be on the shop's Wi-Fi.", true, '')}
         {card('owner', "Owner's phone", "Scan it with the owner's phone. It then shows the Owner view, from anywhere.", state.cloud,
           'Connect to the cloud first (the step before), then come back here.')}
       </div>
@@ -598,6 +652,9 @@ function DevicesStep({ state, ownerPin, onFinish }: { state: SetupState; ownerPi
     </div>
   );
 }
+
+/** What a QR code pairs. */
+type Device = 'kitchen' | 'kitchen-left' | 'kitchen-right' | 'owner';
 
 export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => void }) {
   const [state, setState] = useState<SetupState | null>(null);
@@ -650,10 +707,11 @@ export function SetupWizard({ mode, onClose }: { mode: Mode; onClose?: () => voi
     body = (
       <>
         <nav className="cats setup__tabs" aria-label="Shop setup">
-          {(['staff', 'printer', 'cloud', 'devices', 'updates', 'backup', 'help'] as const).map((t) => (
+          {(['shop', 'staff', 'printer', 'cloud', 'devices', 'updates', 'backup', 'help'] as const).map((t) => (
             <button key={t} type="button" className="pill" aria-pressed={tab === t} onClick={() => setTab(t)}>{TAB_LABEL[t]}</button>
           ))}
         </nav>
+        {tab === 'shop' && <PayWhenTab state={state} ownerPin={ownerPin} />}
         {tab === 'staff' && <StaffStep initial={staff ?? []} ownerPin={ownerPin} />}
         {tab === 'printer' && <PrinterStep state={state} ownerPin={ownerPin} onRefresh={() => void reload()} />}
         {tab === 'cloud' && <CloudStep connected={state.cloud} ownerPin={ownerPin} onConnected={connected} />}

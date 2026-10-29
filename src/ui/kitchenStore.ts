@@ -26,3 +26,8 @@ export type KitchenTap = 'kitchen.seen' | 'kitchen.bumped' | 'kitchen.unbumped';
 export const recordKitchen = (type: KitchenTap, ticket: Pick<KitchenTicket, 'id' | 'number'>): void => {
   appendEvent({ type, at: Date.now(), orderNumber: ticket.number, ticketId: ticket.id });
 };
+
+/** A pay-first counter handed over (or took back) one portion of a line. */
+export const recordServed = (type: 'kitchen.served' | 'kitchen.unserved', ticket: Pick<KitchenTicket, 'id' | 'number'>, lineId: string): void => {
+  appendEvent({ type, at: Date.now(), orderNumber: ticket.number, ticketId: ticket.id, lineId });
+};

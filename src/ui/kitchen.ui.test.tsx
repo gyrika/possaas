@@ -3,9 +3,14 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App.tsx';
 import { Kitchen } from './Kitchen.tsx';
+import { Root } from './Root.tsx';
+import { readAll } from './eventLog.ts';
+import { setShopDetails } from '../services/shop.ts';
+import { SAMPLE_START, setStartingMenu } from '../domain/menu.ts';
+import { FAKE_RICE_START } from '../fake/data.ts';
 
 beforeEach(() => localStorage.clear());
-afterEach(cleanup);
+afterEach(() => { cleanup(); setShopDetails({ name: 'Shop', place: '', footer: '', payFirst: false }); });
 
 const panel = () => within(screen.getByRole('complementary', { name: 'Current order' }));
 const kitchen = () => within(screen.getByRole('main', { name: 'Orders to make' }));
@@ -106,4 +111,75 @@ test('the register shows Cooking until the kitchen taps Done, next to Paid / Unp
   const paid = within(panel().getByRole('region', { name: 'Paid today' }));
   expect(paid.getByText('Cooking')).toBeTruthy();
   expect(paid.getByText('Paid · Cash')).toBeTruthy();
+});
+
+test('a pay-first counter: paid meals wait on the serving list, grouped; one tap hands one over', async () => {
+  setShopDetails({ name: 'Rice Bowl', place: '', footer: '', payFirst: true });
+  const user = userEvent.setup();
+  render(<><App /><Kitchen /></>);
+  const serving = () => within(screen.getByRole('main', { name: 'Paid, to hand over' }));
+  expect(serving().getByText('Nothing paid and waiting')).toBeTruthy();
+
+  const charge = async () => {
+    await user.click(screen.getAllByRole('button', { name: 'L 2500' })[0]); // Devilled Chicken L
+    await user.click(panel().getByRole('button', { name: 'Charge' }));
+    await user.click(screen.getByRole('button', { name: /Exact/ }));
+    await user.click(panel().getByRole('button', { name: 'Next order' }));
+  };
+  await charge();
+  await charge();
+  const row = () => serving().getByRole('article', { name: /^Devilled Chicken, Large: / });
+  expect(row().getAttribute('aria-label')).toBe('Devilled Chicken, Large: 2 paid');
+
+  await user.click(within(row()).getByRole('button', { name: 'Served one: Devilled Chicken, Large' }));
+  expect(row().getAttribute('aria-label')).toBe('Devilled Chicken, Large: 1 paid');
+  // The oldest is handed over first, and its ticket is done for the register and the owner.
+  expect(readAll().filter((e) => e.type === 'kitchen.bumped').map((e) => e.orderNumber)).toEqual([1001]);
+
+  const toast = screen.getAllByRole('status').find((el) => el.textContent?.includes('Served · Devilled Chicken'))!;
+  await user.click(within(toast).getByRole('button', { name: 'Undo' }));
+  expect(row().getAttribute('aria-label')).toBe('Devilled Chicken, Large: 2 paid');
+  expect(readAll().map((e) => e.type).slice(-2)).toEqual(['kitchen.unserved', 'kitchen.unbumped']);
+
+  await user.click(within(row()).getByRole('button', { name: /^Served one/ }));
+  await user.click(within(row()).getByRole('button', { name: /^Served one/ }));
+  expect(serving().getByText('Nothing paid and waiting')).toBeTruthy();
+});
+
+test('two kitchens: rice goes left, kottu goes right; each flies its way and shows on its own screen', async () => {
+  setStartingMenu(FAKE_RICE_START);
+  setShopDetails({ name: 'Bata Kade', place: '', footer: '', payFirst: true });
+  try {
+    const user = userEvent.setup();
+    render(<Root />);
+    await user.click(screen.getAllByRole('button', { name: 'L 600' })[0]); // Chicken Rice & Curry, Large
+    await user.click(screen.getByRole('button', { name: 'Kottu & Fried Rice' }));
+    await user.click(screen.getAllByRole('button', { name: 'L 950' })[0]); // Chicken Kottu, Large
+    await user.click(panel().getByRole('button', { name: 'Charge' }));
+    await user.click(screen.getByRole('button', { name: /Exact/ }));
+
+    const sent = readAll().flatMap((e) => (e.type === 'order.sent' ? [[e.station, e.lines.map((l) => l.itemId)]] : []));
+    expect(sent).toEqual([['left', ['rc-chicken']], ['right', ['kt-chicken']]]);
+    expect(document.querySelector('.flight--left')?.textContent).toContain('1 × Chicken Rice & Curry');
+    expect(document.querySelector('.flight--right')?.textContent).toContain('1 × Chicken Kottu');
+    // The Register has a key per kitchen, each counting its own.
+    expect(screen.getByRole('button', { name: /^Left kitchen: 1 to hand over/ })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /^Right kitchen: 1 to hand over/ }));
+    expect(screen.getByRole('heading', { name: 'Serving · Right kitchen' })).toBeTruthy();
+    expect(screen.queryByRole('article', { name: /Rice & Curry/ })).toBeNull();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: /^Left kitchen/ }));
+    expect(screen.getByRole('article', { name: 'Chicken Rice & Curry, Large: 1 paid' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    cleanup();
+
+    // A kitchen phone or tablet paired as the right kitchen.
+
+    localStorage.setItem('cb.kitchen.station', 'right');
+    render(<Kitchen />);
+    expect(screen.getByRole('heading', { name: 'Serving · Right kitchen' })).toBeTruthy();
+    const serving = within(screen.getByRole('main', { name: 'Paid, to hand over' }));
+    expect(serving.getByRole('article', { name: 'Chicken Kottu, Large: 1 paid' })).toBeTruthy();
+    expect(serving.queryByRole('article', { name: /Rice & Curry/ })).toBeNull();
+  } finally { setStartingMenu(SAMPLE_START); }
 });

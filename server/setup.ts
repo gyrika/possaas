@@ -44,7 +44,7 @@ export interface SetupContext {
 }
 
 /** What every screen and the receipt show (GET /api/v1/shop-details): the shop's own name, never the product's. */
-export interface ShopInfo { name: string; place: string; footer: string; paper: PaperWidth }
+export interface ShopInfo { name: string; place: string; footer: string; paper: PaperWidth; payFirst: boolean }
 
 export interface SetupState {
   done: boolean;
@@ -89,7 +89,8 @@ export function setupApi(ctx: SetupContext) {
   const shop = () => {
     const s = ctx.settings.get();
     return s.shopId
-      ? { id: s.shopId, name: s.shopName ?? s.shopId, place: s.place ?? '', footer: s.receiptFooter ?? DEFAULT_FOOTER, paper: s.paperWidth ?? 80 }
+      ? { id: s.shopId, name: s.shopName ?? s.shopId, place: s.place ?? '', footer: s.receiptFooter ?? DEFAULT_FOOTER, paper: s.paperWidth ?? 80,
+        payFirst: s.payFirst === true }
       : null;
   };
   const requireShop = () => {
@@ -123,7 +124,7 @@ export function setupApi(ctx: SetupContext) {
     /** For every screen on the shop's network (no PIN: it is printed on every receipt anyway). */
     publicShop(): ShopInfo | null {
       const s = shop();
-      return s ? { name: s.name, place: s.place, footer: s.footer, paper: s.paper } : null;
+      return s ? { name: s.name, place: s.place, footer: s.footer, paper: s.paper, payFirst: s.payFirst } : null;
     },
 
     async state(): Promise<SetupState> {
@@ -173,6 +174,15 @@ export function setupApi(ctx: SetupContext) {
       if (body.width !== 58 && body.width !== 80) throw new SetupError(400, 'invalid', 'the paper is 58 or 80 mm');
       ctx.settings.set({ paperWidth: body.width });
       return { paper: body.width };
+    },
+
+    /** Shop setup → Shop: customers pay before the order goes to the kitchen, or eat first and pay after. */
+    async setPayWhen(body: { payFirst?: unknown; ownerPin?: unknown }) {
+      await authorise(body.ownerPin);
+      requireShop();
+      if (typeof body.payFirst !== 'boolean') throw new SetupError(400, 'invalid', 'say whether customers pay first');
+      ctx.settings.set({ payFirst: body.payFirst });
+      return { payFirst: body.payFirst };
     },
 
     /** "Did it print? No": what Windows knows about the chosen printer. */
@@ -243,10 +253,11 @@ export function setupApi(ctx: SetupContext) {
     },
 
     /**
-     * A QR code's link. kitchen: a tablet on the shop Wi-Fi becomes the Kitchen screen.
+     * A QR code's link. kitchen: a tablet on the shop Wi-Fi becomes the Kitchen screen (with
+     * `station`, the left or right one of a shop with two kitchens).
      * owner: a phone gets the Owner view from the cloud. counter: another screen on this PC.
      */
-    async pair(body: { kind?: unknown; ownerPin?: unknown }) {
+    async pair(body: { kind?: unknown; ownerPin?: unknown; station?: unknown }) {
       await authorise(body.ownerPin);
       const s = requireShop();
       if (body.kind === 'owner') {
@@ -261,10 +272,13 @@ export function setupApi(ctx: SetupContext) {
         return { link: `${cloud.url}/?owner=${token}#owner` };
       }
       if (body.kind === 'kitchen') {
+        if (body.station !== undefined && body.station !== 'left' && body.station !== 'right') {
+          throw new SetupError(400, 'invalid', 'station must be left or right');
+        }
         const host = lanAddress();
         if (!host) throw new SetupError(409, 'not_ready', 'this PC is not on a network: connect it to the shop Wi-Fi');
         const { token } = await ctx.store.addDevice(s.id, s.name, 'kitchen');
-        return { link: `http://${host}:${ctx.port}/?pair=${token}&shop=${encodeURIComponent(s.id)}&as=kitchen#kitchen` };
+        return { link: `http://${host}:${ctx.port}/?pair=${token}&shop=${encodeURIComponent(s.id)}&as=kitchen${body.station ? `&station=${body.station}` : ''}#kitchen` };
       }
       if (body.kind === 'counter') {
         const { token } = await ctx.store.addDevice(s.id, s.name, 'counter');

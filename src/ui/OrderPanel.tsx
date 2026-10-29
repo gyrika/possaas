@@ -8,6 +8,7 @@ import { orderTotal, unsentLines } from '../domain/order.ts';
 import { discountLabel, lineAdjustment, lineNet, totals } from '../domain/totals.ts';
 import type { Cents, Discount, Order, OrderLine, PaidOrder } from '../domain/types.ts';
 import { leaveOutsOf, lineItemName, secondHalf } from '../domain/halves.ts';
+import { usePayFirst } from '../services/shop.ts';
 
 const sub = (l: OrderLine): string => {
   const item = itemById(l.itemId);
@@ -140,7 +141,7 @@ function AdjustField({ line, order, onAdjust }: { line: OrderLine; order: Order;
 
 /**
  * The bill. Cashier mode: one primary action at a time ("Send to kitchen",
- * then "Charge"). Manager mode: the same card lifted, every line selectable
+ * then "Charge"; a pay-first shop has only "Charge", which sends it too). Manager mode: the same card lifted, every line selectable
  * and changeable, discount chips under the order. No dialogs, no banners.
  */
 export function OrderPanel({
@@ -180,6 +181,7 @@ export function OrderPanel({
   const discount = order.adjust?.discount;
   const comped = discount?.kind === 'comp';
   const listing = order.lines.length === 0;
+  const payFirst = usePayFirst();
 
   return (
     <aside className={panelClass} aria-label="Current order">
@@ -321,11 +323,11 @@ export function OrderPanel({
           </div>
         )}
         <span className="total num">{fmt(total)}</span>
-        {hasNew || !isOpen
+        {!payFirst && (hasNew || !isOpen)
           ? <button type="button" className="cta" disabled={!hasNew} onClick={onSend}>Send to kitchen</button>
           : comped
-            ? <button type="button" className="cta" onClick={onCloseFree}>Close · Free</button>
-            : <button type="button" className="cta" onClick={onCharge}>Charge</button>}
+            ? <button type="button" className="cta" disabled={listing} onClick={onCloseFree}>Close · Free</button>
+            : <button type="button" className="cta" disabled={listing} onClick={onCharge}>Charge</button>}
       </div>
     </aside>
   );

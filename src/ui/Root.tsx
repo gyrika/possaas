@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
 import { seesTakings } from '../domain/auth.ts';
+import type { Station } from '../domain/types.ts';
 import { usesLogin } from '../services/auth.ts';
 import { adminShop, fleetShop, isCloudSite, isKitchenDevice, ownerToken, syncToken } from '../services/pairing.ts';
 import { isDemo } from './storage.ts';
@@ -90,8 +91,9 @@ function NotConnected() {
  * - A kitchen device (paired as kitchen) shows the Kitchen only, with no login.
  * - On the counter, staff log in with their PIN (SCRUM-40); F4 switches user,
  *   and the screen locks itself when quiet. A kitchen login sees the Kitchen only.
- * - Until the kitchen has its own screen, F2 (or the Kitchen key) flips the
- *   counter between Register and Kitchen; F3 flips to the Owner view and back
+ * - Until the kitchen has its own screen, the Kitchen key (one per kitchen in a shop
+ *   with two) shows that kitchen on the counter; Esc or the Register key comes back.
+ *   F3 flips to the Owner view and back
  *   (owners and managers). The Kitchen stays visible while the
  *   screen is locked; only going back to the Register needs a PIN.
  * Development and the demo have no login (fake staff), as before.
@@ -124,27 +126,29 @@ export function Root() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  const inKitchen = hash === KITCHEN;
+  /** `#kitchen`, or `#kitchen/left|right`: one kitchen of a shop with two. */
+  const kitchenHash = /^#kitchen(?:\/(left|right))?$/.exec(hash);
+  const inKitchen = kitchenHash !== null;
+  const kitchenView = (kitchenHash?.[1] as Station | undefined) ?? null;
   /** The Owner view shows the takings: owners and managers only (SCRUM-41). */
   const seesOwner = !kitchenOnly && (!needsLogin || (staff !== null && seesTakings(staff.role)));
-  const go = useCallback((to: '' | typeof KITCHEN | typeof OWNER | '#shops') => withTransition(() => {
+  const go = useCallback((to: '' | `${typeof KITCHEN}${'' | '/left' | '/right'}` | typeof OWNER | '#shops') => withTransition(() => {
     // replaceState: flipping all day must not fill the browser history.
     history.replaceState(null, '', to || location.pathname + location.search);
     setHash(to);
-    if (to === KITCHEN) setFromRegister(true);
+    if (to.startsWith(KITCHEN)) setFromRegister(true);
   }), []);
-  const show = useCallback((kitchen: boolean) => go(kitchen ? KITCHEN : ''), [go]);
+  const show = useCallback((kitchen: boolean, station?: Station) => go(kitchen ? `${KITCHEN}${station ? `/${station}` as const : ''}` : ''), [go]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLElement && e.target.closest('[role="dialog"]')) return;
-      if (e.key === 'F2' && !kitchenOnly) { e.preventDefault(); show(!inKitchen); }
       if (e.key === 'F3' && seesOwner) { e.preventDefault(); go(hash === OWNER ? '' : OWNER); }
       if (e.key === 'F4' && needsLogin && staff) { e.preventDefault(); lock(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [hash, inKitchen, show, go, seesOwner, kitchenOnly, needsLogin, staff]);
+  }, [hash, go, seesOwner, needsLogin, staff]);
 
   // The cloud site is the owner's phone page and nothing else (the demo for examiners too).
   if (isCloudSite()) return ownerToken() || isDemo() || adminShop() ? <OwnerView phone /> : <OwnerWelcome />;
@@ -158,7 +162,7 @@ export function Root() {
   }
   if (hash === '#receipt') return <ReceiptPreview />; // setup page, not a cashier screen
   if (kitchenOnly) return <Kitchen onSwitch={staff ? lock : undefined} />;
-  if (inKitchen) return <Kitchen onBack={fromRegister || needsLogin ? () => show(false) : undefined} />;
+  if (inKitchen) return <Kitchen key={hash} station={kitchenView ?? undefined} onBack={fromRegister || needsLogin ? () => show(false) : undefined} />;
   if (needsLogin && !staff) return <LockScreen />;
   if (hash === OWNER && seesOwner) return <OwnerView onBack={() => go('')} />;
   // The developer's Shops screen (only answers on the developer's laptop: server/fleet.ts).
@@ -174,7 +178,7 @@ export function Root() {
     return <MenuView owner={!needsLogin || staff?.role === 'owner'} onBack={() => go('')} />;
   }
   return (
-    <App onKitchen={() => show(true)} onOwner={needsLogin && seesOwner ? () => go(OWNER) : undefined}
+    <App onKitchen={(station) => show(true, station)} onOwner={needsLogin && seesOwner ? () => go(OWNER) : undefined}
       onSwitch={needsLogin ? lock : undefined} />
   );
 }

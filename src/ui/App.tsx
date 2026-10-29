@@ -3,9 +3,11 @@ import { seesTakings } from '../domain/auth.ts';
 import { DISCOUNT_CHIPS, type ManagerChange } from '../domain/manager.ts';
 import { itemById } from '../domain/menu.ts';
 import { bareLine, orderTotal, unsentLines } from '../domain/order.ts';
-import type { MenuItem, OrderLine, PaidOrder, SizeId, Tender } from '../domain/types.ts';
+import { twoKitchens } from '../domain/kitchen.ts';
+import type { MenuItem, OrderLine, PaidOrder, SizeId, Station, Tender } from '../domain/types.ts';
 import { currentCashier } from '../services/auth.ts';
 import { canPrint, printReceipt } from '../services/printer.ts';
+import { usePayFirst } from '../services/shop.ts';
 import { CommandPalette, type Command } from './CommandPalette.tsx';
 import { ExtrasSheet } from './ExtrasSheet.tsx';
 import { KitchenChip } from './KitchenChip.tsx';
@@ -18,6 +20,7 @@ import { PaySheet } from './PaySheet.tsx';
 import { PinSheet } from './PinSheet.tsx';
 import { ShorthandBar, describe } from './ShorthandBar.tsx';
 import { SyncSign } from './SyncSign.tsx';
+import { KitchenFlight } from './KitchenFlight.tsx';
 import { useKitchenTickets } from './kitchenStore.ts';
 import { setSoundOn, soundOn } from './sound.ts';
 import { useManagerMode } from './useManagerMode.ts';
@@ -40,7 +43,7 @@ const isTypingTarget = (el: EventTarget | null): boolean =>
   el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
 /**
- * `onKitchen`: flips the counter screen to the Kitchen view (see Root).
+ * `onKitchen`: shows the Kitchen view on the counter screen, of one kitchen in a shop with two (see Root).
  * `onSwitch`: locks the screen for the next person (real logins only).
  */
 export function App({
@@ -48,7 +51,7 @@ export function App({
   onOwner,
   onSwitch,
 }: {
-  onKitchen?: () => void;
+  onKitchen?: (station?: Station) => void;
   /** Opens the Owner view (owners and managers; F3 does the same). */
   onOwner?: () => void;
   onSwitch?: () => void;
@@ -84,6 +87,8 @@ export function App({
   const hasNew = unsentLines(reg.order).length > 0;
   /** A waiting order opened from the list, with nothing new on it: Charge, or go back. */
   const canCharge = !hasNew && reg.order.sentAt !== undefined && !reg.paid;
+  /** A pay-first shop: Charge is the one action, and paying sends the order to the kitchen. */
+  const payFirst = usePayFirst();
 
   // ---------- manager mode ----------
   const [selected, setSelected] = useState(0);
@@ -180,7 +185,7 @@ export function App({
       if (mod && key === 'z') { e.preventDefault(); reg.undo(); return; }
       if (mod && e.key === 'Enter' && !sheet && !reg.paid) {
         e.preventDefault();
-        if (hasNew) reg.send(); else if (canCharge) setSheet({ kind: 'pay' });
+        if (payFirst ? reg.order.lines.length > 0 : canCharge) setSheet({ kind: 'pay' }); else if (hasNew) reg.send();
         return;
       }
       if (sheet || typed !== null || mod || e.altKey || isTypingTarget(e.target)) return;
@@ -189,7 +194,7 @@ export function App({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [reg, sheet, typed, hasNew, canCharge, manager, mode, palette, adjusting, pendingVoid, listing, lines.length,
+  }, [reg, sheet, typed, hasNew, canCharge, payFirst, manager, mode, palette, adjusting, pendingVoid, listing, lines.length,
     selected, selectedLine, askVoid, askAdjust, toggleChip, manage]);
 
   // Tapping empty space outside an opened order goes back to the "Waiting to pay" list.
@@ -255,6 +260,7 @@ export function App({
 
   return (
     <div className={`register${manager ? ' register--managing' : ''}`} onClick={onBackground}>
+      <KitchenFlight />
       <header className="register__head">
         <ShopBrand />
         {manager ? (
@@ -266,7 +272,9 @@ export function App({
         ) : (
           <span className="corner">
             <OnlineChip state={online} looking={sheet?.kind === 'online'} onOpen={() => setSheet({ kind: 'online' })} />
-            {onKitchen && <KitchenChip tickets={tickets} onOpen={onKitchen} />}
+            {onKitchen && (twoKitchens()
+              ? (['left', 'right'] as const).map((k) => <KitchenChip key={k} tickets={tickets} station={k} onOpen={() => onKitchen(k)} />)
+              : <KitchenChip tickets={tickets} onOpen={() => onKitchen()} />)}
             <SyncSign />
             {/* The owner and managers see their own screen without any shortcut. */}
             {onOwner && <button type="button" className="corner__key" onClick={onOwner}>Owner view <kbd>F3</kbd></button>}

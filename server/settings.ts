@@ -17,6 +17,8 @@ export interface ShopSettings {
   printer?: string;
   /** Receipt paper width in mm; absent = 80. */
   paperWidth?: 58 | 80;
+  /** Customers pay before the order goes to the kitchen; absent = eat first, pay after. */
+  payFirst?: boolean;
   setupDone?: boolean;
   /** The cloud copy, once the wizard connected it with the shop code. */
   cloudUrl?: string;

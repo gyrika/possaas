@@ -1,5 +1,6 @@
 import type { Role } from '../domain/auth.ts';
 import type { PrinterState } from '../domain/printerHelp.ts';
+import type { Station } from '../domain/types.ts';
 
 /**
  * The setup wizard's calls to the shop server (server/setup.ts). They work only
@@ -8,7 +9,7 @@ import type { PrinterState } from '../domain/printerHelp.ts';
 export interface StaffRow { id: string; name: string; role: Role; active: boolean }
 export interface SetupState {
   done: boolean;
-  shop: { id: string; name: string; place: string; footer: string; paper: 58 | 80 } | null;
+  shop: { id: string; name: string; place: string; footer: string; paper: 58 | 80; payFirst?: boolean } | null;
   printer: string | null;
   printers: string[];
   /** USB printer ports with no printer: a receipt printer plugged in without its driver. */
@@ -34,6 +35,7 @@ export const setupClient = {
   shopDetails: (d: { name: string; place: string; footer: string }, ownerPin?: string) =>
     call<{ shop: { id: string; name: string; place: string; footer: string } }>('/details', { ...d, ownerPin }),
   setPaper: (width: 58 | 80, ownerPin?: string) => call<{ paper: 58 | 80 }>('/paper', { width, ownerPin }),
+  setPayWhen: (payFirst: boolean, ownerPin?: string) => call<{ payFirst: boolean }>('/pay-when', { payFirst, ownerPin }),
   printerState: (ownerPin?: string) => call<{ state: PrinterState }>('/printer/state', { ownerPin }),
   addUsbPrinter: (port: string, ownerPin?: string) => call<{ printer: string }>('/printer/usb', { port, ownerPin }),
   clearPrinter: (ownerPin?: string) => call<{ cleared: number }>('/printer/clear', { ownerPin }),
@@ -41,7 +43,7 @@ export const setupClient = {
   staff: (ownerPin?: string) => call<{ staff: StaffRow[] }>('/staff/list', { ownerPin }),
   addStaff: (name: string, role: Role, pin: string, ownerPin?: string) => call<{ staff: StaffRow[] }>('/staff', { name, role, pin, ownerPin }),
   removeStaff: (id: string, ownerPin?: string) => call<{ staff: StaffRow[] }>('/staff/remove', { id, ownerPin }),
-  pair: (kind: 'kitchen' | 'owner', ownerPin?: string) => call<{ link: string }>('/pair', { kind, ownerPin }),
+  pair: (kind: 'kitchen' | 'owner', ownerPin?: string, station?: Station) => call<{ link: string }>('/pair', { kind, ownerPin, station }),
   pairCounter: (ownerPin: string) => call<{ counterToken: string; shopId: string }>('/pair', { kind: 'counter', ownerPin }),
   connectCloud: (code: string, ownerPin?: string) => call<{ cloud: boolean }>('/cloud', { code, ownerPin }),
   finish: () => call<{ done: boolean }>('/finish', {}),

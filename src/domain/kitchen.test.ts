@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   COOK_MINUTES, KEEP_DONE_MS, cookTimeMs,
   TICKET_HORIZON_MS, ack, amendLine, bump, cookState, kitchenLine, restoreLine, elapsedLabel, fire, needsAttention, prune, queue, recall,
-  ticketLines, ticketsFromEvents, unbump, urgency,
+  cancelledToServe, forStation, serve, servingRows, splitByStation, ticketLines, ticketsFromEvents, toServe, unbump, unserve, urgency,
 } from './kitchen.ts';
+import { SAMPLE_START, setStartingMenu } from './menu.ts';
+import type { MenuItem, Section } from './types.ts';
 import type { SyncEvent } from './sync.ts';
 import { addLine, bareLine, emptyOrder, markSent, unsentLines } from './order.ts';
 
@@ -237,4 +239,94 @@ test('an online order keeps its pickup time on the kitchen ticket', () => {
   const [a, b] = ticketsFromEvents(events, 2000);
   assert.deepEqual(a.online, { pickupBy: 9000 });
   assert.equal(b.online, undefined);
+});
+
+const portion = (id: string, itemId: string, qty = 1, size?: string) => ({ id, itemId, qty, adds: [], outs: [], ...(size ? { size } : {}) });
+
+test('serving list: paid portions grouped by meal, longest wait first, one tap serves the oldest', () => {
+  let t = fire([], { shopId: SHOP, id: 'a', number: 1, lines: [portion('a1', 'devilled-chicken', 1, 'L'), portion('a2', 'margherita')], firedAt: 100 });
+  t = fire(t, { shopId: SHOP, id: 'b', number: 2, lines: [portion('b1', 'devilled-chicken', 2, 'L')], firedAt: 200 });
+  t = fire(t, { shopId: SHOP, id: 'c', number: 3, lines: [portion('c1', 'devilled-chicken', 1, 'M')], firedAt: 300 });
+  const rows = servingRows(t);
+  assert.deepEqual(rows.map((r) => [r.name, r.detail, r.count]), [
+    ['Devilled Chicken', 'Large', 3], ['Margherita', '', 1], ['Devilled Chicken', 'Medium', 1],
+  ]);
+  assert.deepEqual(rows[0].next, { ticketId: 'a', lineId: 'a1', number: 1 });
+  assert.deepEqual(rows[0].ticketIds, ['a', 'b']);
+
+  t = serve(t, 'a', 'a1', 400);
+  const large = servingRows(t).find((r) => r.detail === 'Large')!;
+  assert.equal(large.count, 2);
+  assert.equal(large.next.ticketId, 'b', 'the oldest left is next');
+  assert.equal(servingRows(t)[0].name, 'Margherita', "order 1's margherita is now the longest wait");
+  assert.equal(t[0].doneAt, undefined, 'the margherita is still to serve');
+  t = serve(t, 'a', 'a2', 410);
+  assert.equal(t[0].doneAt, 410, 'nothing left on it: done');
+  assert.equal(needsAttention(t[0]), false, 'done also counts as seen');
+});
+
+test('a line is served one portion at a time, never more than was paid; taking one back reopens', () => {
+  let t = fire([], { shopId: SHOP, id: 'b', number: 2, lines: [portion('b1', 'devilled-chicken', 2, 'L')], firedAt: 0 });
+  t = serve(serve(t, 'b', 'b1', 10), 'b', 'b1', 20);
+  assert.equal(t[0].doneAt, 20);
+  assert.deepEqual(serve(t, 'b', 'b1', 30), t, 'a third portion was never paid for');
+  t = unserve(t, 'b', 'b1');
+  assert.equal(t[0].doneAt, undefined);
+  assert.equal(toServe(t[0].lines[0]), 1);
+  assert.deepEqual(unserve(unserve(t, 'b', 'b1'), 'b', 'b1')[0].lines[0].served, 0, 'never below none');
+});
+
+test('a cancelled line leaves the serving list; served and unserved fold from events', () => {
+  const base = { shopId: SHOP, orderNumber: 7 };
+  const line = { ...portion('x', 'devilled-chicken', 2, 'L'), sent: true };
+  const ev: SyncEvent[] = [
+    { ...base, id: 'e1', at: 100, type: 'order.sent', ticketId: 't', lines: [line], addOn: false, actor: { id: 's', name: 'S', role: 'cashier' } },
+    { ...base, id: 'e2', at: 200, type: 'kitchen.served', ticketId: 't', lineId: 'x' },
+    { ...base, id: 'e3', at: 300, type: 'kitchen.served', ticketId: 't', lineId: 'x' },
+    { ...base, id: 'e4', at: 400, type: 'kitchen.unserved', ticketId: 't', lineId: 'x' },
+  ];
+  assert.equal(servingRows(ticketsFromEvents(ev.slice(0, 2), 500))[0].count, 1);
+  assert.equal(queue(ticketsFromEvents(ev.slice(0, 3), 500)).length, 0);
+  assert.equal(servingRows(ticketsFromEvents(ev, 500))[0].count, 1);
+  const gone = amendLine(ticketsFromEvents(ev, 500), 'x', null, 600);
+  assert.equal(servingRows(gone).length, 0);
+  assert.deepEqual(cancelledToServe(gone).map((t) => t.number), [7], 'the counter sees it once, then taps it away');
+  assert.equal(cancelledToServe(bump(gone, 't', 700)).length, 0);
+});
+
+/** A shop with two kitchens: rice & curry on the left, kottu on the right, short eats in neither. */
+const twoKitchens = () => {
+  const section = (id: string, station?: 'left' | 'right'): Section => ({ id, name: id, cookMinutes: 5, sizes: [], adds: [], ...(station ? { station } : {}) });
+  const item = (id: string, category: string): MenuItem => ({ id, category, name: { en: id }, description: '', aliases: [], price: 50000, adds: [], leaveOut: [] });
+  setStartingMenu({
+    sections: [section('rice', 'left'), section('kottu', 'right'), section('short-eats')],
+    items: [item('chicken-rice', 'rice'), item('chicken-kottu', 'kottu'), item('roll', 'short-eats')],
+  });
+};
+
+test('two kitchens: an order splits into one ticket per kitchen; no kitchen named = the left one', () => {
+  twoKitchens();
+  try {
+    const order = [portion('a', 'chicken-rice'), portion('b', 'chicken-kottu', 2), portion('c', 'roll')];
+    assert.deepEqual(splitByStation(order).map((g) => [g.station, g.lines.map((l) => l.id)]), [['left', ['a', 'c']], ['right', ['b']]]);
+    assert.deepEqual(splitByStation([portion('b', 'chicken-kottu')]).map((g) => g.station), ['right'], 'only the kitchen that has something');
+    assert.deepEqual(splitByStation([]), []);
+  } finally { setStartingMenu(SAMPLE_START); }
+  // One kitchen (no section names one): one ticket, no station, as before.
+  assert.deepEqual(splitByStation([portion('a', 'margherita'), portion('b', 'devilled-chicken')]).map((g) => [g.station, g.lines.length]), [[undefined, 2]]);
+});
+
+test("each kitchen's screen shows its own tickets; the station folds from the event", () => {
+  const base = { shopId: SHOP, orderNumber: 9, addOn: false, actor: { id: 's', name: 'S', role: 'cashier' as const } };
+  const ev: SyncEvent[] = [
+    { ...base, id: 'e1', at: 100, type: 'order.sent', ticketId: 'l', lines: [portion('a', 'margherita')], station: 'left' },
+    { ...base, id: 'e2', at: 100, type: 'order.sent', ticketId: 'r', lines: [portion('b', 'margherita')], station: 'right' },
+    { ...base, id: 'e3', at: 100, type: 'order.sent', ticketId: 'old', lines: [portion('c', 'margherita')] },
+  ];
+  const t = ticketsFromEvents(ev, 200);
+  assert.deepEqual(forStation(t, 'left').map((x) => x.id), ['l', 'old'], 'a ticket from before two kitchens is the left one\'s');
+  assert.deepEqual(forStation(t, 'right').map((x) => x.id), ['r']);
+  assert.equal(forStation(t, null).length, 3, 'the counter sees both');
+  // Each kitchen's Done is its own: the order cooks on until both are done.
+  assert.equal(cookState(bump(t, 'l', 300), 9), 'cooking');
 });

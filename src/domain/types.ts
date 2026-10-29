@@ -5,6 +5,8 @@ export type Cents = number;
 export type SizeId = string;
 /** A menu section's id: 'pizza' | 'burger' | 'pasta' on the sample menu, "sec-…" on a shop's own. */
 export type Category = string;
+/** Which of a shop's two kitchens makes a section's food: where it physically is, seen from the counter. */
+export type Station = 'left' | 'right';
 
 /**
  * A menu section: what its items share. Its sizes (none = one price), its extras, and how long
@@ -16,6 +18,8 @@ export interface Section {
   cookMinutes: number;
   sizes: { id: SizeId; label: string; hint?: string }[];
   adds: Option[];
+  /** A shop with two kitchens: which one makes it. Absent = the only (or the left) kitchen. */
+  station?: Station;
 }
 /** Small labels on cheesybeez.com's cards. Each must come from the owner: never inferred. */
 export type MenuTag = 'popular' | 'veg';

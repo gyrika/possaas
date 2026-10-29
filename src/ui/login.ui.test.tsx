@@ -96,7 +96,7 @@ test('locking while the Kitchen view shows keeps the kitchen visible; the Regist
   render(<Root />);
   await user.keyboard('1111');
   await screen.findByRole('button', { name: 'Nimal: switch user' });
-  await user.keyboard('{F2}');
+  await user.click(screen.getByRole('button', { name: /^Kitchen:/ }));
   expect(screen.getByRole('main', { name: 'Orders to make' })).toBeTruthy();
 
   act(() => lock());
@@ -112,8 +112,6 @@ test('a kitchen login sees the Kitchen only; a kitchen device needs no login at 
   await user.keyboard('3333');
   expect(await screen.findByRole('main', { name: 'Orders to make' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: /^Register/ })).toBeNull();
-  await user.keyboard('{F2}');
-  expect(screen.getByRole('main', { name: 'Orders to make' })).toBeTruthy(); // F2 does not lead out
   await user.click(screen.getByRole('button', { name: /^Switch user/ }));
   expect(lockScreen()).toBeTruthy();
   unmount();

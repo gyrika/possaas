@@ -65,7 +65,7 @@ test('an online order: seen at the counter, accepted with a time, in the kitchen
   const pickup = new Date(readyBy).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const row = within(panel.getByRole('region', { name: 'Waiting to pay' })).getByRole('button', { name: /^1001/ });
   expect(within(row).getByText(`Online · ${pickup}`)).toBeTruthy();
-  await user.keyboard('{F2}');
+  await user.click(screen.getByRole('button', { name: /^Kitchen:/ }));
   const ticket = within(within(screen.getByRole('main', { name: 'Orders to make' })).getByRole('article', { name: 'Order 1001' }));
   expect(ticket.getByText(`Online · pickup ${pickup}`)).toBeTruthy();
 });

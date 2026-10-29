@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { DEFAULT_FOOTER, PRODUCT_NAME } from '../domain/brand.ts';
 import { PAPER_CHARS, type PaperWidth, type ShopHeader } from '../domain/receipt.ts';
-import { FAKE_SHOP_DETAILS } from '../fake/data.ts';
-import { isDemo, storageKey } from '../ui/storage.ts';
+import { FAKE_RICE_SHOP_DETAILS, FAKE_SHOP_DETAILS } from '../fake/data.ts';
+import { isDemo, isRiceDemo, storageKey } from '../ui/storage.ts';
 
 /**
  * The shop's own name, town and receipt footer (Shop setup → Printer), from the shop server's
@@ -10,12 +10,17 @@ import { isDemo, storageKey } from '../ui/storage.ts';
  * shop's name while the server restarts. Before a shop is named (development, a fresh install)
  * the product's name stands in; the demo shows its fake shop.
  */
-export interface ShopDetails { name: string; place: string; footer: string; paper?: PaperWidth }
+export interface ShopDetails {
+  name: string; place: string; footer: string; paper?: PaperWidth;
+  /** Customers pay before the order goes to the kitchen (a rice & curry counter); absent = eat first, pay after. */
+  payFirst?: boolean;
+}
 
 const KEY = () => storageKey('shop.v1');
 const listeners = new Set<() => void>();
 
 const cached = (): ShopDetails | null => {
+  if (isRiceDemo()) return FAKE_RICE_SHOP_DETAILS;
   if (isDemo()) return FAKE_SHOP_DETAILS;
   try {
     const s = JSON.parse(localStorage.getItem(KEY()) ?? 'null') as ShopDetails | null;
@@ -41,10 +46,13 @@ export const shopHeader = (): ShopHeader => ({
 /** Characters a receipt line: the shop's paper (80 mm unless set to 58 mm). */
 export const receiptWidth = (): number => PAPER_CHARS[current?.paper ?? 80];
 
-/** What the screens show; anything not given (the paper) stays as it was. */
+/** Pay first, then the kitchen: the register's one action is Charge. */
+export const payFirst = (): boolean => Boolean(current?.payFirst);
+
+/** What the screens show; anything not given (the paper, when to pay) stays as it was. */
 export function setShopDetails(next: ShopDetails): void {
-  current = { ...next, paper: next.paper ?? current?.paper };
-  try { localStorage.setItem(KEY(), JSON.stringify(next)); } catch { /* blocked: this session still has it */ }
+  current = { ...next, paper: next.paper ?? current?.paper, payFirst: next.payFirst ?? current?.payFirst };
+  try { localStorage.setItem(KEY(), JSON.stringify(current)); } catch { /* blocked: this session still has it */ }
   listeners.forEach((l) => l());
 }
 
@@ -56,7 +64,9 @@ export async function loadShopDetails(): Promise<void> {
     if (!r.ok) return;
     const s = (await r.json()) as Partial<ShopDetails>;
     if (typeof s.name === 'string' && s.name) {
-      setShopDetails({ name: s.name, place: s.place ?? '', footer: s.footer ?? DEFAULT_FOOTER, paper: s.paper === 58 ? 58 : 80 });
+      setShopDetails({
+        name: s.name, place: s.place ?? '', footer: s.footer ?? DEFAULT_FOOTER, paper: s.paper === 58 ? 58 : 80, payFirst: s.payFirst === true,
+      });
     }
   } catch { /* the server is away: the cached copy stands */ }
 }
@@ -64,3 +74,4 @@ export async function loadShopDetails(): Promise<void> {
 const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
 
 export const useShopName = (): string => useSyncExternalStore(subscribe, shopName);
+export const usePayFirst = (): boolean => useSyncExternalStore(subscribe, payFirst);

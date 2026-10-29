@@ -23,7 +23,9 @@ interface KitchenBase {
 export type KitchenEvent =
   | (KitchenBase & { type: 'kitchen.seen' })
   | (KitchenBase & { type: 'kitchen.bumped' })
-  | (KitchenBase & { type: 'kitchen.unbumped' });
+  | (KitchenBase & { type: 'kitchen.unbumped' })
+  /** A pay-first counter handed over (or took back) one portion of a line. */
+  | (KitchenBase & { type: 'kitchen.served' | 'kitchen.unserved'; lineId: string });
 
 /** Everything that syncs. Menu changes: src/domain/menuEdits.ts; the day's close: src/domain/cashUp.ts. */
 export type SyncEvent = OrderEvent | KitchenEvent | MenuEvent | DayClosedEvent;
@@ -31,7 +33,7 @@ export type SyncEvent = OrderEvent | KitchenEvent | MenuEvent | DayClosedEvent;
 /** An event before the log gives it an id and stamps the shop. */
 export type NewSyncEvent = SyncEvent extends infer E ? (E extends SyncEvent ? Omit<E, 'id' | 'shopId'> : never) : never;
 
-export const KITCHEN_EVENT_TYPES = ['kitchen.seen', 'kitchen.bumped', 'kitchen.unbumped'] as const;
+export const KITCHEN_EVENT_TYPES = ['kitchen.seen', 'kitchen.bumped', 'kitchen.unbumped', 'kitchen.served', 'kitchen.unserved'] as const;
 export const ORDER_EVENT_TYPES = [
   'order.sent', 'order.send_undone', 'order.paid', 'order.payment_undone', 'order.item_changed', 'order.item_cancelled',
   'order.line_removed', 'order.line_adjusted', 'order.discount_set', 'order.comped', 'order.change_undone',

@@ -226,6 +226,7 @@ export const checkSection = (d: SectionDef): string | null => {
   if (!Number.isSafeInteger(d.cookMinutes) || d.cookMinutes < 1 || d.cookMinutes > 180) return 'the cook time is 1 to 180 minutes';
   if (!Array.isArray(d.sizes) || d.sizes.length > 6) return 'a section has at most 6 sizes';
   if (!Array.isArray(d.adds) || d.adds.length > 20) return 'a section has at most 20 extras';
+  if (d.station !== undefined && d.station !== 'left' && d.station !== 'right') return 'the kitchen is left or right';
   const ids = new Set<string>();
   for (const z of d.sizes) {
     if (!OPTION_ID.test(z?.id ?? '') || z.id === 'one' || !isLabel(z.label, 20) || !isText(z.hint, 20)) return 'a size needs a short name';

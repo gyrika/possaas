@@ -11,7 +11,7 @@ interface Person { id: string; name: string; role: string; pin: string; active: 
 
 /** The shop server's setup endpoints, remembering what they are told (and refusing as the real one does). */
 function fakeShopServer({ done = false, status = 200, newFails = false, updatesOff = false, printer = { status: 'Normal', jobs: 0 } } = {}) {
-  const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string; footer: string; paper?: 58 | 80 }, printed: 0, cleared: 0, printers: ['XP-80T'], usbPorts: [] as string[], drives: [] as { letter: string; label: string; freeBytes: number }[], backups: [] as string[], printer: null as string | null, staff: [] as Person[] };
+  const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string; footer: string; paper?: 58 | 80; payFirst?: boolean }, printed: 0, cleared: 0, printers: ['XP-80T'], usbPorts: [] as string[], drives: [] as { letter: string; label: string; freeBytes: number }[], backups: [] as string[], printer: null as string | null, staff: [] as Person[] };
   const pub = () => s.staff.map(({ pin: _p, ...m }) => m);
   const ownerOk = (pin: unknown) => !s.done || s.staff.some((m) => m.active && m.role === 'owner' && m.pin === pin);
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -27,6 +27,7 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
     if (!ownerOk(body.ownerPin)) return no(401, "that is not the owner's PIN");
     if (step === '/shop') { const first = !s.shop; s.shop = { id: 'cheesybeez-thalwila', name: body.name, place: body.place, footer: 'Thank you!' }; return ok({ shopId: s.shop.id, ...(first ? { counterToken: 'counter-token' } : {}) }); }
     if (step === '/printer/usb') { s.usbPorts = []; s.printers = [...s.printers, `Receipt printer (${body.port})`]; s.printer = `Receipt printer (${body.port})`; return ok({ printer: s.printer }); }
+    if (step === '/pay-when') { s.shop = { ...s.shop!, payFirst: body.payFirst }; return ok({ payFirst: body.payFirst }); }
     if (step === '/paper') { s.shop = { ...s.shop!, paper: body.width }; return ok({ paper: body.width }); }
     if (step === '/printer/state') return ok({ state: { ...printer, jobs: printer.jobs - s.cleared, offline: false } });
     if (step === '/printer/clear') { s.cleared = printer.jobs; return ok({ cleared: printer.jobs }); }

@@ -64,6 +64,7 @@ export function Menu({ category, onCategory, onQuickAdd, onCustomise, hint }: Pr
                 {item.number !== undefined && <span className="card__no num" aria-hidden="true">{item.number}</span>}
                 {item.name.en}
               </span>
+              {item.name.si && <span className="card__si" lang="si">{item.name.si}</span>}
               <span className="card__desc">{item.description}</span>
             </button>
             <div className="card__prices">

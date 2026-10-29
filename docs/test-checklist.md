@@ -30,7 +30,7 @@ and every printer you can borrow (the XP-80T with its cash drawer, a 58 mm one).
 
 ## 4. Selling
 - [ ] Tap an item; type an order (e.g. `2 full chicken kottu extra egg`)
-- [ ] Send to kitchen → the ticket is on the tablet within 2 seconds, and on the PC with F2
+- [ ] Send to kitchen → the ticket is on the tablet within 2 seconds, and on the PC with the Kitchen key (Left kitchen / Right kitchen in a shop with two)
 - [ ] Charge cash → the receipt prints with the shop's name, the drawer opens, the change is right
 - [ ] Charge a bank transfer → prints, the drawer stays shut
 - [ ] Manager mode (Ctrl+M, PIN): a 10% discount, and a void with a reason → the kitchen sees "Cancelled"

@@ -48,3 +48,53 @@ export const clunk = (): void => {
   click.start(t);
   click.stop(t + 0.04);
 };
+
+/**
+ * The "whaaap" of an order flying off to one of two kitchens: a breathy swish (noise through a
+ * band-pass sweeping 2.6 kHz -> 350 Hz, ~260 ms) ending in a soft slap, panned towards that
+ * kitchen's side so the ear hears where it went.
+ */
+export const whap = (side: 'left' | 'right'): void => {
+  if (!soundOn() || typeof AudioContext === 'undefined') return;
+  ctx ??= new AudioContext();
+  const a = ctx;
+  if (a.state === 'suspended') void a.resume();
+  const t = a.currentTime;
+  const dir = side === 'left' ? -1 : 1;
+
+  const noise = a.createBuffer(1, Math.ceil(a.sampleRate * 0.32), a.sampleRate);
+  const data = noise.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+
+  const pan = typeof a.createStereoPanner === 'function' ? a.createStereoPanner() : null;
+  pan?.pan.setValueAtTime(dir * 0.2, t);
+  pan?.pan.linearRampToValueAtTime(dir * 0.9, t + 0.28);
+  const out: AudioNode = pan ? (pan.connect(a.destination), pan) : a.destination;
+
+  const swish = a.createBufferSource();
+  swish.buffer = noise;
+  const band = a.createBiquadFilter();
+  band.type = 'bandpass';
+  band.Q.value = 1.4;
+  band.frequency.setValueAtTime(2600, t);
+  band.frequency.exponentialRampToValueAtTime(350, t + 0.26);
+  const swishGain = a.createGain();
+  swishGain.gain.setValueAtTime(0.0001, t);
+  swishGain.gain.exponentialRampToValueAtTime(0.5, t + 0.05);
+  swishGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.27);
+  swish.connect(band).connect(swishGain).connect(out);
+  swish.start(t);
+  swish.stop(t + 0.3);
+
+  const slap = a.createOscillator();
+  const slapGain = a.createGain();
+  slap.type = 'sine';
+  slap.frequency.setValueAtTime(180, t + 0.2);
+  slap.frequency.exponentialRampToValueAtTime(70, t + 0.29);
+  slapGain.gain.setValueAtTime(0.0001, t + 0.2);
+  slapGain.gain.exponentialRampToValueAtTime(0.3, t + 0.21);
+  slapGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+  slap.connect(slapGain).connect(out);
+  slap.start(t + 0.2);
+  slap.stop(t + 0.31);
+};

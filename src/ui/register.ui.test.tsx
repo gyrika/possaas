@@ -2,9 +2,11 @@ import { afterEach, beforeEach, expect, test } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App.tsx';
+import { readEvents } from './eventLog.ts';
+import { setShopDetails } from '../services/shop.ts';
 
 beforeEach(() => localStorage.clear());
-afterEach(cleanup);
+afterEach(() => { cleanup(); setShopDetails({ name: 'Shop', place: '', footer: '', payFirst: false }); });
 
 const panel = () => within(screen.getByRole('complementary', { name: 'Current order' }));
 const sendBtn = () => panel().getByRole('button', { name: 'Send to kitchen' }) as HTMLButtonElement;
@@ -201,4 +203,21 @@ test('half-and-half: pick the other half in the pizza sheet, priced half of each
   expect(edit.queryByRole('button', { name: 'No tomato' })).toBeNull();
   await user.click(edit.getByRole('button', { name: 'Update · 1,990' }));
   expect(panel().getByText('Margherita')).toBeTruthy();
+});
+
+test('a pay-first shop: Charge is the one action, and paying sends the order to the kitchen', async () => {
+  setShopDetails({ name: 'Rice Bowl', place: '', footer: '', payFirst: true });
+  const user = userEvent.setup();
+  render(<App />);
+  expect(panel().queryByRole('button', { name: 'Send to kitchen' })).toBeNull();
+  expect((panel().getByRole('button', { name: 'Charge' }) as HTMLButtonElement).disabled).toBe(true);
+
+  await user.click(screen.getAllByRole('button', { name: 'L 2500' })[0]); // Devilled Chicken L
+  expect(readEvents().some((e) => e.type === 'order.sent')).toBe(false); // nothing cooks before it is paid
+  await user.click(panel().getByRole('button', { name: 'Charge' }));
+  await user.click(screen.getByRole('button', { name: /Exact/ }));
+  expect(panel().getByText('Paid')).toBeTruthy();
+  expect(document.querySelector('.toast')?.textContent).toContain('Paid 2,500 · 1001 to kitchen');
+  expect(readEvents().map((e) => e.type)).toEqual(['order.sent', 'order.paid']);
+  expect(panel().queryByRole('region', { name: 'Waiting to pay' })).toBeNull();
 });

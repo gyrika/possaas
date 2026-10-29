@@ -75,7 +75,6 @@ export function LockScreen() {
             : <span key={i} />))}
         </div>
       </div>
-      <p className="lock__hint">Kitchen <kbd>F2</kbd></p>
     </main>
   );
 }

@@ -84,6 +84,7 @@ test("the owner's own sections: made, changed and taken off; the shape is checke
   const valid = [
     { ...owner, type: 'menu.section_set', sectionId: 'sec-kottu', section },
     { ...owner, id: 'event-2', type: 'menu.section_set', sectionId: 'sec-kottu', section: null },
+    { ...owner, id: 'event-3', type: 'menu.section_set', sectionId: 'sec-kottu', section: { ...section, station: 'right' } },
   ];
   assert.deepEqual(validatePush({ events: valid }, 'shop-1'), { events: valid });
   for (const bad of [
@@ -93,6 +94,7 @@ test("the owner's own sections: made, changed and taken off; the shape is checke
     { sectionId: 'sec-kottu', section: { ...section, sizes: [{ id: 'one', label: 'One' }] } },
     { sectionId: 'sec-kottu', section: { ...section, adds: [{ id: 'egg', label: 'Egg', price: 10050 }] } },
     { sectionId: 'sec-kottu', section: { ...section, extra: true } },
+    { sectionId: 'sec-kottu', section: { ...section, station: 'middle' } },
   ]) {
     assert.ok('reason' in validatePush({ events: [{ ...owner, type: 'menu.section_set', ...bad }] }, 'shop-1'), JSON.stringify(bad));
   }
@@ -112,4 +114,11 @@ test("a close of the day is accepted only whole: the cash in cents and the day's
     { ...close, count: { ...count, byTender: { cash: tally } } },
     { ...close, actor: undefined },
   ]) assert.ok('reason' in validatePush({ events: [bad] }, 'shop-1'), JSON.stringify(bad));
+});
+
+test('a served portion says which ticket and line', () => {
+  const served = { id: 'event-1', shopId: 'shop-1', at: 1, orderNumber: 1001, type: 'kitchen.served', ticketId: 't1', lineId: 'l1' };
+  assert.ok('events' in validatePush({ events: [served, { ...served, id: 'event-2', type: 'kitchen.unserved' }] }, 'shop-1'));
+  assert.ok('reason' in validatePush({ events: [{ ...served, lineId: undefined }] }, 'shop-1'));
+  assert.ok('reason' in validatePush({ events: [{ ...served, ticketId: '' }] }, 'shop-1'));
 });

@@ -43,7 +43,7 @@ const validNewItem = (value: unknown): boolean =>
 const validOption = (v: unknown): boolean =>
   isObj(v) && Object.keys(v).every((k) => ['id', 'label', 'hint', 'price'].includes(k));
 const validSection = (value: unknown): boolean =>
-  value === null || (isObj(value) && Object.keys(value).every((key) => ['name', 'cookMinutes', 'sizes', 'adds'].includes(key)) &&
+  value === null || (isObj(value) && Object.keys(value).every((key) => ['name', 'cookMinutes', 'sizes', 'adds', 'station'].includes(key)) &&
     Array.isArray(value.sizes) && value.sizes.every(validOption) && Array.isArray(value.adds) && value.adds.every(validOption) &&
     checkSection(value as unknown as SectionDef) === null);
 const validOverride = (itemId: unknown, value: unknown): boolean => {
@@ -82,6 +82,9 @@ export const validatePush = (body: unknown, tenantId: string): { events: SyncEve
       if (!isObj(a) || !shortString(a.id) || !shortString(a.name, 80) || !shortString(a.role, 16)) {
         return { reason: `event ${e.id} does not say who did it` };
       }
+    }
+    if ((e.type === 'kitchen.served' || e.type === 'kitchen.unserved') && (!shortString(e.ticketId) || !shortString(e.lineId))) {
+      return { reason: `event ${e.id} does not say which portion` };
     }
     if (e.type.startsWith('menu.') && e.orderNumber !== 0) return { reason: `event ${e.id} has an invalid menu order number` };
     if (e.type === 'day.closed' &&
