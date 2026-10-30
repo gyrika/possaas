@@ -11,13 +11,13 @@ import { settingsFile } from './settings.ts';
 import { isLocal, setupApi, shopIdFor } from './setup.ts';
 import { memoryStore } from './store.ts';
 
-async function start(cloudFetch?: typeof fetch, preConnected = Boolean(cloudFetch)) {
+async function start(cloudFetch?: typeof fetch, preConnected = Boolean(cloudFetch), defaultLogo?: string) {
   let connected = 0;
   const dir = mkdtempSync(join(tmpdir(), 'cb-setup-'));
   const store = memoryStore();
   const settings = settingsFile(join(dir, 'settings.json'));
   const setup = setupApi({
-    store, settings, usePrinter: () => {}, printsDir: join(dir, 'prints'), port: 8080,
+    store, settings, defaultLogo, usePrinter: () => {}, printsDir: join(dir, 'prints'), port: 8080,
     cloud: () => (preConnected ? { url: 'https://cloud.test', token: 'server-token' } : (settings.get().cloudToken
       ? { url: settings.get().cloudUrl!, token: settings.get().cloudToken! } : null)),
     cloudUrl: 'https://cloud.test', fetch: cloudFetch, onCloudConnected: () => { connected += 1; },
@@ -181,6 +181,21 @@ test("the shop's logo: beside its name on every screen, only a small picture, ta
   assert.equal((await s.post('/logo', { logo, ownerPin: '1234' })).status, 200);
   assert.equal((await s.shop()).body.logo, logo);
   assert.equal((await s.post('/logo', { logo: null, ownerPin: '1234' })).status, 200);
+  assert.equal((await s.shop()).body.logo, undefined);
+  await s.stop();
+});
+
+test("Bata Kade's own logo shows until the owner picks another; taken away, it stays away", async () => {
+  const own = 'data:image/webp;base64,QkFUQQ==';
+  const s = await start(undefined, false, own);
+  await s.post('/shop', { name: 'Bata Kade', place: 'Galle' });
+  await s.post('/staff', { name: 'Owner', role: 'owner', pin: '1234' });
+  await s.post('/finish');
+  assert.equal((await s.shop()).body.logo, own);
+  const other = 'data:image/webp;base64,UklGRg==';
+  await s.post('/logo', { logo: other, ownerPin: '1234' });
+  assert.equal((await s.shop()).body.logo, other);
+  await s.post('/logo', { logo: null, ownerPin: '1234' });
   assert.equal((await s.shop()).body.logo, undefined);
   await s.stop();
 });

@@ -19,7 +19,7 @@ export interface ShopSettings {
   paperWidth?: 58 | 80;
   /** Customers pay before the order goes to the kitchen; absent = eat first, pay after. */
   payFirst?: boolean;
-  /** The shop's logo beside its name in every screen's corner: a small image as a data: URL; absent = none. */
+  /** The shop's logo beside its name in every screen's corner: a small image as a data: URL; absent = the shop's own (Bata Kade's); '' = none. */
   logo?: string;
   setupDone?: boolean;
   /** The cloud copy, once the wizard connected it with the shop code. */

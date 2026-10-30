@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { DEFAULT_FOOTER, PRODUCT_NAME } from '../domain/brand.ts';
 import { PAPER_CHARS, type PaperWidth, type ShopHeader } from '../domain/receipt.ts';
 import { FAKE_RICE_SHOP_DETAILS, FAKE_SHOP_DETAILS } from '../fake/data.ts';
-import bataKadeLogo from '../fake/bata-kade-logo.webp';
+import bataKadeLogo from '../shop/bata-kade-logo.webp';
 import { isDemo, isRiceDemo, storageKey } from '../ui/storage.ts';
 
 /**

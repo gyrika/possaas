@@ -21,6 +21,8 @@ import type { UpdatesApi } from './updates.ts';
  */
 export interface SetupContext {
   store: EventStore;
+  /** The logo a shop shows until the owner picks another (possaas: Bata Kade's, server/shopLogo.ts). */
+  defaultLogo?: string;
   settings: Settings;
   usePrinter: (p: RawPrinter) => void;
   printsDir: string;
@@ -92,9 +94,10 @@ export function setupApi(ctx: SetupContext) {
 
   const shop = () => {
     const s = ctx.settings.get();
+    const logo = s.logo ?? ctx.defaultLogo;
     return s.shopId
       ? { id: s.shopId, name: s.shopName ?? s.shopId, place: s.place ?? '', footer: s.receiptFooter ?? DEFAULT_FOOTER, paper: s.paperWidth ?? 80,
-        payFirst: s.payFirst === true, ...(s.logo ? { logo: s.logo } : {}) }
+        payFirst: s.payFirst === true, ...(logo ? { logo } : {}) }
       : null;
   };
   const requireShop = () => {
@@ -176,7 +179,7 @@ export function setupApi(ctx: SetupContext) {
     async setLogo(body: { logo?: unknown; ownerPin?: unknown }) {
       await authorise(body.ownerPin);
       requireShop();
-      if (body.logo === null) { ctx.settings.set({ logo: undefined }); return { logo: null }; }
+      if (body.logo === null) { ctx.settings.set({ logo: '' }); return { logo: null }; } // '': none, not the shop's own
       if (typeof body.logo !== 'string' || body.logo.length > MAX_LOGO || !LOGO.test(body.logo)) {
         throw new SetupError(400, 'invalid', 'the logo is a PNG, JPEG or WebP picture under 200 KB');
       }

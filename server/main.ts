@@ -7,6 +7,7 @@ import { startOnline, type Online } from './online.ts';
 import { createFleet } from './fleet.ts';
 import { firstMenu } from './firstMenu.ts';
 import { BATA_KADE_MENU } from '../src/shop/bataKade.ts';
+import { BATA_KADE_LOGO } from './shopLogo.ts';
 import { dailyReports, defaultReportsDir } from './dailyReport.ts';
 import { startReplicator } from './replicator.ts';
 import { settingsFile } from './settings.ts';
@@ -101,7 +102,7 @@ const reports = dailyReports({
 });
 
 const setup = setupApi({
-  store, settings, usePrinter: printer.use, printsDir, port, cloud: cloudLink, cloudUrl, onCloudConnected: startCloud, updates,
+  store, defaultLogo: BATA_KADE_LOGO, settings, usePrinter: printer.use, printsDir, port, cloud: cloudLink, cloudUrl, onCloudConnected: startCloud, updates,
   support: () => saveSupportFile({ dataDir, version: updates.current(), port }),
   usb: usbBackup({ dataDir }),
 });
