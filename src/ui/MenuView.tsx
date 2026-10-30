@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { MENU, menuIsEmpty, menuItems, menuSections, menuState, sectionOf, sizeTag, startingItem } from '../domain/menu.ts';
+import { MENU, menuIsEmpty, menuItems, menuSections, menuState, sectionOf, sizeTag, startingItem, startingMenu } from '../domain/menu.ts';
+import { menuFile, readMenuFile } from '../domain/menuFile.ts';
 import {
   NEW_SECTION_ID, checkNewItem, checkOverride, checkSection, hoursLabel, newItemSizes, nextMorning, slug,
   type ItemOverride, type NewItem, type SectionDef,
@@ -525,6 +526,73 @@ export function Editor({ item, actor, onSaved, onClose }: {
   );
 }
 
+/**
+ * A whole menu as text, to move it to another Lume POS (the demo's menu to a real shop): "Copy menu"
+ * shows it ready to copy; on an empty menu, "Load a menu" takes it pasted and adds every section and
+ * item at once, as if typed (src/domain/menuFile.ts). Undo takes them all back.
+ */
+function MenuText({ mode, onLoaded, onClose }: {
+  mode: 'copy' | 'load'; onLoaded: (message: string, undo: () => void) => void; onClose: () => void;
+}) {
+  const text = useState(() => (mode === 'copy' ? JSON.stringify(menuFile(startingMenu(), menuState())) : ''))[0];
+  const [pasted, setPasted] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const box = useRef<HTMLTextAreaElement>(null);
+  useEscape(onClose);
+  useEffect(() => { if (mode === 'copy') box.current?.select(); }, [mode]);
+
+  const copy = () => {
+    box.current?.select();
+    // The clipboard can be refused (some browsers, the demo page): the text stays selected for Ctrl+C.
+    navigator.clipboard?.writeText(text).then(() => setNote('Copied. Paste it on the new shop: Menu → Load a menu.'),
+      () => setNote('Press Ctrl+C to copy it.')) ?? setNote('Press Ctrl+C to copy it.');
+  };
+  const load = (e: FormEvent) => {
+    e.preventDefault();
+    const got = readMenuFile(pasted, {
+      sections: [...menuSections().map((x) => x.id), ...Object.keys(menuState().sections ?? {})],
+      items: menuItems().map((m) => m.id),
+    });
+    if (typeof got === 'string') { setError(got); return; }
+    got.sections.forEach(([id, def]) => setSection(id, def));
+    got.items.forEach(([id, item]) => addItem(id, item));
+    onLoaded(`Loaded ${got.sections.length} sections and ${got.items.length} items`, () => {
+      got.items.forEach(([id]) => addItem(id, null));
+      got.sections.forEach(([id]) => setSection(id, null));
+    });
+  };
+
+  return (
+    <>
+      <div className="scrim" onClick={onClose} />
+      <form className="sheet menued" role="dialog" aria-modal="true" aria-label={mode === 'copy' ? 'Copy menu' : 'Load a menu'} onSubmit={load}>
+        <div className="sheet__body">
+          <div className="sheet__title"><h1>{mode === 'copy' ? 'Copy menu' : 'Load a menu'}</h1></div>
+          <p className="menued__note">
+            {mode === 'copy'
+              ? 'This is your whole menu: sections, sizes, prices, kitchens and hours. Copy it, then on the other Lume POS open Menu → Load a menu and paste it.'
+              : 'Paste a menu copied from another Lume POS (Menu → Copy menu). Every section and item is added at once.'}
+          </p>
+          <textarea
+            ref={box} className="menued__text" id={mode === 'copy' ? 'menu-copy' : 'menu-load'} aria-label={mode === 'copy' ? 'Your menu as text' : 'Paste the menu here'}
+            readOnly={mode === 'copy'} value={mode === 'copy' ? text : pasted} autoFocus={mode === 'load'} spellCheck={false}
+            onChange={(e) => { setPasted(e.target.value); setError(''); }} onFocus={(e) => mode === 'copy' && e.target.select()}
+          />
+          {note && <p className="menued__note" role="status">{note}</p>}
+          {error && <p className="reason-msg" role="alert">{error}</p>}
+        </div>
+        <div className="sheet__foot menued__foot">
+          <button type="button" className="linkbtn" onClick={onClose}>{mode === 'copy' ? 'Done' : 'Cancel'}</button>
+          {mode === 'copy'
+            ? <button type="button" className="cta" onClick={copy}>Copy</button>
+            : <button type="submit" className="cta" disabled={!pasted.trim()}>Load</button>}
+        </div>
+      </form>
+    </>
+  );
+}
+
 export function MenuView({ onBack }: { onBack: () => void }) {
   useMenu();
   const sections = menuSections();
@@ -533,12 +601,13 @@ export function MenuView({ onBack }: { onBack: () => void }) {
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [adding, setAdding] = useState(false);
   const [sectionSheet, setSectionSheet] = useState<'new' | Section | null>(null);
+  const [textSheet, setTextSheet] = useState<'copy' | 'load' | null>(null);
   const [toast, setToast] = useState<{ id: number; message: string; undo: () => void } | null>(null);
   const items = section ? menuItems().filter((m) => m.category === section.id && !m.removed && !(m.added && sectionOf(m.category)?.removed)) : [];
   const empty = menuIsEmpty();
   /** "Added" means something only next to a starting menu (the sample); in a shop's own menu everything is. */
   const fromStart = menuItems().some((m) => !m.added);
-  const open = Boolean(editing || adding || sectionSheet);
+  const open = Boolean(editing || adding || sectionSheet || textSheet);
 
   useEffect(() => {
     if (!toast) return;
@@ -618,9 +687,12 @@ export function MenuView({ onBack }: { onBack: () => void }) {
         {section && (
           <button type="button" className={items.length ? 'chip menuv__add' : 'cta menuv__add'} onClick={() => setAdding(true)}>+ Add to {section.name}</button>
         )}
-        {empty && (
-          <p className="menuv__later"><button type="button" className="linkbtn" onClick={onBack}>Do it later</button></p>
-        )}
+        <p className="menuv__later">
+          {empty && <button type="button" className="linkbtn" onClick={onBack}>Do it later</button>}
+          {empty
+            ? <button type="button" className="linkbtn" onClick={() => setTextSheet('load')}>Load a menu</button>
+            : <button type="button" className="linkbtn" onClick={() => setTextSheet('copy')}>Copy menu</button>}
+        </p>
       </main>
       {sectionSheet && (
         <SectionSheet
@@ -634,6 +706,9 @@ export function MenuView({ onBack }: { onBack: () => void }) {
             if (made) setAdding(true); // a new section: straight on to its items
           }}
         />
+      )}
+      {textSheet && (
+        <MenuText mode={textSheet} onClose={() => setTextSheet(null)} onLoaded={(msg, undo) => { setTextSheet(null); setPicked(null); said(msg, undo); }} />
       )}
       {adding && section && <AddItems section={section} onClose={() => setAdding(false)} />}
       {editing && <Editor item={editing} onClose={() => setEditing(null)} onSaved={(msg, undo) => { setEditing(null); said(msg, undo); }} />}

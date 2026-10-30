@@ -166,6 +166,8 @@ export const setStartingMenu = (next: StartingMenu): void => {
   setMenuState(state);
 };
 export const menuState = (): MenuState => state;
+/** Where this shop's menu started (empty for a real shop, the sample for the demo): "Copy menu" needs it. */
+export const startingMenu = (): StartingMenu => start;
 /** The sections the shop offers, in order. */
 export const menuSections = (): Section[] => sections.filter((x) => !x.removed);
 /** The sections sold right now (Section.hours), as of the menu's last refresh. */

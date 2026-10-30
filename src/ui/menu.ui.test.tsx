@@ -295,3 +295,33 @@ test('a section with hours shows only then: morning rice prices, then lunch & di
     setStartingMenu(SAMPLE_START);
   }
 });
+
+test('the rice demo\'s menu, copied and pasted on a new shop\'s empty Menu screen, is all there at once; Undo takes it all back', async () => {
+  const user = userEvent.setup();
+  setStartingMenu(FAKE_RICE_START);
+  history.replaceState(null, '', '/#menu');
+  const demo = render(<Root />);
+  await user.click(await screen.findByRole('button', { name: 'Copy menu' }));
+  const text = (screen.getByLabelText('Your menu as text') as HTMLTextAreaElement).value;
+  expect(text).toContain('Chicken Kottu');
+  demo.unmount();
+
+  // The new shop: an empty menu, met first by its owner.
+  localStorage.clear();
+  setStartingMenu(EMPTY_START);
+  setMenuState(EMPTY_MENU_STATE);
+  history.replaceState(null, '', '/#menu');
+  render(<Root />);
+  await user.click(await screen.findByRole('button', { name: 'Load a menu' }));
+  const sheet = within(screen.getByRole('dialog', { name: 'Load a menu' }));
+  await user.click(sheet.getByLabelText('Paste the menu here'));
+  await user.paste(text);
+  await user.click(sheet.getByRole('button', { name: 'Load' }));
+  expect(screen.getByRole('status').textContent).toContain(`Loaded ${FAKE_RICE_START.sections.length} sections and ${FAKE_RICE_START.items.length} items`);
+  expect(menuItems().filter((m) => !m.hidden).length).toBe(FAKE_RICE_START.items.length);
+  expect(readAll().filter((e) => e.type === 'menu.item_added').length).toBe(FAKE_RICE_START.items.length);
+
+  await user.click(screen.getByRole('button', { name: 'Undo' }));
+  expect(menuItems().filter((m) => !m.hidden).length).toBe(0);
+  setStartingMenu(SAMPLE_START);
+});

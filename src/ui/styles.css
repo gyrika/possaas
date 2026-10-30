@@ -700,7 +700,8 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
 .menuv__section { display: flex; align-items: center; gap: 16px; margin: 8px 0 0; color: var(--ink-2); font-size: 15px; }
 .menuv__section .linkbtn { min-height: 48px; }
 .menuv__hours { font-weight: 400; opacity: 0.7; }
-.menuv__later { margin: 8px 0 0; }
+.menuv__later { display: flex; flex-wrap: wrap; gap: 24px; margin: 8px 0 0; }
+.menued__text { width: 100%; min-height: 180px; margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--ground); color: var(--ink); font: 13px/1.4 ui-monospace, Consolas, monospace; resize: vertical; box-sizing: border-box; }
 .menuv__add.cta { min-width: 240px; margin-top: 16px; }
 .menuv__name .card__no { margin-right: 8px; }
 .menued__rows { display: flex; max-width: 560px; flex-direction: column; gap: 10px; }
