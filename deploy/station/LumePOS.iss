@@ -48,6 +48,8 @@ Compression=lzma2/max
 SolidCompression=yes
 UninstallDisplayName=Lume POS
 CloseApplications=no
+; Never ask to restart Windows: a shop's counter PC cannot be restarted mid-day (owner, 2026-10-30).
+RestartIfNeededByRun=no
 
 [Messages]
 WelcomeLabel1=Welcome to Lume POS
@@ -62,8 +64,10 @@ Name: "{commonappdata}\LumePOS"
 [Files]
 Source: "stage\node\node.exe"; DestDir: "{app}\node"; Flags: ignoreversion
 Source: "stage\app\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
-; The counter app is usually running during an update, which locks its files: those are replaced at the
-; next restart (restartreplace). The POS screens come from the server, so they update at once anyway.
+; The counter app is usually running during an update, which locks its files. Setup run by hand closes it
+; first (PrepareToInstall) and opens it again at the end, so nothing waits for a restart. The silent nightly
+; update leaves it open: then its files are replaced at the next restart (restartreplace), without asking.
+; The POS screens come from the server, so they update at once either way.
 Source: "stage\pos-app\*"; DestDir: "{app}\pos-app"; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace
 Source: "station.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "station-install.ps1"; DestDir: "{app}"; Flags: ignoreversion
@@ -90,17 +94,21 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Fil
 #else
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\station-install.ps1"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting Lume POS..."
 #endif
-Filename: "{app}\pos-app\LumePOS.exe"; Description: "Open Lume POS now"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\pos-app\LumePOS.exe"; Description: "Open Lume POS now"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\station-uninstall.ps1"""; Flags: runhidden waituntilterminated; RunOnceId: "StopStation"
 
 [Code]
-// Before files are replaced (an update): stop the running server, so nothing is locked.
+// Before files are replaced (an update): stop the running server, so nothing is locked. Run by hand,
+// also close the counter app (it opens again at the end), so Windows never needs a restart for its files.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Code: Integer;
 begin
+  if not WizardSilent then
+    Exec('powershell.exe', '-NoProfile -Command "Get-Process LumePOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ''' +
+      ExpandConstant('{app}') + '*'' } | Stop-Process -Force; Start-Sleep -Milliseconds 500"', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN "Lume POS"', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Exec('powershell.exe', '-NoProfile -Command "Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ''' +
     ExpandConstant('{app}') + '*'' } | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, Code);
