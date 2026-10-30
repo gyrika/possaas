@@ -206,7 +206,7 @@ jobs:
       - name: Windows is set up (tasks, firewall, WebView2)
         shell: pwsh
         run: |
-          foreach ($t in 'Lume POS', 'Lume POS update', 'Lume POS nightly') { Get-ScheduledTask -TaskName $t | Out-Null }
+          foreach ($t in 'Lume POS', 'Lume POS update', 'Lume POS update now', 'Lume POS nightly') { Get-ScheduledTask -TaskName $t | Out-Null }
           $fw = Get-NetFirewallRule -DisplayName 'Lume POS'
           if ("$($fw.Profile)" -ne 'Any') { throw "The firewall rule is for $($fw.Profile) networks only: tablets on a 'Public' Wi-Fi are kept out" }
           if ("$(($fw | Get-NetFirewallAddressFilter).RemoteAddress)" -ne 'LocalSubnet') { throw 'The firewall rule must let in the shop network only' }
@@ -265,6 +265,25 @@ jobs:
           }
           if (-not (Test-Path (Join-Path $open 'logs\server.log'))) { throw 'No server log in it' }
           if (Get-ChildItem $open -Recurse -Filter '*.sqlite') { throw 'The database must never be in it' }
+
+      # The way the shop server starts it. Which step it ends on depends on what GitHub's latest release
+      # is (a test build updates to it; a release build is up to date), so any step proves it ran.
+      - name: Update now really starts the updater
+        shell: pwsh
+        run: |
+          $since = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+          & schtasks.exe /Run /TN 'Lume POS update now'
+          if ($LASTEXITCODE) { throw "The task did not start ($LASTEXITCODE)" }
+          $file = "$env:DATA\update-status.json"
+          $s = $null
+          foreach ($i in 1..150) {
+            $s = try { Get-Content $file -Raw | ConvertFrom-Json } catch { $null }
+            if ($s -and $s.at -ge $since -and $s.phase -in 'done', 'up-to-date', 'failed', 'back') { break }
+            Start-Sleep 2
+          }
+          Get-Content "$env:DATA\logs\update.log" -Tail 10 -ErrorAction SilentlyContinue
+          if (-not $s -or $s.at -lt $since) { throw 'The updater never said anything' }
+          "The updater ended on: $($s.phase)"
 
       - name: Uninstall keeps the shop's data
         shell: pwsh

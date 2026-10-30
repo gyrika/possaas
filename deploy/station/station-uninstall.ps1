@@ -1,7 +1,7 @@
 # Run by the uninstaller (as administrator, hidden). The shop's data stays in
 # C:\ProgramData\LumePOS (sales, staff, settings): delete that folder by hand to remove it too.
 $ErrorActionPreference = 'Continue'
-foreach ($name in @('Lume POS', 'Lume POS update', 'Lume POS nightly')) {
+foreach ($name in @('Lume POS', 'Lume POS update', 'Lume POS update now', 'Lume POS nightly')) {
   Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
   Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
 }

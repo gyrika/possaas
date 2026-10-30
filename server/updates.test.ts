@@ -46,14 +46,13 @@ test('switched off (AUTO_UPDATES false): no GitHub, nothing to install, even ins
   s.done();
 });
 
-test('install: runs the Station updater (forced), only on Windows inside a Station', async () => {
+test('install: starts the Station updater through its own Windows task, only on Windows inside a Station', () => {
   const s = station('1.0.0');
   const ran: string[][] = [];
   const run = (command: string, args: string[]) => ran.push([command, ...args]);
   assert.throws(() => updatesApi({ ...s, enabled: true, platform: 'linux', run }).install(), /on Windows/);
   updatesApi({ ...s, enabled: true, platform: 'win32', run }).install();
-  await new Promise((r) => setTimeout(r, 600)); // it starts a moment later, after the reply
-  assert.deepEqual(ran, [['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', s.updaterScript, '-Force']]);
+  assert.deepEqual(ran, [['schtasks.exe', '/Run', '/TN', 'Lume POS update now']]);
   s.done();
 
   const dev = station(null);

@@ -10,7 +10,7 @@ vi.mock('./restart.ts', () => ({ restartApp: vi.fn() }));
 interface Person { id: string; name: string; role: string; pin: string; active: boolean }
 
 /** The shop server's setup endpoints, remembering what they are told (and refusing as the real one does). */
-function fakeShopServer({ done = false, status = 200, newFails = false, updatesOff = false, printer = { status: 'Normal', jobs: 0 } } = {}) {
+function fakeShopServer({ done = false, status = 200, newFails = false, updatesOff = false, updaterSilent = false, printer = { status: 'Normal', jobs: 0 } } = {}) {
   const s = { version: '1.0.0', down: false, installedAt: 0, done, cloud: false, shop: null as null | { id: string; name: string; place: string; footer: string; paper?: 58 | 80; payFirst?: boolean }, printed: 0, cleared: 0, printers: ['XP-80T'], usbPorts: [] as string[], drives: [] as { letter: string; label: string; freeBytes: number }[], backups: [] as string[], printer: null as string | null, staff: [] as Person[] };
   const pub = () => s.staff.map(({ pin: _p, ...m }) => m);
   const ownerOk = (pin: unknown) => !s.done || s.staff.some((m) => m.active && m.role === 'owner' && m.pin === pin);
@@ -43,15 +43,16 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
     if (step === '/cloud') { if (body.code !== 'CB-7K3M-Q9XZ') return no(403, 'that shop code is not right'); s.cloud = true; return ok({ cloud: true }); }
     if (step === '/finish') { s.done = true; return ok({ done: true }); }
     if (step === '/update/check') return ok(updatesOff ? { current: s.version, latest: null, newer: false, off: true } : { current: s.version, latest: '1.0.1', newer: s.version !== '1.0.1' });
-    // What station-update.ps1 writes as it goes: downloading (real %), then backing up.
     if (step === '/backup/drives') return ok({ drives: s.drives });
     if (step === '/backup/usb') { s.backups.push(body.drive); return ok({ file: `${body.drive}:\\Lume POS backups\\pos.sqlite`, events: 1234 }); }
     if (step === '/support') return ok({ name: 'Lume POS support 2026-10-21 1432.zip', path: 'C:\\Users\\Public\\Desktop\\x.zip' });
+    // What station-update.ps1 writes as it goes: backing up, then downloading (real %).
     if (step === '/update/status') {
       const t = Date.now() - s.installedAt;
-      return ok({ status: s.installedAt ? { phase: t < 1500 ? 'downloading' : 'backup', percent: t < 1500 ? 30 : 61, version: '1.0.1', at: Date.now() } : null });
+      return ok({ status: s.installedAt && !updaterSilent ? { phase: t < 1200 ? 'backup' : 'downloading', percent: t < 1200 ? 3 : 30, version: '1.0.1', at: Date.now() } : null });
     }
     if (step === '/update/install') {
+      if (updaterSilent) return ok({ started: true, from: s.version });
       // The installer stops the server; the new version starts, or (newFails) the updater puts the old one back.
       s.installedAt = Date.now();
       setTimeout(() => { s.down = true; }, 2500);
@@ -155,15 +156,33 @@ test("Shop setup → Updates: the owner's PIN, a newer version, Update now, back
 
   await user.click(screen.getByRole('button', { name: 'Update now' }));
   const bar = await screen.findByRole('progressbar', { name: 'Update progress' });
+  await vi.waitFor(() => expect(screen.getByText('Backing up your sales')).toBeTruthy(), { timeout: 4000 });
   await vi.waitFor(() => expect(screen.getByText('Downloading version 1.0.1')).toBeTruthy(), { timeout: 4000 });
   expect(bar.getAttribute('aria-valuenow')).toBe('30'); // the updater's own download percentage
-  await vi.waitFor(() => expect(screen.getByText('Backing up your sales')).toBeTruthy(), { timeout: 4000 });
   await vi.waitFor(() => expect(screen.getByText('Installing')).toBeTruthy(), { timeout: 4000 }); // the server is away: it keeps moving
   expect(Number(bar.getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(65);
   await vi.waitFor(() => expect(bar.getAttribute('aria-valuenow')).toBe('100'), { timeout: 6000 });
   expect(screen.getByText('Done: opening the new version')).toBeTruthy();
   await vi.waitFor(() => expect(restartApp).toHaveBeenCalled(), { timeout: 3000 }); // the new version answered
 }, 25_000);
+
+test('Shop setup → Updates: an updater that never reports is said out loud, not a bar that only counts time', async () => {
+  const server = fakeShopServer({ done: true, updaterSilent: true });
+  server.staff.push({ id: 'o', name: 'Nisal Vimukthi', role: 'owner', pin: '1234', active: true });
+  const user = userEvent.setup();
+  render(<SetupWizard mode="manage" />);
+  await user.type(await screen.findByLabelText("The owner's PIN"), '1234{Enter}');
+  await user.click(await screen.findByRole('button', { name: 'Updates' }));
+  await user.click(await screen.findByRole('button', { name: 'Update now' }));
+  const bar = await screen.findByRole('progressbar', { name: 'Update progress' });
+  await new Promise((r) => setTimeout(r, 1200));
+  expect(bar.getAttribute('aria-valuenow')).toBe('2'); // nothing has happened, so it says nothing has
+  const later = Date.now() + 31_000;
+  const clock = vi.spyOn(Date, 'now').mockImplementation(() => later);
+  await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe('The update did not start. Nothing changed: the POS is as it was.'), { timeout: 4000 });
+  clock.mockRestore();
+  expect(screen.getByRole('button', { name: 'Update now' })).toBeTruthy(); // try again
+}, 15_000);
 
 test("Shop setup → Printer: the owner changes what the receipt says, and every screen's corner follows", async () => {
   const server = fakeShopServer({ done: true });

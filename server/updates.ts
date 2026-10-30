@@ -19,6 +19,9 @@ const LATEST = 'https://api.github.com/repos/gyrika/possaas/releases/latest';
  */
 export const AUTO_UPDATES = true;
 
+/** Registered by deploy/station/station-install.ps1: station-update.ps1 -Force, as SYSTEM. */
+export const UPDATE_NOW_TASK = 'Lume POS update now';
+
 export interface UpdateCheck {
   current: string;
   latest: string | null;
@@ -47,8 +50,7 @@ export function updatesApi(o: UpdatesOptions) {
   const platform = o.platform ?? process.platform;
   const enabled = o.enabled ?? AUTO_UPDATES;
   const run = o.run ?? ((command, args) => {
-    // Detached: the installer stops this very server while it replaces the files.
-    spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    spawn(command, args, { stdio: 'ignore', windowsHide: true }).on('error', () => { /* the screen says it did not start */ });
   });
   const current = (): string => {
     try { return existsSync(o.versionFile) ? readFileSync(o.versionFile, 'utf8').trim() || 'development' : 'development'; }
@@ -79,12 +81,15 @@ export function updatesApi(o: UpdatesOptions) {
       }
     },
 
-    /** Starts the updater now (it downloads the latest release and installs it quietly). */
+    /**
+     * Starts the updater now (it downloads the latest release and installs it quietly), through its
+     * own Windows task: the installer stops this very server and everything it started, and
+     * PowerShell started detached from node quits without running the script.
+     */
     install(): void {
       if (!enabled) throw new Error('automatic updates are off: run the new Setup.exe on this PC');
       if (!installable()) throw new Error('updates are installed by Lume POS on Windows');
-      // A moment later, so the reply reaches the screen before the installer stops this server.
-      setTimeout(() => run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', o.updaterScript, '-Force']), 500);
+      run('schtasks.exe', ['/Run', '/TN', UPDATE_NOW_TASK]);
     },
   };
 }

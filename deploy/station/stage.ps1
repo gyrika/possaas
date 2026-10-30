@@ -28,6 +28,12 @@ foreach ($local in @('server\data', 'server\prints', 'server\.env', 'server\.env
 Copy-Item (Join-Path $root 'package.json'), (Join-Path $root 'package-lock.json') "$stage\app"
 Push-Location "$stage\app"
 try { & npm.cmd ci --omit=dev --ignore-scripts --no-audit --no-fund; if ($LASTEXITCODE) { throw 'npm ci failed' } } finally { Pop-Location }
+# The screens' packages are already built into dist; the server uses none of them. lucide-react alone
+# is 4,288 files, and thousands of small files are what make an install slow.
+foreach ($built in @('lucide-react', 'react', 'react-dom', 'scheduler', '@fontsource', 'qrcode-generator')) {
+  $p = Join-Path "$stage\app\node_modules" $built
+  if (Test-Path $p) { Remove-Item $p -Recurse -Force }
+}
 
 if ($OfflineWebView2) {
   New-Item -ItemType Directory -Force -Path "$stage\webview2" | Out-Null

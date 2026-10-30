@@ -503,7 +503,7 @@ function UpdatesTab({ ownerPin }: { ownerPin?: string }) {
     let downAt = 0;
     let shown = 2;
     let label = STEP_LABEL.checking;
-    let heard = false; // this updater reports its steps (versions before 1.0.3 do not)
+    let heard = false; // the updater has reported a step: it really started
     const show = (percent: number, text: string, allowBack = false) => {
       shown = allowBack ? percent : Math.max(shown, percent);
       label = text;
@@ -534,8 +534,10 @@ function UpdatesTab({ ownerPin }: { ownerPin?: string }) {
           if (s.phase === 'up-to-date') { setPhase('idle'); void check(); return; }
           const text = s.phase === 'downloading' ? `Downloading version ${s.version}` : STEP_LABEL[s.phase] ?? label;
           show(s.percent, text, s.phase === 'going-back');
-        } else if (!heard) {
-          show(ease(2, 60, now - started, 40_000), 'Downloading the new version'); // an older updater: by time
+        } else if (!heard && now - started > 30_000) {
+          setError('The update did not start. Nothing changed: the POS is as it was.');
+          setPhase('idle');
+          return;
         }
       } else {
         // The server is restarting while the installer works: keep moving, a little slower near the end.

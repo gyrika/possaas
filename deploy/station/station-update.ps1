@@ -1,8 +1,8 @@
 # Every 5 minutes (as SYSTEM): if GitHub has a newer Lume POS, install it quietly. The
 # installer keeps the shop's data (C:\ProgramData\LumePOS) and restarts the POS.
 # Never during service: it installs nothing if a sale was recorded in the last 15 minutes,
-# unless the owner pressed "Update now" in Shop setup (-Force). At 4 am (-Nightly) it first
-# makes the nightly backup of the shop's data.
+# unless the owner pressed "Update now" in Shop setup (-Force, through the "Lume POS update now"
+# task), which skips every wait. At 4 am (-Nightly) it first makes the nightly backup of the shop's data.
 # Safe: another backup right before installing, and if the new version does not answer within
 # 3 minutes, the version that was running is put back by itself. Everything goes in logs\update.log.
 param([switch]$Force, [switch]$Nightly)
@@ -12,6 +12,14 @@ param([switch]$Force, [switch]$Nightly)
 $UpdatesOn = $true
 $Releases = 'gyrika/possaas'
 $ErrorActionPreference = 'Stop'
+
+# One updater at a time, so "Update now" and the 5-minute check never install together. Windows lets
+# go when this script ends. A check gives way at once; "Update now" waits out another check, and if
+# that one is installing, the screen follows its steps instead.
+$lock = New-Object Threading.Mutex($false, 'Global\LumePOSUpdater')
+$wait = if ($Nightly) { 600000 } elseif ($Force) { 20000 } else { 0 }
+try { if (-not $lock.WaitOne($wait)) { exit 0 } } catch [Threading.AbandonedMutexException] { }
+
 $data = Join-Path $env:ProgramData 'LumePOS'
 $log = Join-Path $data 'logs\update.log'
 function Note([string]$text) { Add-Content -Path $log -Value ("[{0:yyyy-MM-dd HH:mm}] {1}" -f (Get-Date), $text) }
@@ -49,7 +57,7 @@ function Answers([string]$version) {
       $h = Invoke-RestMethod -Uri "http://127.0.0.1:$port/api/v1/health" -TimeoutSec 5
       if ($h.version -eq $version) { return $true }
     } catch { }
-    Start-Sleep -Seconds 5
+    Start-Sleep -Seconds 1
   }
   return $false
 }
@@ -98,7 +106,8 @@ try {
   # Checked every 5 minutes: only the nightly run and "Update now" say so in the log.
   if ([version]$latest -le [version]$current) { if ($Nightly -or $Force) { Note "Up to date ($current)." }; if ($Force) { Status 'up-to-date' 100 }; exit 0 }
   $skipFile = Join-Path $data 'update-skip.txt'
-  if ((Test-Path $skipFile) -and (Get-Content $skipFile -Raw).Trim() -eq $latest) { if ($Nightly) { Note "Version $latest did not start here before: waiting for a newer one." }; exit 0 }
+  # A version that did not start here is skipped, unless the owner asks for it.
+  if (-not $Force -and (Test-Path $skipFile) -and (Get-Content $skipFile -Raw).Trim() -eq $latest) { if ($Nightly) { Note "Version $latest did not start here before: waiting for a newer one." }; exit 0 }
 
   $busy = Get-ChildItem (Join-Path $data 'pos.sqlite-wal') -ErrorAction SilentlyContinue |
     Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-15) }
@@ -112,13 +121,12 @@ try {
     exit 0
   }
   $script:installing = $true
-  Status 'downloading' 5
   if ($Force) { Note 'Update now: asked for in Shop setup.' }
 
   $asset = $release.assets | Where-Object { $_.name -like 'LumePOS-Setup-*.exe' } | Select-Object -First 1
-  if (-not $asset) { Note "Release $latest has no installer."; exit 0 }
+  if (-not $asset) { Note "Release $latest has no installer."; if ($Force) { Status 'failed' 100 }; exit 0 }
   # No update without a good backup of the sales first.
-  Status 'backup' 61
+  Status 'backup' 3
   if (-not (Backup "before-$latest")) { Note "Not updating to ${latest}: the backup did not work."; Status 'failed' 100; exit 0 }
 
   Note "Installing $latest (was $current)."
