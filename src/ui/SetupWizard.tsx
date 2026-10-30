@@ -70,7 +70,7 @@ function PayWhenChoice({ value, onPick }: { value: boolean; onPick: (payFirst: b
 
 /** Shop setup → Shop: changes when customers pay; the register follows at once. */
 function PayWhenTab({ state, ownerPin }: { state: SetupState; ownerPin?: string }) {
-  const [payFirst, setPayFirst] = useState(Boolean(state.shop?.payFirst));
+  const [payFirst, setPayFirst] = useState(state.shop?.payFirst ?? true); // Bata Kade: customers pay first
   const [error, setError] = useState('');
   const pick = async (next: boolean) => {
     setError('');
@@ -93,7 +93,7 @@ function PayWhenTab({ state, ownerPin }: { state: SetupState; ownerPin?: string 
 function ShopStep({ state, onDone }: { state: SetupState; onDone: () => void }) {
   const [name, setName] = useState(state.shop?.name ?? '');
   const [place, setPlace] = useState(state.shop?.place ?? '');
-  const [payFirst, setPayFirst] = useState(Boolean(state.shop?.payFirst));
+  const [payFirst, setPayFirst] = useState(state.shop?.payFirst ?? true); // Bata Kade: customers pay first
   const [error, setError] = useState('');
   const submit = async (e: FormEvent) => {
     e.preventDefault();

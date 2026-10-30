@@ -17,7 +17,7 @@ export interface ShopSettings {
   printer?: string;
   /** Receipt paper width in mm; absent = 80. */
   paperWidth?: 58 | 80;
-  /** Customers pay before the order goes to the kitchen; absent = eat first, pay after. */
+  /** Customers pay before the order goes to the kitchen; absent = pay first (Bata Kade, 2026-10-30); false = eat first, pay after. */
   payFirst?: boolean;
   /** The shop's logo beside its name in every screen's corner: a small image as a data: URL; absent = the shop's own (Bata Kade's); '' = none. */
   logo?: string;

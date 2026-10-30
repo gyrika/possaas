@@ -153,7 +153,7 @@ test("the shop's own name, town and receipt footer: for every screen, changed la
   const s = await start();
   assert.equal((await s.shop()).status, 404, 'nothing until the wizard names the shop');
   await s.post('/shop', { name: "Rasika's Kitchen", place: 'Kandy' });
-  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen", place: 'Kandy', footer: 'Thank you!', paper: 80, payFirst: false });
+  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen", place: 'Kandy', footer: 'Thank you!', paper: 80, payFirst: true }); // absent = pay first (Bata Kade)
   await s.post('/staff', { name: 'Rasika', role: 'owner', pin: '1234' });
   await s.post('/finish');
   const id = (await s.state()).shop.id;
@@ -162,7 +162,7 @@ test("the shop's own name, town and receipt footer: for every screen, changed la
   assert.equal((await s.post('/details', { name: ' ', ownerPin: '1234' })).status, 400, 'never without a name');
   const saved = await s.post('/details', { name: "Rasika's Kitchen & Bakery", place: '12 Temple Road, Kandy', footer: '  Come again!  ', ownerPin: '1234' });
   assert.equal(saved.status, 200);
-  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen & Bakery", place: '12 Temple Road, Kandy', footer: 'Come again!', paper: 80, payFirst: false });
+  assert.deepEqual((await s.shop()).body, { name: "Rasika's Kitchen & Bakery", place: '12 Temple Road, Kandy', footer: 'Come again!', paper: 80, payFirst: true });
   assert.equal((await s.state()).shop.id, id, 'the id (and the cloud copy) never changes with the name');
   await s.post('/details', { name: "Rasika's Kitchen", place: 'Kandy', footer: '', ownerPin: '1234' });
   assert.equal((await s.shop()).body.footer, '', 'an empty footer stays empty');

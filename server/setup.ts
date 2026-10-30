@@ -97,7 +97,7 @@ export function setupApi(ctx: SetupContext) {
     const logo = s.logo ?? ctx.defaultLogo;
     return s.shopId
       ? { id: s.shopId, name: s.shopName ?? s.shopId, place: s.place ?? '', footer: s.receiptFooter ?? DEFAULT_FOOTER, paper: s.paperWidth ?? 80,
-        payFirst: s.payFirst === true, ...(logo ? { logo } : {}) }
+        payFirst: s.payFirst !== false, ...(logo ? { logo } : {}) }
       : null;
   };
   const requireShop = () => {
