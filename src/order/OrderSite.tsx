@@ -621,7 +621,7 @@ export function OrderSite() {
                 <section id={s.id} className="o-section" aria-labelledby={`h-${s.id}`}>
                   <h2 id={`h-${s.id}`} className="o-reveal">{s.label}</h2>
                   <ul className="o-items">
-                    {menuItems().filter((m) => m.category === s.id && !m.hidden).map((m) => (
+                    {menuItems().filter((m) => m.category === s.id && !m.hidden && !m.offHours).map((m) => (
                       <li key={m.id} className="o-reveal">
                         <ItemCard item={m} closed={taking === 'closed'} onOpen={() => setOpen(m)} onQuickAdd={() => quickAdd(m)} />
                       </li>

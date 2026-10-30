@@ -45,7 +45,7 @@ export function ExtrasSheet({ item, line, size, manager = false, onSubmit, onRem
   const reasonRef = useRef<HTMLDivElement>(null);
 
   const other = half ? itemById(half) : null;
-  const halves = menuItems().filter((m) => canHalve(item, m) && !m.hidden && (!m.soldOut || m.id === half));
+  const halves = menuItems().filter((m) => canHalve(item, m) && !m.hidden && !m.offHours && (!m.soldOut || m.id === half));
   const leaveOut = leaveOutsOf(item, other);
   const title = lineItemName({ itemId: item.id, half });
   const pickHalf = (id: string | undefined) => {

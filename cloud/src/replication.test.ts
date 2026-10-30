@@ -7,7 +7,7 @@ import { createCloud, sha256Hex } from './cloud.ts';
 import { fakeD1 } from './fakeD1.ts';
 
 /** A shop server (memory store) and the real cloud code, joined by a network we can cut. */
-async function world() {
+async function world(now?: () => number) {
   const { d1, db } = fakeD1();
   db.prepare("INSERT INTO shops (id, name, created_at) VALUES ('shop-a', 'A', 0)").run();
   db.prepare("INSERT INTO devices (id, tenant_id, kind, token_hash, created_at) VALUES ('cloud-dev', 'shop-a', 'shop_server', ?, 0)")
@@ -27,11 +27,12 @@ async function world() {
     { id: `e${from + i}`, shopId: 'shop-a', at: 1, orderNumber: 1001, ticketId: 't', type: 'kitchen.seen' })), 2);
   const copied = () => (db.prepare("SELECT id FROM events WHERE tenant_id = 'shop-a' ORDER BY source_seq").all() as { id: string }[]).map((r) => r.id);
   const rep = startReplicator({
-    store, tenantId: 'shop-a', url: 'https://cloud.test', token: 'secret', fetch: net, every: 3_600_000,
+    store, tenantId: 'shop-a', url: 'https://cloud.test', token: 'secret', fetch: net, every: 3_600_000, now,
     about: () => ({ version: '1.0.4', update: { phase: 'done', percent: 100, version: '1.0.4', at: 7 } }),
   });
   const station = () => db.prepare("SELECT version, update_status, last_seen_at FROM devices WHERE id = 'cloud-dev'").get();
-  return { rep, sell, copied, station, setDown: (v: boolean) => { down = v; }, calls: () => calls };
+  const clockOff = () => (db.prepare("SELECT clock_off_ms AS off FROM devices WHERE id = 'cloud-dev'").get() as { off: number | null }).off;
+  return { rep, sell, copied, station, clockOff, setDown: (v: boolean) => { down = v; }, calls: () => calls };
 }
 
 test('everything is copied once, in batches, and a second pass sends nothing', async () => {
@@ -71,5 +72,14 @@ test('every pass, even with nothing to copy, tells the cloud this Station is ali
   assert.deepEqual({ ...w.station() as object, last_seen_at: typeof (w.station() as { last_seen_at: unknown }).last_seen_at }, {
     version: '1.0.4', update_status: '{"phase":"done","percent":100,"version":"1.0.4","at":7}', last_seen_at: 'number',
   });
+  w.rep.stop();
+});
+
+test('a PC clock 2 h slow: the shop server and the cloud both know it, so the Owner view and /admin can say so', async () => {
+  const w = await world(() => Date.now() - 2 * 3_600_000);
+  await w.rep.syncNow();
+  const near = (ms: number | null | undefined) => typeof ms === 'number' && Math.abs(ms + 2 * 3_600_000) < 5_000;
+  assert.ok(near(w.rep.status().clockOffMs), `shop server measured ${w.rep.status().clockOffMs}`);
+  assert.ok(near(w.clockOff()), `cloud kept ${w.clockOff()}`);
   w.rep.stop();
 });

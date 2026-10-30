@@ -86,6 +86,8 @@ export interface PullResponse {
   /** True when there are more after `lastSeq`: pull again straight away. */
   more: boolean;
   serverTime: number;
+  /** The shop PC's clock minus the cloud's, as last measured (ms); absent when not known. For the Owner view's clock card. */
+  clockOffMs?: number;
 }
 
 /** WSS /api/v1/stream?after=<seq>: server → device only. */
@@ -135,6 +137,22 @@ export const retryDelayMs = (attempt: number): number => Math.min(60_000, 1000 *
  */
 export const clockOffsetMs = (serverTime: number, sentAt: number, receivedAt: number): number =>
   Math.round(serverTime - (sentAt + receivedAt) / 2);
+
+/** How far a shop PC's clock may be off before anyone is told: menu hours, the business day and receipts follow it. */
+export const CLOCK_TOLERANCE_MS = 5 * 60_000;
+
+/**
+ * "2 h 10 min behind", "3 days ahead", or null while the clock is close enough.
+ * `pcAheadMs` is the PC's clock minus the real time (the cloud's).
+ */
+export const clockOffText = (pcAheadMs: number | null | undefined): string | null => {
+  if (pcAheadMs == null || Math.abs(pcAheadMs) < CLOCK_TOLERANCE_MS) return null;
+  const min = Math.round(Math.abs(pcAheadMs) / 60_000);
+  const by = min < 60 ? `${min} min`
+    : min < 48 * 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}`
+    : `${Math.round(min / 1440)} days`;
+  return `${by} ${pcAheadMs > 0 ? 'ahead' : 'behind'}`;
+};
 
 export const syncStatus = (online: boolean, pendingCount: number): SyncStatus =>
   !online ? 'offline' : pendingCount > 0 ? 'pending' : 'synced';

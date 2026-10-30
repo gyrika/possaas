@@ -69,6 +69,7 @@ const checkLine = (raw: unknown, items: readonly MenuItem[]): OnlineLine | strin
   const r = raw as Record<string, unknown>;
   const item = items.find((m) => m.id === r.itemId);
   if (!item || item.hidden) return 'something on the order is not on the menu';
+  if (item.offHours) return `sorry, ${item.name.en} is not sold at this time`;
   if (item.soldOut) return `sorry, ${item.name.en} is sold out today`;
   if (!Number.isSafeInteger(r.qty) || (r.qty as number) < 1 || (r.qty as number) > LIMITS.qty) return `at most ${LIMITS.qty} of one item`;
   if (item.variants) {

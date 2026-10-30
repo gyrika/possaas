@@ -81,3 +81,11 @@ test("not selling: only this shop's own menu, never the sample's", async () => {
     setStartingMenu(SAMPLE_START);
   }
 });
+
+test("the counter PC's clock is wrong: the first card, with how to fix it; close enough says nothing", () => {
+  const wrong = rulesSuggestions.insights({ events: demoHistory(friday), now: friday, clockOffMs: -90 * 60_000 });
+  assert.equal(wrong[0].id, 'clock');
+  assert.equal(wrong[0].title, "The counter PC's clock is 1 h 30 min behind");
+  assert.ok(wrong[0].action.items.length > 0);
+  assert.ok(!ids({ events: demoHistory(friday), now: friday, clockOffMs: 60_000 }).includes('clock'));
+});

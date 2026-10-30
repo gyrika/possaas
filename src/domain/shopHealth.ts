@@ -1,5 +1,6 @@
 import { DAY_STARTS_HOUR } from './cashUp.ts';
 import { fmt } from './money.ts';
+import { clockOffText } from './sync.ts';
 import { isNewer } from './version.ts';
 import type { Cents } from './types.ts';
 
@@ -26,6 +27,8 @@ export interface ShopFacts {
   sales: readonly number[];
   /** The last two weeks' closes of the day: the business day's start and counted minus expected cash. */
   closes: readonly { from: number; at: number; difference: Cents }[];
+  /** The shop PC's clock minus the cloud's (ms), as it last told us. */
+  clockOffMs?: number | null;
   now: number;
 }
 
@@ -123,9 +126,15 @@ const update = (f: ShopFacts): ShopProblem | null => {
   return null;
 };
 
+/** The PC's clock: an hour or more moves menu hours and the business day, so it is bad; a few minutes is a warning. */
+const clock = (f: ShopFacts): ShopProblem | null => {
+  const off = clockOffText(f.clockOffMs);
+  return off ? { level: Math.abs(f.clockOffMs!) >= HOUR ? 'bad' : 'warn', text: `PC clock ${off}` } : null;
+};
+
 /** Everything wrong at one shop, worst first. */
 export function shopProblems(f: ShopFacts): ShopProblem[] {
-  const all = [offline(f), quiet(f), ...cash(f), update(f)].filter((p): p is ShopProblem => p !== null);
+  const all = [offline(f), quiet(f), ...cash(f), update(f), clock(f)].filter((p): p is ShopProblem => p !== null);
   return [...all.filter((p) => p.level === 'bad'), ...all.filter((p) => p.level === 'warn')];
 }
 

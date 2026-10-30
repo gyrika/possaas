@@ -42,12 +42,12 @@ export function ShorthandBar({ initial, onSubmit, onClose }: Props) {
 
   useEffect(() => {
     const id = ++latest.current;
-    const interpreter: OrderInterpreter = new ShorthandInterpreter(menuItems());
+    const interpreter: OrderInterpreter = new ShorthandInterpreter(menuItems().filter((m) => !m.offHours));
     Promise.resolve(interpreter.interpret(text)).then((d) => { if (id === latest.current) setDraft(d); });
   }, [text, menuVersion]);
 
   const offered = (line: LineSpec) => {
-    return [line.itemId, ...(line.half ? [line.half] : [])].map(itemById).every((item) => !item.soldOut && !item.hidden);
+    return [line.itemId, ...(line.half ? [line.half] : [])].map(itemById).every((item) => !item.soldOut && !item.hidden && !item.offHours);
   };
   const availableLines = draft.lines.filter(offered);
   const unavailableLines = draft.lines.filter((line) => !offered(line));
@@ -80,7 +80,7 @@ export function ShorthandBar({ initial, onSubmit, onClose }: Props) {
         {availableLines.map((l, i) => <span key={i}>{describe(l)}</span>)}
         {unavailableLines.map((l, i) => (
           <span key={`blocked${i}`} className="typebar__bad">
-            {itemById(l.itemId).name.en}: {itemById(l.itemId).hidden ? 'not on the menu' : 'sold out'}
+            {itemById(l.itemId).name.en}: {itemById(l.itemId).hidden ? 'not on the menu' : itemById(l.itemId).offHours ? 'not sold now' : 'sold out'}
           </span>
         ))}
         {draft.unresolved.map((u, i) => <span key={`u${i}`} className="typebar__bad">? {u}</span>)}

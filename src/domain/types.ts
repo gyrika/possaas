@@ -20,7 +20,14 @@ export interface Section {
   adds: Option[];
   /** A shop with two kitchens: which one makes it. Absent = the only (or the left) kitchen. */
   station?: Station;
+  /** Sold only at these times of day (breakfast, night...). Absent = all day. */
+  hours?: SectionHours;
 }
+/**
+ * Minutes after midnight, shop time: from 6:00 to 11:00 is { from: 360, to: 660 }. A `to` at or
+ * before `from` runs past midnight (18:00 to 5:00 is "tonight").
+ */
+export interface SectionHours { from: number; to: number }
 /** Small labels on the ordering page's cards. Each must come from the owner: never inferred. */
 export type MenuTag = 'popular' | 'veg';
 
@@ -58,6 +65,8 @@ export interface MenuItem {
   leaveOut: Option[];
   /** The owner took it off the menu (src/domain/menuEdits.ts): kept for old orders, not offered. */
   hidden?: boolean;
+  /** Its section is not sold at this time of day (Section.hours): not offered now, back by itself. */
+  offHours?: boolean;
   /** Sold out for today: shown greyed, cannot be ordered. */
   soldOut?: boolean;
   /** The owner changed it from the printed menu. */

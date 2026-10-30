@@ -242,7 +242,7 @@ test('staff: a PIN belongs to one active person; a deactivated PIN stops working
   await store.addStaff(SHOP, 'Kamal', 'cashier', '1111'); // free again
 });
 
-test('menu: only a logged-in owner changes names; a manager may change prices and mark things sold out', async () => {
+test('menu: a logged-in owner or manager changes it (cashiers: auth.test)', async () => {
   const s = await staffed();
   const owner = await s.store.addStaff(SHOP, 'Nisal', 'owner', '1234');
   await s.login('2580');
@@ -257,7 +257,7 @@ test('menu: only a logged-in owner changes names; a manager may change prices an
   const r = await (await s.push(s.tokens.counter, [
     set('set-by-owner', 'owner'), set('set-by-manager', 'manager'), price('price-by-manager', 'manager'), sold('sold-by-manager', 'manager'),
   ])).json();
-  assert.deepEqual(r.accepted.map((a: { id: string }) => a.id), ['set-by-owner', 'price-by-manager', 'sold-by-manager']);
-  assert.deepEqual(r.rejected.map((x: { id: string }) => x.id), ['set-by-manager']);
+  assert.deepEqual(r.accepted.map((a: { id: string }) => a.id), ['set-by-owner', 'set-by-manager', 'price-by-manager', 'sold-by-manager']);
+  assert.equal(r.rejected, undefined);
   await s.stop();
 });

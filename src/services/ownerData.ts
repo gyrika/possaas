@@ -20,7 +20,7 @@ import { adminShop, fleetShop, ownerToken, syncToken } from './pairing.ts';
  */
 interface Source {
   /** Events after the cursor, and the new cursor. A full load starts at 0. */
-  next(after: number): Promise<{ events: SyncEvent[]; cursor: number }>;
+  next(after: number): Promise<{ events: SyncEvent[]; cursor: number; clockOffMs?: number }>;
   /** Local sources rebuild the whole list each time. */
   incremental: boolean;
 }
@@ -36,7 +36,7 @@ const remote = (path: string, headers: Record<string, string>): Source => ({
       const page = (await r.json()) as PullResponse;
       events.push(...page.events.map((s) => s.event));
       cursor = page.lastSeq;
-      if (!page.more) return { events, cursor };
+      if (!page.more) return { events, cursor, clockOffMs: page.clockOffMs };
     }
   },
 });
@@ -58,7 +58,7 @@ export const shopSource = (): Source => {
 
 export type ShopEvents =
   | { state: 'loading' }
-  | { state: 'ready'; events: SyncEvent[]; at: number }
+  | { state: 'ready'; events: SyncEvent[]; at: number; clockOffMs?: number }
   | { state: 'error'; message: string; events?: SyncEvent[]; at?: number };
 
 /** Loads once, then catches up when this device records something, and every minute. */
@@ -81,7 +81,7 @@ export function useShopEvents(): ShopEvents {
         cursor = got.cursor;
         // The owner's own names and prices, wherever this view runs (the phone has no event log).
         setMenuState(menuStateFromEvents(events.filter((e) => e.type.startsWith('menu.'))));
-        setData({ state: 'ready', events, at: Date.now() });
+        setData({ state: 'ready', events, at: Date.now(), clockOffMs: got.clockOffMs });
       } catch (e) {
         if (alive) setData({ state: 'error', message: e instanceof Error ? e.message : String(e), events, at: Date.now() });
       } finally {

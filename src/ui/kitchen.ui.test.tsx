@@ -151,30 +151,32 @@ test('a pay-first counter: paid meals wait on the serving list, grouped; one tap
   expect(paid.queryByText('Cooking')).toBeNull();
 });
 
-test('two kitchens: rice goes left, kottu goes right; each flies its way and shows on its own screen', async () => {
+test('two kitchens: biriyani goes left, kottu goes right; each flies its way and shows on its own screen', async () => {
   setStartingMenu(FAKE_RICE_START);
   setShopDetails({ name: 'Bata Kade', place: '', footer: '', payFirst: true });
   try {
     const user = userEvent.setup();
     render(<Root />);
-    await user.click(screen.getAllByRole('button', { name: '300' })[0]); // Chicken Rice
+    // Sections sold all day, so the test passes at any hour (rice & curry and fried rice have hours).
+    await user.click(screen.getByRole('button', { name: 'String Hoppers, Roti & Rolls' }));
+    await user.click(screen.getByRole('button', { name: '500' })); // Biriyani
     await user.click(screen.getByRole('button', { name: 'Kottu' }));
     await user.click(screen.getAllByRole('button', { name: 'Full 800' })[0]); // Chicken Kottu, Full
     await user.click(panel().getByRole('button', { name: 'Charge' }));
     await user.click(screen.getByRole('button', { name: /Exact/ }));
 
     const sent = readAll().flatMap((e) => (e.type === 'order.sent' ? [[e.station, e.lines.map((l) => l.itemId)]] : []));
-    expect(sent).toEqual([['left', ['ml-rice-chicken']], ['right', ['kt-chicken']]]);
-    expect(document.querySelector('.flight--left')?.textContent).toContain('1 × Chicken Rice');
+    expect(sent).toEqual([['left', ['rt-biriyani']], ['right', ['kt-chicken']]]);
+    expect(document.querySelector('.flight--left')?.textContent).toContain('1 × Biriyani');
     expect(document.querySelector('.flight--right')?.textContent).toContain('1 × Chicken Kottu');
     // The Register has a key per kitchen, each counting its own.
     expect(screen.getByRole('button', { name: /^Left kitchen: 1 to hand over/ })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /^Right kitchen: 1 to hand over/ }));
     expect(screen.getByRole('heading', { name: 'Serving · Right kitchen' })).toBeTruthy();
-    expect(screen.queryByRole('article', { name: /Chicken Rice/ })).toBeNull();
+    expect(screen.queryByRole('article', { name: /Biriyani/ })).toBeNull();
     await user.keyboard('{Escape}');
     await user.click(screen.getByRole('button', { name: /^Left kitchen/ }));
-    expect(screen.getByRole('article', { name: 'Chicken Rice: 1 paid' })).toBeTruthy();
+    expect(screen.getByRole('article', { name: 'Biriyani: 1 paid' })).toBeTruthy();
     await user.keyboard('{Escape}');
     cleanup();
 
@@ -185,6 +187,6 @@ test('two kitchens: rice goes left, kottu goes right; each flies its way and sho
     expect(screen.getByRole('heading', { name: 'Serving · Right kitchen' })).toBeTruthy();
     const serving = within(screen.getByRole('main', { name: 'Paid, to hand over' }));
     expect(serving.getByRole('article', { name: 'Chicken Kottu, Full: 1 paid' })).toBeTruthy();
-    expect(serving.queryByRole('article', { name: /Chicken Rice/ })).toBeNull();
+    expect(serving.queryByRole('article', { name: /Biriyani/ })).toBeNull();
   } finally { setStartingMenu(SAMPLE_START); }
 });

@@ -30,6 +30,11 @@ test('who may record what: the same rule the server enforces', () => {
     assert.equal(mayRecord('manager', t), true, t);
     assert.equal(mayRecord('owner', t), true, t);
   }
+  for (const t of ['menu.item_set', 'menu.item_added', 'menu.section_set', 'menu.price_set', 'menu.sold_out']) {
+    assert.equal(mayRecord('cashier', t), false, t);
+    assert.equal(mayRecord('manager', t), true, t);
+    assert.equal(mayRecord('owner', t), true, t);
+  }
   assert.equal(mayRecord('kitchen', 'kitchen.bumped'), true);
   assert.equal(mayRecord('owner', 'order.refunded'), false, 'unknown types are never allowed');
 });

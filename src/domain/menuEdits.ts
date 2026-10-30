@@ -1,5 +1,5 @@
 import type { Actor } from './auth.ts';
-import type { Category, Cents, MenuItem, Option, Section, SizeId } from './types.ts';
+import type { Category, Cents, MenuItem, Option, Section, SectionHours, SizeId, Variant } from './types.ts';
 
 /**
  * The owner's own menu, as events on top of a starting menu (a new shop starts empty; the demo
@@ -124,8 +124,19 @@ export const menuStateFromEvents = (events: readonly { type: string }[]): MenuSt
 
 const clean = (s: string | undefined) => s?.trim() || undefined;
 
-/** One printed item with the owner's changes applied. */
-export const applyOverride = (item: MenuItem, o: ItemOverride | undefined, soldOutUntil: number | undefined, now: number): MenuItem => {
+/** An item's sizes plus its section's sizes it has a price for, in the section's order. */
+const withSizes = (variants: readonly Variant[], sizes: Section['sizes'], o: ItemOverride | undefined): Variant[] => {
+  const extra = sizes.filter((z) => !variants.some((v) => v.id === z.id) && (o?.prices?.[z.id] ?? 0) > 0);
+  if (!extra.length) return [...variants];
+  const order = (id: string) => { const i = sizes.findIndex((z) => z.id === id); return i < 0 ? sizes.length : i; };
+  return [...variants, ...extra.map((z) => ({ ...z, price: o!.prices![z.id]! }))].sort((a, b) => order(a.id) - order(b.id));
+};
+
+/**
+ * One printed item with the owner's changes applied. `sizes`: its section's sizes; a sized item is
+ * also sold in one it started without (Full for a rice & curry that came with Normal only) once it has a price for it.
+ */
+export const applyOverride = (item: MenuItem, o: ItemOverride | undefined, soldOutUntil: number | undefined, now: number, sizes: Section['sizes'] = []): MenuItem => {
   const soldOut = soldOutUntil !== undefined && soldOutUntil > now;
   if (!o && !soldOut) return item;
   const price = (id: SizeId | 'one', fallback: Cents) => o?.prices?.[id] ?? fallback;
@@ -137,7 +148,7 @@ export const applyOverride = (item: MenuItem, o: ItemOverride | undefined, soldO
       ...(clean(o?.name?.ta) ?? item.name.ta ? { ta: clean(o?.name?.ta) ?? item.name.ta } : {}),
     },
     description: clean(o?.description) ?? item.description,
-    ...(item.variants ? { variants: item.variants.map((v) => ({ ...v, price: price(v.id, v.price) })) } : {}),
+    ...(item.variants ? { variants: withSizes(item.variants, sizes, o).map((v) => ({ ...v, price: price(v.id, v.price) })) } : {}),
     ...(item.price !== undefined ? { price: price('one', item.price) } : {}),
     adds: item.adds.map((a) => ({ ...a, price: o?.adds?.[a.id] ?? a.price })),
     ...(o?.hidden ? { hidden: true } : {}),
@@ -181,15 +192,39 @@ export const newMenuItem = (id: string, n: NewItem & { removed?: true }, section
   };
 };
 
+const withOwnPrices = <N extends NewItem>(n: N, o: ItemOverride | undefined): N =>
+  (o?.prices ? { ...n, prices: { ...n.prices, ...o.prices } } : n);
+
 /** The menu every screen shows: the starting items, then the owner's own, with the shop's changes. */
 export const effectiveMenu = (start: StartingMenu, state: MenuState, now: number): MenuItem[] => {
   const sections = allSections(start, state);
   const gone = new Set(sections.filter((x) => x.removed).map((x) => x.id));
+  const closed = new Set(sections.filter((x) => !sectionOpen(x, now)).map((x) => x.id));
   return [
     ...start.items.map((m) => (gone.has(m.category) ? { ...m, hidden: true } : m)),
-    ...Object.entries(state.added ?? {}).flatMap(([id, n]) => newMenuItem(id, n, sections) ?? []),
-  ].map((item) => applyOverride(item, state.overrides[item.id], state.soldOut[item.id], now));
+    // A size added to its section later is sold once the item has a price for it (its override).
+    ...Object.entries(state.added ?? {}).flatMap(([id, n]) => newMenuItem(id, withOwnPrices(n, state.overrides[id]), sections) ?? []),
+  ].map((item) => applyOverride(item, state.overrides[item.id], state.soldOut[item.id], now, sections.find((x) => x.id === item.category)?.sizes))
+    .map((item) => (closed.has(item.category) ? { ...item, offHours: true } : item));
 };
+
+/** Is the section sold now? Shop time, from the PC's clock; a section without hours always is. */
+export const sectionOpen = (sec: Pick<Section, 'hours'>, now: number): boolean => {
+  if (!sec.hours) return true;
+  const d = new Date(now);
+  const t = d.getHours() * 60 + d.getMinutes();
+  const { from, to } = sec.hours;
+  return from < to ? t >= from && t < to : t >= from || t < to;
+};
+
+/** 360 → "6 am", 1110 → "6:30 pm". */
+const clock = (m: number): string => {
+  const h = Math.floor(m / 60) % 24;
+  const min = m % 60;
+  return `${h % 12 || 12}${min ? `:${String(min).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;
+};
+/** "6 am to 11 am", or "All day". */
+export const hoursLabel = (h: SectionHours | undefined): string => (h ? `${clock(h.from)} to ${clock(h.to)}` : 'All day');
 
 /** Sold out "for today" ends the next morning at 6, so it never needs remembering to undo. */
 export const nextMorning = (now: number): number => {
@@ -238,6 +273,12 @@ export const checkSection = (d: SectionDef): string | null => {
   if (!Array.isArray(d.sizes) || d.sizes.length > 6) return 'a section has at most 6 sizes';
   if (!Array.isArray(d.adds) || d.adds.length > 20) return 'a section has at most 20 extras';
   if (d.station !== undefined && d.station !== 'left' && d.station !== 'right') return 'the kitchen is left or right';
+  if (d.hours !== undefined) {
+    const ok = (m: unknown) => Number.isSafeInteger(m) && (m as number) >= 0 && (m as number) < 24 * 60;
+    if (typeof d.hours !== 'object' || d.hours === null || Object.keys(d.hours).some((k) => k !== 'from' && k !== 'to') ||
+        !ok(d.hours.from) || !ok(d.hours.to)) return 'the hours are times of day';
+    if (d.hours.from === d.hours.to) return 'the section starts and stops at the same time';
+  }
   const ids = new Set<string>();
   for (const z of d.sizes) {
     if (!OPTION_ID.test(z?.id ?? '') || z.id === 'one' || !isLabel(z.label, 20) || !isText(z.hint, 20)) return 'a size needs a short name';
@@ -254,13 +295,16 @@ export const checkSection = (d: SectionDef): string | null => {
   return null;
 };
 
-/** Is this a change the shop can take? (Prices in whole rupees, names of a sensible length.) */
-export const checkOverride = (item: MenuItem, o: ItemOverride): string | null => {
+/**
+ * Is this a change the shop can take? (Prices in whole rupees, names of a sensible length.)
+ * `sizes`: a sized item's section sizes, which it may be given a price in later.
+ */
+export const checkOverride = (item: MenuItem, o: ItemOverride, sizes: readonly string[] = []): string | null => {
   const badName = o.name ? checkName(o.name) : null;
   if (badName) return badName;
   if (!isText(o.description, 160)) return 'the description is too long';
   for (const [k, v] of Object.entries(o.prices ?? {})) {
-    const known = k === 'one' ? item.price !== undefined : item.variants?.some((x) => x.id === k);
+    const known = k === 'one' ? item.price !== undefined : item.variants?.some((x) => x.id === k) || sizes.includes(k);
     if (!known) return `${item.name.en} has no ${k} size`;
     if (!isPrice(v) || v === 0) return 'prices are whole rupees, more than 0';
   }

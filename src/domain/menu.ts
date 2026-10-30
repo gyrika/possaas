@@ -1,4 +1,4 @@
-import { EMPTY_MENU_STATE, allSections, effectiveMenu, type MenuState, type StartingMenu } from './menuEdits.ts';
+import { EMPTY_MENU_STATE, allSections, effectiveMenu, sectionOpen, type MenuState, type StartingMenu } from './menuEdits.ts';
 import type { Category, MenuItem, MenuTag, Option, Section, Variant } from './types.ts';
 import { rankPopular, type Scores } from './popularity.ts';
 
@@ -147,6 +147,7 @@ let state: MenuState = EMPTY_MENU_STATE;
 let current: MenuItem[] = MENU;
 let starts: MenuItem[] = MENU;
 let sections: (Section & { removed?: true })[] = SAMPLE_SECTIONS;
+let closedNow = new Set<string>();
 let version = 0;
 const listeners = new Set<() => void>();
 
@@ -155,6 +156,7 @@ export const setMenuState = (next: MenuState, now = Date.now()): void => {
   state = next;
   sections = allSections(start, next);
   current = effectiveMenu(start, next, now);
+  closedNow = new Set(sections.filter((x) => !sectionOpen(x, now)).map((x) => x.id));
   starts = effectiveMenu(start, { ...EMPTY_MENU_STATE, added: next.added ?? {}, sections: next.sections ?? {} }, now);
   version++;
   listeners.forEach((l) => l());
@@ -166,12 +168,14 @@ export const setStartingMenu = (next: StartingMenu): void => {
 export const menuState = (): MenuState => state;
 /** The sections the shop offers, in order. */
 export const menuSections = (): Section[] => sections.filter((x) => !x.removed);
+/** The sections sold right now (Section.hours), as of the menu's last refresh. */
+export const sectionsNow = (): Section[] => menuSections().filter((x) => !closedNow.has(x.id));
 /**
  * An example of typing an order, from this shop's own menu: "2 full chicken kottu, cheese kottu"
  * (never another shop's food). Its first item in its biggest size, then its second item.
  */
 export const typingExample = (): string => {
-  const shown = current.filter((m) => !m.hidden && !m.soldOut);
+  const shown = current.filter((m) => !m.hidden && !m.offHours && !m.soldOut);
   const [a, b] = shown;
   if (!a) return '2 chicken kottu, milo';
   const size = a.variants && a.variants.length > 1 ? `${a.variants[a.variants.length - 1].label.toLowerCase()} ` : '';
@@ -197,7 +201,7 @@ export const setPopularScores = (next: Scores): void => {
  * best sellers or the shop's own items in section order.
  */
 export const popularItems = (): MenuItem[] => {
-  const shown = current.filter((m) => !m.hidden);
+  const shown = current.filter((m) => !m.hidden && !m.offHours);
   const picked = POPULAR_IDS.map((id) => shown.find((m) => m.id === id)).filter((m): m is MenuItem => Boolean(m));
   const order = new Map(menuSections().map((x, i) => [x.id, i]));
   const bySection = [...shown].sort((a, b) => (order.get(a.category) ?? 99) - (order.get(b.category) ?? 99));

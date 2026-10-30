@@ -1,4 +1,4 @@
-import { PUSH_BATCH, retryDelayMs } from '../src/domain/sync.ts';
+import { clockOffsetMs, PUSH_BATCH, retryDelayMs } from '../src/domain/sync.ts';
 import type { EventStore } from './store.ts';
 
 /**
@@ -10,7 +10,9 @@ import type { EventStore } from './store.ts';
  * restart, a power cut or a lost reply can never skip or double anything.
  * Runs straight after new sales (nudge) and every 30 s; on failure it backs off
  * up to 5 minutes, and the shop never notices. Each pass also says which version
- * runs here and how its last update went, so the admin view sees every shop.
+ * runs here and how its last update went, so the admin view sees every shop, and
+ * measures this PC's clock against the cloud's (a PC with no internet never corrects
+ * its own, and a flat clock battery restarts it wrong after a power cut).
  */
 export interface ReplicatorOptions {
   store: EventStore;
@@ -29,6 +31,8 @@ export interface ReplicaStatus {
   /** Last time the cloud confirmed it had everything (server clock, ms), or null. */
   upToDateAt: number | null;
   lastError: string | null;
+  /** This PC's clock minus the cloud's (ms), as last measured, or null before the first answer. */
+  clockOffMs: number | null;
 }
 
 const MAX_BACKOFF_MS = 5 * 60_000;
@@ -42,10 +46,11 @@ export function startReplicator(o: ReplicatorOptions) {
     return {
       authorization: `Bearer ${o.token}`,
       'content-type': 'application/json',
+      'x-station-clock': String(now()),
       ...(about ? { 'x-station-version': about.version, 'x-station-update': JSON.stringify(about.update ?? null) } : {}),
     };
   };
-  const status: ReplicaStatus = { upToDateAt: null, lastError: null };
+  const status: ReplicaStatus = { upToDateAt: null, lastError: null, clockOffMs: null };
   let timer: ReturnType<typeof setTimeout> | undefined;
   let running: Promise<void> | null = null;
   let again = false;
@@ -53,11 +58,14 @@ export function startReplicator(o: ReplicatorOptions) {
   let failures = 0;
 
   const call = async (method: 'GET' | 'POST', body?: unknown): Promise<{ lastSourceSeq: number }> => {
+    const sentAt = now();
     const r = await http(`${o.url}/api/v1/replica`, {
       method, headers: headers(), body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(20_000),
     });
     if (!r.ok) throw new Error(`cloud answered ${r.status}`);
-    return r.json() as Promise<{ lastSourceSeq: number }>;
+    const answer = (await r.json()) as { lastSourceSeq: number; serverTime?: number };
+    if (typeof answer.serverTime === 'number') status.clockOffMs = -clockOffsetMs(answer.serverTime, sentAt, now());
+    return answer;
   };
 
   const schedule = (ms: number) => {

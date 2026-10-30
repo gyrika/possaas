@@ -79,6 +79,11 @@ export interface CloudOptions {
   orderAddress?: string;
 }
 
+/** The shop PC's clock minus the cloud's, as it last told us, or null (the Owner view's clock card). */
+export const shopClockOff = async (db: D1Like, tenantId: string): Promise<number | null> =>
+  (await db.prepare("SELECT clock_off_ms AS off FROM devices WHERE tenant_id = ? AND kind = 'shop_server' AND clock_off_ms IS NOT NULL ORDER BY last_seen_at DESC LIMIT 1")
+    .bind(tenantId).first<{ off: number }>())?.off ?? null;
+
 export function createCloud(db: D1Like, options: CloudOptions | (() => number) = {}) {
   const { now = Date.now, enrolCode, ...order } = typeof options === 'function' ? { now: options } as CloudOptions : options;
   const authenticate = async (req: Request, allowed: Kind[]): Promise<CloudDevice> => {
@@ -97,11 +102,15 @@ export function createCloud(db: D1Like, options: CloudOptions | (() => number) =
     (await db.prepare('SELECT COALESCE(MAX(source_seq), 0) AS s FROM events WHERE tenant_id = ?').bind(tenantId)
       .first<{ s: number }>())?.s ?? 0;
 
-  /** A shop server checked in: when, which version it runs, and its last update (the admin view). */
+  /** A shop server checked in: when, which version it runs, its last update and how far its clock is off (the admin view). */
   const seen = async (device: CloudDevice, req: Request): Promise<void> => {
     const version = req.headers.get('x-station-version');
-    await db.prepare('UPDATE devices SET last_seen_at = ?, version = COALESCE(?, version), update_status = COALESCE(?, update_status) WHERE id = ?')
-      .bind(now(), version && /^[\w.+-]{1,32}$/.test(version) ? version : null, updateStatus(req.headers.get('x-station-update')), device.id)
+    const t = now();
+    // The PC's clock as it sent this, against ours (the trip itself is a second or two: far below what matters).
+    const clock = Number(req.headers.get('x-station-clock'));
+    await db.prepare('UPDATE devices SET last_seen_at = ?, version = COALESCE(?, version), update_status = COALESCE(?, update_status), clock_off_ms = COALESCE(?, clock_off_ms) WHERE id = ?')
+      .bind(t, version && /^[\w.+-]{1,32}$/.test(version) ? version : null, updateStatus(req.headers.get('x-station-update')),
+        Number.isSafeInteger(clock) && clock > 0 ? clock - t : null, device.id)
       .run();
   };
 
@@ -222,8 +231,10 @@ export function createCloud(db: D1Like, options: CloudOptions | (() => number) =
       const events = results.slice(0, limit).map((r) => ({
         event: JSON.parse(r.body), deviceId: r.source_device, seq: r.seq, receivedAt: r.received_at,
       }));
+      const clockOffMs = await shopClockOff(db, device.tenantId);
       return json(200, {
         events, lastSeq: events.at(-1)?.seq ?? after, more: results.length > limit, serverTime: now(),
+        ...(clockOffMs !== null ? { clockOffMs } : {}),
       } satisfies PullResponse);
     }
 

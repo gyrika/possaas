@@ -201,6 +201,13 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
 /* ---------- menu grid ---------- */
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-content: start; }
 .card--soldout { position: relative; opacity: 0.45; }
+/* Manager mode: the menu edits itself (Menu.tsx `edit`). Sold-out and hidden cards stay tappable to change. */
+.register--managing .card--soldout { opacity: 0.6; }
+.menu-edit { display: flex; align-items: center; gap: 16px; }
+.menu-edit .linkbtn { min-height: 48px; }
+.card--add { min-height: 120px; align-items: center; justify-content: center; border: 1.5px dashed var(--line); background: transparent; box-shadow: none;
+  color: var(--ink-2); font: inherit; font-size: 16px; font-weight: 500; cursor: pointer; transition: border-color 150ms var(--ease), color 150ms var(--ease); }
+.card--add:hover, .card--add:focus-visible { border-color: var(--ink-3); color: var(--ink); }
 .card__soldout { position: absolute; top: 14px; right: 14px; padding: 3px 10px; border-radius: 980px; background: var(--ink); color: var(--ground); font-size: 12px; font-weight: 600; }
 .card { padding: 20px 20px 18px; border-radius: 16px; background: var(--surface); box-shadow: var(--card-shadow); display: flex; flex-direction: column; gap: 16px; }
 .card__soldout { align-self: flex-end; padding: 3px 10px; border-radius: 980px; background: var(--ink); color: var(--ground); font-size: 12px; font-weight: 600; }
@@ -692,6 +699,7 @@ kbd { font: inherit; font-size: 11px; font-weight: 600; line-height: 1; padding:
 .menu-empty .cta { min-width: 220px; }
 .menuv__section { display: flex; align-items: center; gap: 16px; margin: 8px 0 0; color: var(--ink-2); font-size: 15px; }
 .menuv__section .linkbtn { min-height: 48px; }
+.menuv__hours { font-weight: 400; opacity: 0.7; }
 .menuv__later { margin: 8px 0 0; }
 .menuv__add.cta { min-width: 240px; margin-top: 16px; }
 .menuv__name .card__no { margin-right: 8px; }

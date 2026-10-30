@@ -72,12 +72,13 @@ export function OwnerView({ phone = false, onBack, shop }: {
   const [past, setPast] = useState(false);
   const events = data.state === 'ready' ? data.events : data.state === 'error' ? data.events : undefined;
   const at = (data.state === 'loading' ? undefined : data.at) ?? Date.now();
+  const clockOffMs = data.state === 'ready' ? data.clockOffMs : undefined;
 
   const { summary, insights } = useMemo(() => {
     if (!events) return { summary: null, insights: [] as Insight[] };
-    const shop = { events, now: at };
+    const shop = { events, now: at, clockOffMs };
     return { summary: rulesSuggestions.summary(shop), insights: rulesSuggestions.insights(shop) };
-  }, [events, at]);
+  }, [events, at, clockOffMs]);
   const opened = insights.find((i) => i.id === open) ?? null;
 
   return (

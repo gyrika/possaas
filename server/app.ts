@@ -304,8 +304,10 @@ export function createApp({ store, staticDir, printer, onStored, online, cloudSt
       // One extra tells us whether there is more without a second query.
       const rows = await store.pull(device.tenantId, after, limit + 1);
       const events = rows.slice(0, limit);
+      const clockOffMs = cloudStatus?.()?.clockOffMs ?? null;
       json(res, 200, {
         events, lastSeq: events.at(-1)?.seq ?? after, more: rows.length > limit, serverTime: now(),
+        ...(clockOffMs !== null ? { clockOffMs } : {}),
       } satisfies PullResponse);
       return;
     }

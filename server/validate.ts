@@ -43,7 +43,7 @@ const validNewItem = (value: unknown): boolean =>
 const validOption = (v: unknown): boolean =>
   isObj(v) && Object.keys(v).every((k) => ['id', 'label', 'hint', 'price'].includes(k));
 const validSection = (value: unknown): boolean =>
-  value === null || (isObj(value) && Object.keys(value).every((key) => ['name', 'cookMinutes', 'sizes', 'adds', 'station'].includes(key)) &&
+  value === null || (isObj(value) && Object.keys(value).every((key) => ['name', 'cookMinutes', 'sizes', 'adds', 'station', 'hours'].includes(key)) &&
     Array.isArray(value.sizes) && value.sizes.every(validOption) && Array.isArray(value.adds) && value.adds.every(validOption) &&
     checkSection(value as unknown as SectionDef) === null);
 /** A manager's price change carries prices and extras' prices only. */
@@ -62,7 +62,9 @@ const validOverride = (itemId: unknown, value: unknown): boolean => {
       Object.values(value.prices).some((price) => typeof price !== 'number'))) return false;
   if (value.adds !== undefined && (!isObj(value.adds) ||
       Object.values(value.adds).some((price) => typeof price !== 'number'))) return false;
-  return checkOverride(item, value as ItemOverride) === null;
+  // A sized item may get a price in a size its section gained (the server does not know the sections).
+  const sizes = item.variants && isObj(value.prices) ? Object.keys(value.prices).filter((k) => SIZE_KEY.test(k)) : [];
+  return checkOverride(item, value as ItemOverride, sizes) === null;
 };
 
 /**

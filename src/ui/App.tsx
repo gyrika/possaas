@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { seesTakings } from '../domain/auth.ts';
 import { DISCOUNT_CHIPS, type ManagerChange } from '../domain/manager.ts';
-import { itemById } from '../domain/menu.ts';
+import { itemById, menuSections } from '../domain/menu.ts';
 import { bareLine, orderTotal, unsentLines } from '../domain/order.ts';
 import { twoKitchens } from '../domain/kitchen.ts';
-import type { MenuItem, OrderLine, PaidOrder, SizeId, Station, Tender } from '../domain/types.ts';
+import type { MenuItem, OrderLine, PaidOrder, Section, SizeId, Station, Tender } from '../domain/types.ts';
 import { currentCashier } from '../services/auth.ts';
 import { canPrint, openDrawer, printReceipt } from '../services/printer.ts';
 import { usePayFirst } from '../services/shop.ts';
@@ -14,7 +14,8 @@ import { KitchenChip } from './KitchenChip.tsx';
 import { OnlineChip, OnlineSheet, useOnline } from './Online.tsx';
 import { onlineOrders } from '../services/onlineClient.ts';
 import type { OnlineOrder } from '../domain/online.ts';
-import { Menu, type CategoryId } from './Menu.tsx';
+import { Menu, type CategoryId, type MenuEditing } from './Menu.tsx';
+import { AddItems, Editor, SectionSheet } from './MenuView.tsx';
 import { OrderPanel, VOID_REASONS, type ManagePanel } from './OrderPanel.tsx';
 import { PaySheet } from './PaySheet.tsx';
 import { PinSheet } from './PinSheet.tsx';
@@ -40,6 +41,12 @@ type Sheet =
   | { kind: 'pin' }
   | { kind: 'online' }
   | null;
+
+/** Manager mode changes the menu on the Register itself: one item, new items in a section, or a section's sizes. */
+type MenuEdit =
+  | { kind: 'item'; item: MenuItem }
+  | { kind: 'add'; section: Section }
+  | { kind: 'section'; section: Section | null };
 
 const isTypingTarget = (el: EventTarget | null): boolean =>
   el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
@@ -102,6 +109,8 @@ export function App({
   const [pendingVoid, setPendingVoid] = useState<string | null>(null);
   const [adjusting, setAdjusting] = useState<string | null>(null);
   const [palette, setPalette] = useState(false);
+  const [menuEdit, setMenuEdit] = useState<MenuEdit | null>(null);
+  const [menuToast, setMenuToast] = useState<{ id: number; message: string; undo: () => void } | null>(null);
   const [sound, setSound] = useState(soundOn);
   const fleet = useFleet();
   const { endManagerSession } = reg;
@@ -110,6 +119,8 @@ export function App({
     setPalette(false);
     setPendingVoid(null);
     setAdjusting(null);
+    setMenuEdit(null);
+    setMenuToast(null);
     setSheet((s) => (s?.kind === 'edit' ? null : s));
     endManagerSession();
   }, [endManagerSession]));
@@ -121,6 +132,21 @@ export function App({
     setPendingVoid(null);
     setAdjusting(null);
   }, [reg.order.number]);
+
+  useEffect(() => {
+    if (!menuToast) return;
+    const t = setTimeout(() => setMenuToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [menuToast]);
+  const menuSaved = useCallback((message: string, undo: () => void) => {
+    setMenuEdit(null);
+    setMenuToast({ id: Date.now(), message, undo });
+  }, []);
+  const menuEditing = useMemo<MenuEditing>(() => ({
+    onItem: (item) => setMenuEdit({ kind: 'item', item }),
+    onAdd: (section) => setMenuEdit({ kind: 'add', section }),
+    onSection: (section) => setMenuEdit({ kind: 'section', section }),
+  }), []);
 
   const lines = reg.order.lines;
   const listing = lines.length === 0;
@@ -164,10 +190,16 @@ export function App({
       const key = e.key.toLowerCase();
 
       if (manager) {
-        // Esc leaves manager mode from ANY state: palette, sheet, half-done void or adjustment.
+        // A menu sheet owns every key (its Esc closes just it, back to manager mode).
+        if (menuEdit) return;
+        // Esc leaves manager mode from ANY other state: palette, sheet, half-done void or adjustment.
         if (e.key === 'Escape') { e.preventDefault(); mode.exit(); return; }
         if (mod && key === 'm') { e.preventDefault(); mode.exit(); return; }
-        if (mod && key === 'z') { e.preventDefault(); reg.undoManager(manager); return; }
+        if (mod && key === 'z') {
+          e.preventDefault();
+          if (menuToast) { menuToast.undo(); setMenuToast(null); } else reg.undoManager(manager);
+          return;
+        }
         if (mod && key === 'k') { e.preventDefault(); setPalette(true); return; }
         if (palette || sheet || adjusting) return; // they own their keys (Enter, typing)
         if (pendingVoid) {
@@ -207,13 +239,13 @@ export function App({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [reg, sheet, typed, hasNew, canCharge, payFirst, busy, collect, manager, mode, palette, adjusting, pendingVoid, listing, lines.length,
+  }, [reg, sheet, typed, hasNew, canCharge, payFirst, busy, collect, manager, mode, palette, menuEdit, menuToast, adjusting, pendingVoid, listing, lines.length,
     selected, selectedLine, askVoid, askAdjust, toggleChip, manage]);
 
   // Tapping empty space outside an opened order goes back to the "Waiting to pay" list.
   // Cards, buttons and the order panel itself are not background, so adding a round still works.
   const onBackground = (e: MouseEvent) => {
-    if (!canCharge || sheet || typed !== null || palette) return;
+    if (!canCharge || sheet || menuEdit || typed !== null || palette) return;
     if ((e.target as Element).closest('button, input, a, .card, .panel, .typebar, .toast')) return;
     reg.startNew();
   };
@@ -257,7 +289,7 @@ export function App({
       { id: 'owner', label: 'Owner view: what needs attention today', run: () => { location.hash = '#owner'; } },
       // The developer's laptop only (its server holds the admin password).
       ...(fleet ? [{ id: 'shops', label: "Shops: every shop's sales (developer)", run: () => { location.hash = '#shops'; } }] : []),
-      { id: 'menu', label: 'Menu: prices, names, sold out', run: () => { location.hash = '#menu'; } },
+      { id: 'menu', label: 'Menu: every item on one list', run: () => { location.hash = '#menu'; } },
       { id: 'close', label: 'Close the day: count the cash', run: () => { location.hash = '#close'; } },
       // This screen's look; the current choice says "On".
       ...(['light', 'dark', 'auto'] as ThemeChoice[]).map((t) => ({
@@ -322,7 +354,8 @@ export function App({
             onCategory={setCategory}
             onQuickAdd={quickAdd}
             onCustomise={(item) => setSheet({ kind: 'extras', item })}
-            hint={manager ? '' : 'Start typing to order'}
+            hint="Start typing to order"
+            edit={manager ? menuEditing : undefined}
           />
         </main>
 
@@ -382,9 +415,33 @@ export function App({
         <PinSheet onClose={closeSheet} onUnlock={(actor) => { closeSheet(); mode.enter(actor); }} />
       )}
       {palette && manager && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
+      {manager && menuEdit?.kind === 'item' && (
+        <Editor item={menuEdit.item} actor={manager} onClose={() => setMenuEdit(null)} onSaved={menuSaved} />
+      )}
+      {manager && menuEdit?.kind === 'add' && <AddItems section={menuEdit.section} actor={manager} onClose={() => setMenuEdit(null)} />}
+      {manager && menuEdit?.kind === 'section' && (
+        <SectionSheet
+          section={menuEdit.section}
+          actor={manager}
+          onClose={() => setMenuEdit(null)}
+          onSaved={(message, undo, id) => {
+            const made = !menuEdit.section;
+            menuSaved(message, undo);
+            setCategory(id);
+            const section = made && menuSections().find((x) => x.id === id);
+            if (section) setMenuEdit({ kind: 'add', section }); // a new section: straight on to its items
+          }}
+        />
+      )}
+      {menuToast && !menuEdit && (
+        <div className="toast" role="status" key={menuToast.id}>
+          <span>{menuToast.message}</span>
+          <button type="button" onClick={() => { menuToast.undo(); setMenuToast(null); }}>Undo</button>
+        </div>
+      )}
 
       {/* Hidden under an open sheet: it would cover the sheet's buttons (e.g. Card). */}
-      {reg.toast && !sheet && !palette && (
+      {reg.toast && !sheet && !palette && !menuEdit && !menuToast && (
         <div className="toast" role="status" key={reg.toast.id}>
           <span>{reg.toast.message}</span>
           {reg.toast.manager

@@ -53,6 +53,10 @@ test("a manager's price change carries prices only, in whole rupees", () => {
   assert.ok('reason' in validatePush({ events: [price({ prices: { M: 160000 }, name: { en: 'Free pizza' } })] }, 'shop-1'), 'never a name');
   assert.ok('reason' in validatePush({ events: [price({ hidden: true })] }, 'shop-1'), 'never hiding');
   assert.ok('reason' in validatePush({ events: [price({ prices: { M: 160001 } })] }, 'shop-1'));
+  const newSize = price({ prices: { full: 300000 } });
+  assert.deepEqual(validatePush({ events: [newSize] }, 'shop-1'), { events: [newSize] }, 'a size its section gained');
+  const burger = { ...base, type: 'menu.price_set', itemId: 'chicken-burger', before: {}, after: { prices: { full: 60000 } } };
+  assert.ok('reason' in validatePush({ events: [burger] }, 'shop-1'), 'a one-price item gets no sizes');
 });
 
 test("the owner's new items are accepted only with an added-item id and whole-rupee prices", () => {
@@ -94,6 +98,7 @@ test("the owner's own sections: made, changed and taken off; the shape is checke
     { ...owner, type: 'menu.section_set', sectionId: 'sec-kottu', section },
     { ...owner, id: 'event-2', type: 'menu.section_set', sectionId: 'sec-kottu', section: null },
     { ...owner, id: 'event-3', type: 'menu.section_set', sectionId: 'sec-kottu', section: { ...section, station: 'right' } },
+    { ...owner, id: 'event-4', type: 'menu.section_set', sectionId: 'sec-kottu', section: { ...section, hours: { from: 1080, to: 300 } } },
   ];
   assert.deepEqual(validatePush({ events: valid }, 'shop-1'), { events: valid });
   for (const bad of [
@@ -104,6 +109,9 @@ test("the owner's own sections: made, changed and taken off; the shape is checke
     { sectionId: 'sec-kottu', section: { ...section, adds: [{ id: 'egg', label: 'Egg', price: 10050 }] } },
     { sectionId: 'sec-kottu', section: { ...section, extra: true } },
     { sectionId: 'sec-kottu', section: { ...section, station: 'middle' } },
+    { sectionId: 'sec-kottu', section: { ...section, hours: { from: 600, to: 600 } } },
+    { sectionId: 'sec-kottu', section: { ...section, hours: { from: 600, to: 1440 } } },
+    { sectionId: 'sec-kottu', section: { ...section, hours: { from: '6:00', to: 660 } } },
   ]) {
     assert.ok('reason' in validatePush({ events: [{ ...owner, type: 'menu.section_set', ...bad }] }, 'shop-1'), JSON.stringify(bad));
   }

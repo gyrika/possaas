@@ -22,7 +22,7 @@ export interface AuthService {
   verifyManagerPin(pin: string): Promise<Actor | null>;
 }
 
-/** Managers and owners use manager mode. Menu prices, names and staff are owner-only. */
+/** Managers and owners use manager mode and change the menu. Staff are owner-only. */
 export const managesRole = (role: Role): boolean => role === 'manager' || role === 'owner';
 export const canManage = (actor: Actor): boolean => managesRole(actor.role);
 
@@ -42,9 +42,8 @@ export const mayRecord = (role: Role, type: string): boolean => {
   if (type.startsWith('kitchen.')) return true;
   if (CASHIER_EVENTS.has(type)) return role !== 'kitchen';
   if (MANAGER_EVENTS.has(type)) return managesRole(role);
-  // The menu is the owner's; prices and sold out are a manager's job too.
-  if (type === 'menu.item_set' || type === 'menu.item_added' || type === 'menu.section_set') return role === 'owner';
-  if (type === 'menu.price_set' || type === 'menu.sold_out') return managesRole(role);
+  // The menu: owners and managers (from the Register's manager mode, or #menu).
+  if (type.startsWith('menu.')) return managesRole(role);
   // Closing the day counts the cash: the cashier who took it does not sign it off.
   if (type === 'day.closed') return managesRole(role);
   return false;

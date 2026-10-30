@@ -2,7 +2,7 @@ import { PRODUCT_NAME } from '../../src/domain/brand.ts';
 import { salesWindows, severity, shopProblems, type ShopProblem } from '../../src/domain/shopHealth.ts';
 import { PULL_LIMIT, type PullResponse } from '../../src/domain/sync.ts';
 import { isNewer } from '../../src/domain/version.ts';
-import type { D1Like } from './cloud.ts';
+import { shopClockOff, type D1Like } from './cloud.ts';
 import { json, sha256Hex } from './http.ts';
 
 /**
@@ -92,13 +92,13 @@ export const shopRows = async (db: D1Like, now: number, latest: string | null = 
   for (const r of closes) (closesOf.get(r.tenant_id) ?? closesOf.set(r.tenant_id, []).get(r.tenant_id)!).push({ from: r.day_from, at: r.at, difference: r.diff });
 
   const { results } = await db.prepare(`
-    SELECT s.id, s.name, d.version, d.update_status, d.last_seen_at,
+    SELECT s.id, s.name, d.version, d.update_status, d.last_seen_at, d.clock_off_ms,
       (SELECT MAX(at) FROM events e WHERE e.tenant_id = s.id AND e.type = 'order.paid') AS last_sale,
       (SELECT COUNT(*) FROM events e WHERE e.tenant_id = s.id AND e.at >= ?) AS events_today
     FROM shops s LEFT JOIN devices d ON d.tenant_id = s.id AND d.kind = 'shop_server'
     ORDER BY COALESCE(d.last_seen_at, 0) DESC, s.name`)
     .bind(startOfDayColombo(now))
-    .all<{ id: string; name: string; version: string | null; update_status: string | null; last_seen_at: number | null; last_sale: number | null; events_today: number }>();
+    .all<{ id: string; name: string; version: string | null; update_status: string | null; last_seen_at: number | null; clock_off_ms: number | null; last_sale: number | null; events_today: number }>();
   const rows = results.map((r): ShopRow => {
     const update = r.update_status ? (JSON.parse(r.update_status) as ShopRow['update']) : null;
     return {
@@ -110,7 +110,7 @@ export const shopRows = async (db: D1Like, now: number, latest: string | null = 
       lastSaleAt: r.last_sale,
       eventsToday: r.events_today,
       problems: shopProblems({
-        lastSeenAt: r.last_seen_at, version: r.version, update, latest,
+        lastSeenAt: r.last_seen_at, version: r.version, update, latest, clockOffMs: r.clock_off_ms,
         sales: salesOf.get(r.id) ?? [], closes: closesOf.get(r.id) ?? [], now,
       }),
     };
@@ -382,7 +382,11 @@ export const adminRoutes = async (req: Request, url: URL, o: AdminOptions): Prom
     const page = results.slice(0, limit).map((r) => ({
       event: JSON.parse(r.body), deviceId: r.source_device, seq: r.seq, receivedAt: r.received_at,
     }));
-    return json(200, { events: page, lastSeq: page.at(-1)?.seq ?? after, more: results.length > limit, serverTime: now } satisfies PullResponse);
+    const clockOffMs = await shopClockOff(o.db, shop);
+    return json(200, {
+      events: page, lastSeq: page.at(-1)?.seq ?? after, more: results.length > limit, serverTime: now,
+      ...(clockOffMs !== null ? { clockOffMs } : {}),
+    } satisfies PullResponse);
   }
 
   if (/^\/admin\/shop\/[a-z0-9-]{1,64}$/.test(url.pathname)) {

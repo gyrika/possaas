@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SyncEvent, SyncedEvent } from './sync.ts';
-import { clockOffsetMs, newRemoteEvents, pendingEvents, retryDelayMs, syncStatus } from './sync.ts';
+import { clockOffText, clockOffsetMs, newRemoteEvents, pendingEvents, retryDelayMs, syncStatus } from './sync.ts';
 
 const ev = (id: string): SyncEvent =>
   ({ id, shopId: 'shop-1', at: 0, orderNumber: 1001, ticketId: 't1', type: 'kitchen.seen' });
@@ -33,4 +33,13 @@ test('status: offline beats pending beats synced', () => {
   assert.equal(syncStatus(false, 0), 'offline');
   assert.equal(syncStatus(true, 3), 'pending');
   assert.equal(syncStatus(true, 0), 'synced');
+});
+
+test('clock off: a few minutes is fine; more says by how much and which way', () => {
+  assert.equal(clockOffText(null), null);
+  assert.equal(clockOffText(4 * 60_000), null);
+  assert.equal(clockOffText(-7 * 60_000), '7 min behind');
+  assert.equal(clockOffText(130 * 60_000), '2 h 10 min ahead');
+  assert.equal(clockOffText(-3 * 3_600_000), '3 h behind');
+  assert.equal(clockOffText(-400 * 86_400_000), '400 days behind');
 });

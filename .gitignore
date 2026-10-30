@@ -14,3 +14,4 @@ cloud/.dev.vars
 
 # The owner's spreadsheets: personal data (customer names, phone numbers). Never commit.
 excel/
+tsconfig.tsbuildinfo

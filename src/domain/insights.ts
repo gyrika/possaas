@@ -1,7 +1,7 @@
 import { closesFrom, dayReport, difference, expectedCash } from './cashUp.ts';
 import { itemById, menuItems } from './menu.ts';
 import { fmt } from './money.ts';
-import type { SyncEvent } from './sync.ts';
+import { clockOffText, type SyncEvent } from './sync.ts';
 import type { Cents, OrderLine } from './types.ts';
 import { lineItemName } from './halves.ts';
 
@@ -45,6 +45,8 @@ export interface DaySummary {
 export interface ShopData {
   events: readonly SyncEvent[];
   now: number;
+  /** The shop PC's clock minus the real (cloud's) time, ms, when known. */
+  clockOffMs?: number | null;
 }
 
 export interface SuggestionsService {
@@ -303,6 +305,26 @@ const dayClosed = (events: readonly SyncEvent[], now: number): Insight | null =>
   };
 };
 
+/** The counter PC's clock is wrong: menu hours, the business day, reports and receipts all follow it. */
+const clockWrong = (clockOffMs: number | null | undefined): Insight | null => {
+  const off = clockOffText(clockOffMs);
+  if (!off) return null;
+  return {
+    id: 'clock',
+    tone: 'attention',
+    title: `The counter PC's clock is ${off}`,
+    detail: 'Menu hours, the business day and receipts follow it.',
+    action: {
+      label: 'How to fix it',
+      items: [
+        { primary: 'On the counter PC, open Date & time settings', secondary: 'Right-click the clock at the bottom right' },
+        { primary: 'Turn on "Set time automatically", or set the right time' },
+        { primary: 'Wrong again after a power cut?', secondary: "The PC's clock battery needs changing" },
+      ],
+    },
+  };
+};
+
 const ORDER: Record<Tone, number> = { attention: 0, info: 1, good: 2 };
 
 /** The rules engine. Cards needing a decision come first, good news last. */
@@ -313,9 +335,10 @@ export const rulesSuggestions: SuggestionsService = {
     const salesCents = sales.reduce((n, s) => n + s.total, 0);
     return { salesCents, orders: sales.length, averageCents: sales.length ? Math.round(salesCents / sales.length) : 0 };
   },
-  insights({ events, now }) {
+  insights({ events, now, clockOffMs }) {
     const sales = salesFrom(events);
     return [
+      clockWrong(clockOffMs),
       dayClosed(events, now),
       salesVsUsual(sales, now),
       voidsToday(events, sales, now),

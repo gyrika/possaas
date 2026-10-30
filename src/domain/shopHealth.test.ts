@@ -72,3 +72,9 @@ test('the worst comes first', () => {
   assert.equal(severity(p), 0);
   assert.equal(severity(p.slice(1)), 1);
 });
+
+test('the PC clock: an hour or more off is bad, minutes a warning, close enough nothing', () => {
+  assert.deepEqual(texts({ clockOffMs: -2 * HOUR }), ['bad: PC clock 2 h behind']);
+  assert.deepEqual(texts({ clockOffMs: 12 * MIN }), ['warn: PC clock 12 min ahead']);
+  assert.deepEqual(texts({ clockOffMs: 2 * MIN }), []);
+});

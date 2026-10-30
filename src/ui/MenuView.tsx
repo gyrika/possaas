@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { MENU, menuIsEmpty, menuItems, menuSections, menuState, sectionOf, sizeTag, startingItem } from '../domain/menu.ts';
 import {
-  NEW_SECTION_ID, checkNewItem, checkOverride, checkSection, newItemSizes, nextMorning, slug,
-  type ItemOverride, type NewItem, type PriceChange, type SectionDef,
+  NEW_SECTION_ID, checkNewItem, checkOverride, checkSection, hoursLabel, newItemSizes, nextMorning, slug,
+  type ItemOverride, type NewItem, type SectionDef,
 } from '../domain/menuEdits.ts';
 import { fmt } from '../domain/money.ts';
+import type { Actor } from '../domain/auth.ts';
 import type { Category, Cents, MenuItem, Section, SizeId, Station } from '../domain/types.ts';
 import { currentCashier } from '../services/auth.ts';
 import { appendEvent } from './eventLog.ts';
@@ -15,8 +16,8 @@ import { OwnerNav } from './OwnerNav.tsx';
  * The owner's menu (#menu). Serves the owner: they know what they sell and want it on the counter
  * now, or one change made, a price, a name, something off for today, without calling anyone. The
  * single next thing: a new shop adds a section, then its items, one after another; later, find the
- * item, change it, save. Managers see the same list: sold out for today and prices, never names.
- * Every change is an event (who, when, before/after) with an Undo, and reaches the counter,
+ * item, change it, save. Managers change the menu too, here or on the Register in manager mode
+ * (the same sheets, exported below). Every change is an event (who, when, before/after) with an Undo, and reaches the counter,
  * the kitchen and online ordering at once.
  */
 /** The item as it started (the sample menu), or as the owner added it. */
@@ -29,26 +30,23 @@ const toCents = (text: string): Cents | null => {
   return /^\d{1,6}$/.test(t) ? Number(t) * 100 : null;
 };
 
-const record = (itemId: string, after: ItemOverride) => {
+/**
+ * Who made a change: the person signed in, or the manager who unlocked manager mode on the Register
+ * (the cashier stays signed in underneath).
+ */
+const record = (itemId: string, after: ItemOverride, actor: Actor = currentCashier()) => {
   const before = menuState().overrides[itemId] ?? {};
-  appendEvent({ type: 'menu.item_set', at: Date.now(), orderNumber: 0, actor: currentCashier(), itemId, before, after });
+  appendEvent({ type: 'menu.item_set', at: Date.now(), orderNumber: 0, actor, itemId, before, after });
   return before;
 };
-/** A manager's change: the prices only. Returns what they were, for Undo. */
-const recordPrices = (itemId: string, after: PriceChange): PriceChange => {
-  const now = menuState().overrides[itemId] ?? {};
-  const before: PriceChange = { ...(now.prices ? { prices: now.prices } : {}), ...(now.adds ? { adds: now.adds } : {}) };
-  appendEvent({ type: 'menu.price_set', at: Date.now(), orderNumber: 0, actor: currentCashier(), itemId, before, after });
-  return before;
-};
-const setSoldOut = (itemId: string, out: boolean) =>
-  appendEvent({ type: 'menu.sold_out', at: Date.now(), orderNumber: 0, actor: currentCashier(), itemId, until: out ? nextMorning(Date.now()) : null });
-const addItem = (itemId: string, item: NewItem | null) =>
-  appendEvent({ type: 'menu.item_added', at: Date.now(), orderNumber: 0, actor: currentCashier(), itemId, item });
+const setSoldOut = (itemId: string, out: boolean, actor: Actor = currentCashier()) =>
+  appendEvent({ type: 'menu.sold_out', at: Date.now(), orderNumber: 0, actor, itemId, until: out ? nextMorning(Date.now()) : null });
+const addItem = (itemId: string, item: NewItem | null, actor: Actor = currentCashier()) =>
+  appendEvent({ type: 'menu.item_added', at: Date.now(), orderNumber: 0, actor, itemId, item });
 /** Makes, changes or (null) takes off a section; returns what it was, for Undo. */
-const setSection = (sectionId: string, section: SectionDef | null): SectionDef | null => {
+const setSection = (sectionId: string, section: SectionDef | null, actor: Actor = currentCashier()): SectionDef | null => {
   const was = menuState().sections?.[sectionId];
-  appendEvent({ type: 'menu.section_set', at: Date.now(), orderNumber: 0, actor: currentCashier(), sectionId, section });
+  appendEvent({ type: 'menu.section_set', at: Date.now(), orderNumber: 0, actor, sectionId, section });
   if (!was || was.removed) return null;
   const { removed: _r, ...def } = was;
   return def;
@@ -81,20 +79,43 @@ const useEscape = (onClose: () => void) => useEffect(() => {
 
 const sentence = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}.`;
 
-/** A row the owner types into: an existing size/extra keeps its id, so items keep their prices. */
-interface Row { id?: string; label: string; price: string }
+/** A row the owner types into: an existing size/extra keeps its id, so items keep their prices. `key`: a new row's, for its prices. */
+interface Row { id?: string; key?: number; label: string; price: string }
+/** 390 → "06:30" for a time input, and back. */
+const hhmm = (m: number): string => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const ofClock = (t: string): number => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+let rowKey = 0;
+const newRow = (): Row => ({ key: ++rowKey, label: '', price: '' });
+
+/** The section's own items still on offer: what a new size needs a price for. */
+const itemsIn = (sectionId: string): MenuItem[] => menuItems().filter((m) => m.category === sectionId && m.added && !m.removed);
 
 /**
  * A section: its name, how long the kitchen takes, its sizes (none = one price) and the extras its
- * items share. Changing a size's name keeps every item's price for it.
+ * items share. Changing a size's name keeps every item's price for it. A new size asks each item's
+ * price for it right here (blank = not sold in it), and both are saved together, so the counter
+ * never shows a size with no prices, nor loses items while they are being priced.
  */
-function SectionSheet({ section, onSaved, onClose }: {
-  section: Section | null; onSaved: (message: string, undo: () => void, id: string) => void; onClose: () => void;
+export function SectionSheet({ section, actor, onSaved, onClose }: {
+  section: Section | null; actor?: Actor; onSaved: (message: string, undo: () => void, id: string) => void; onClose: () => void;
 }) {
   const [name, setName] = useState(section?.name ?? '');
   const [cook, setCook] = useState(String(section?.cookMinutes ?? 10));
   const [station, setStation] = useState<Station | undefined>(section?.station);
+  /** "HH:MM" from–to, or blank: all day. */
+  const [from, setFrom] = useState(section?.hours ? hhmm(section.hours.from) : '');
+  const [to, setTo] = useState(section?.hours ? hhmm(section.hours.to) : '');
   const [sizes, setSizes] = useState<Row[]>(section?.sizes.map((z) => ({ id: z.id, label: z.label, price: '' })) ?? []);
+  /** `${item id} ${row key}` → the typed price of an item in a new size. */
+  const [grid, setGrid] = useState<Record<string, string>>({});
+  const items = section ? itemsIn(section.id) : [];
+  const fresh = sizes.filter((r) => !r.id && r.label.trim());
+  /** One price until now: its first size starts at that price, so nothing has to be typed twice. */
+  const cell = (m: MenuItem, r: Row): string =>
+    grid[`${m.id} ${r.key}`] ?? (!section?.sizes.length && r === fresh[0] && m.price ? String(m.price / 100) : '');
   const [adds, setAdds] = useState<Row[]>(section?.adds.map((a) => ({ id: a.id, label: a.label, price: String(a.price / 100) })) ?? []);
   const [error, setError] = useState('');
   useEscape(onClose);
@@ -125,25 +146,50 @@ function SectionSheet({ section, onSaved, onClose }: {
       sizes: keptSizes.map((r, i) => ({ id: sizeIds[i], label: r.label.trim() })),
       adds: keptAdds.map((r, i) => ({ id: addIds[i], label: r.label.trim(), price: addPrices[i]! })),
       ...(station ? { station } : {}),
+      ...(from || to ? { hours: { from: ofClock(from), to: ofClock(to) } } : {}),
     };
+    if ((from || to) && (!from || !to)) { setError('Give the section a start and a stop time, or clear both for all day.'); return; }
     const bad = checkSection(def);
     if (bad) { setError(sentence(bad)); return; }
+    // Each item's prices in the new sizes (ids as the section gets them).
+    const priced: [MenuItem, NonNullable<ItemOverride['prices']>][] = [];
+    for (const m of fresh.length ? items : []) {
+      const p: NonNullable<ItemOverride['prices']> = {};
+      for (const r of fresh) {
+        const typed = cell(m, r).trim();
+        if (!typed) continue;
+        const c = toCents(typed);
+        if (c === null || c === 0) { setError(`Type ${m.name.en}'s ${r.label.trim()} price in whole rupees, like 900.`); return; }
+        p[sizeIds[keptSizes.indexOf(r)]] = c;
+      }
+      // A section that had one price: an item with no size price would leave the counter.
+      if (!section?.sizes.length && !Object.keys(p).length) { setError(`Give ${m.name.en} a price in at least one size.`); return; }
+      if (Object.keys(p).length) priced.push([m, p]);
+    }
     const id = section?.id ?? newSectionId(def.name);
-    const was = setSection(id, def);
-    onSaved(section ? `Saved ${def.name}` : `Added ${def.name}`, () => setSection(id, was), id);
+    const was = setSection(id, def, actor);
+    const befores = priced.map(([m, p]) => {
+      const now = menuState().overrides[m.id] ?? {};
+      return [m.id, record(m.id, { ...now, prices: { ...now.prices, ...p } }, actor)] as const;
+    });
+    const added = fresh.map((r) => r.label.trim()).join(', ');
+    onSaved(section ? (fresh.length ? `Added ${added} to ${def.name}` : `Saved ${def.name}`) : `Added ${def.name}`, () => {
+      befores.forEach(([itemId, before]) => record(itemId, before, actor));
+      setSection(id, was, actor);
+    }, id);
   };
 
   const takeOff = () => {
     if (!section) return;
-    const was = setSection(section.id, null);
-    onSaved(`${section.name} is off the menu`, () => setSection(section.id, was), section.id);
+    const was = setSection(section.id, null, actor);
+    onSaved(`${section.name} is off the menu`, () => setSection(section.id, was, actor), section.id);
   };
 
   /** Enter in the last row starts the next one (Enter elsewhere does not save the section half-typed). */
   const nextRow = (list: Row[], set: (r: Row[]) => void, i: number) => (e: ReactKeyboardEvent) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    if (i === list.length - 1 && list[i].label.trim()) set([...list, { label: '', price: '' }]);
+    if (i === list.length - 1 && list[i].label.trim()) set([...list, newRow()]);
   };
   const rows = (list: Row[], set: (r: Row[]) => void, what: 'size' | 'extra') => (
     <div className="menued__rows">
@@ -160,7 +206,7 @@ function SectionSheet({ section, onSaved, onClose }: {
             onClick={() => set(list.filter((_, j) => j !== i))}>Remove</button>
         </div>
       ))}
-      <button type="button" className="chip" onClick={() => set([...list, { label: '', price: '' }])}>+ Add {what === 'size' ? 'a size' : 'an extra'}</button>
+      <button type="button" className="chip" onClick={() => set([...list, newRow()])}>+ Add {what === 'size' ? 'a size' : 'an extra'}</button>
     </div>
   );
 
@@ -190,10 +236,33 @@ function SectionSheet({ section, onSaved, onClose }: {
             </div>
           </section>
           <section className="group">
+            <h2>When it is sold</h2>
+            <p className="menued__note">Only in the morning, or only at night? Give the times; it shows at the counter only then. Leave blank for all day.</p>
+            <div className="menued__grid">
+              <label>From<input type="time" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+              <label>Until<input type="time" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+            </div>
+          </section>
+          <section className="group">
             <h2>Sizes</h2>
             <p className="menued__note">Like Regular and Full. No sizes: each item has one price.</p>
             {rows(sizes, setSizes, 'size')}
           </section>
+          {fresh.length > 0 && items.length > 0 && (
+            <section className="group">
+              <h2>{fresh.map((r) => r.label.trim()).join(', ')} prices</h2>
+              <p className="menued__note">Leave one blank if that item is not sold in that size.</p>
+              <div className="menued__grid">
+                {items.flatMap((m) => fresh.map((r) => (
+                  <label key={`${m.id} ${r.key}`}>
+                    {m.name.en}{fresh.length > 1 && ` · ${r.label.trim()}`}
+                    <input className="num" inputMode="numeric" value={cell(m, r)} placeholder="Rs" aria-label={`${m.name.en} ${r.label.trim()} price`}
+                      onChange={(e) => setGrid({ ...grid, [`${m.id} ${r.key}`]: e.target.value })} />
+                  </label>
+                )))}
+              </div>
+            </section>
+          )}
           <section className="group">
             <h2>Extras</h2>
             <p className="menued__note">What a customer can add to any item here, like Egg or Cheese.</p>
@@ -215,7 +284,7 @@ function SectionSheet({ section, onSaved, onClose }: {
  * size), Enter, and the sheet is ready for the next. Its section's extras come with it; the
  * number, leave-outs and Sinhala/Tamil names are under More.
  */
-function AddItems({ section, onClose }: { section: Section; onClose: () => void }) {
+export function AddItems({ section, actor, onClose }: { section: Section; actor?: Actor; onClose: () => void }) {
   const sizes = newItemSizes(section);
   const [en, setEn] = useState('');
   const [price, setPrice] = useState<Record<string, string>>({});
@@ -255,7 +324,7 @@ function AddItems({ section, onClose }: { section: Section; onClose: () => void 
     const bad = checkNewItem(item, menuSections());
     if (bad) { setError(sentence(bad)); return; }
     const id = newId(item.name.en);
-    addItem(id, item);
+    addItem(id, item, actor);
     setAdded({ id, name: item.name.en });
     setEn(''); setPrice({}); setNumber(''); setOuts(''); setSi(''); setTa(''); setDesc('');
     nameRef.current?.focus();
@@ -294,7 +363,7 @@ function AddItems({ section, onClose }: { section: Section; onClose: () => void 
           {added && !error && (
             <p className="menued__added" role="status">
               Added {added.name}.
-              <button type="button" className="linkbtn" onClick={() => { addItem(added.id, null); setAdded(null); }}>Undo</button>
+              <button type="button" className="linkbtn" onClick={() => { addItem(added.id, null, actor); setAdded(null); }}>Undo</button>
             </p>
           )}
         </div>
@@ -307,15 +376,25 @@ function AddItems({ section, onClose }: { section: Section; onClose: () => void 
   );
 }
 
-/** owner: the whole item. A manager: the prices only (names and what is on offer stay the owner's). */
-function Editor({ item, owner, onSaved, onClose }: { item: MenuItem; owner: boolean; onSaved: (message: string, undo: () => void) => void; onClose: () => void }) {
+/** One item: names, a price per size, extras' prices, hidden, and sold out for today. */
+export function Editor({ item, actor, onSaved, onClose }: {
+  item: MenuItem; actor?: Actor; onSaved: (message: string, undo: () => void) => void; onClose: () => void;
+}) {
   const base = startOf(item.id);
   const startName = base.added ? 'how you added it' : 'the printed menu';
   const [en, setEn] = useState(item.name.en);
   const [si, setSi] = useState(item.name.si ?? '');
   const [ta, setTa] = useState(item.name.ta ?? '');
   const [desc, setDesc] = useState(item.description);
-  const sizes = item.variants?.map((v) => v.id) ?? ['one' as const];
+  // A sized item may be sold in any size of its section (Full for an item that started with Normal only).
+  const section = sectionOf(item.category);
+  const own = item.variants && section?.sizes.length
+    ? [...section.sizes, ...item.variants.filter((v) => !section.sizes.some((z) => z.id === v.id))] : null;
+  const sizes: (SizeId | 'one')[] = own?.map((z) => z.id) ?? item.variants?.map((v) => v.id) ?? ['one'];
+  const label = (id: string) => {
+    const z = own?.find((x) => x.id === id) ?? item.variants?.find((x) => x.id === id);
+    return z ? `${z.label}${z.hint ? ` ${z.hint}` : ''}` : 'Price';
+  };
   const [price, setPrice] = useState<Record<string, string>>(() =>
     Object.fromEntries(item.variants ? item.variants.map((v) => [v.id, String(v.price / 100)]) : [['one', String((item.price ?? 0) / 100)]]));
   const [adds, setAdds] = useState<Record<string, string>>(() => Object.fromEntries(item.adds.map((a) => [a.id, String(a.price / 100)])));
@@ -324,7 +403,8 @@ function Editor({ item, owner, onSaved, onClose }: { item: MenuItem; owner: bool
 
   useEscape(onClose);
 
-  const basePrice = (id: string) => (id === 'one' ? base.price ?? 0 : base.variants!.find((v) => v.id === id)!.price);
+  /** The price it started with; undefined for a size it was not sold in. */
+  const basePrice = (id: string): Cents | undefined => (id === 'one' ? base.price ?? 0 : base.variants?.find((v) => v.id === id)?.price);
 
   /** Only what differs from the printed menu is kept, so "same as printed" is simply nothing. */
   const build = (): ItemOverride | string => {
@@ -337,9 +417,12 @@ function Editor({ item, owner, onSaved, onClose }: { item: MenuItem; owner: bool
     if (desc.trim() !== base.description) o.description = desc.trim();
     const p: NonNullable<ItemOverride['prices']> = {};
     for (const id of sizes) {
-      const c = toCents(price[id] ?? '');
-      if (c === null) return 'Prices are whole rupees, like 1650.';
-      if (c !== basePrice(id)) p[id as SizeId | 'one'] = c;
+      const typed = (price[id] ?? '').trim();
+      // Blank: not sold in a size it never had (one it started with keeps a price).
+      if (!typed && basePrice(id) === undefined) continue;
+      const c = toCents(typed);
+      if (c === null || c === 0) return `Type the ${id === 'one' ? 'price' : `${label(id)} price`} in whole rupees, like 1650.`;
+      if (c !== basePrice(id)) p[id] = c;
     }
     if (Object.keys(p).length) o.prices = p;
     const a: Record<string, Cents> = {};
@@ -350,20 +433,16 @@ function Editor({ item, owner, onSaved, onClose }: { item: MenuItem; owner: bool
     }
     if (Object.keys(a).length) o.adds = a;
     if (hidden) o.hidden = true;
-    return checkOverride(base, o) ?? o;
+    const bad = checkOverride(base, o, own?.map((z) => z.id));
+    return bad ? sentence(bad) : o;
   };
 
   const save = (e: FormEvent) => {
     e.preventDefault();
     const o = build();
     if (typeof o === 'string') { setError(o); return; }
-    if (!owner) {
-      const before = recordPrices(item.id, { ...(o.prices ? { prices: o.prices } : {}), ...(o.adds ? { adds: o.adds } : {}) });
-      onSaved(`Saved ${item.name.en}`, () => recordPrices(item.id, before));
-      return;
-    }
-    const before = record(item.id, o);
-    onSaved(`Saved ${en.trim() || base.name.en}`, () => record(item.id, before));
+    const before = record(item.id, o, actor);
+    onSaved(`Saved ${en.trim() || base.name.en}`, () => record(item.id, before, actor));
   };
 
   return (
@@ -373,15 +452,21 @@ function Editor({ item, owner, onSaved, onClose }: { item: MenuItem; owner: bool
         <div className="sheet__body">
           <div className="sheet__title">
             <h1>{item.name.en}</h1>
-            {owner && item.edited && (
+            {item.edited && (
               <button type="button" className="linkbtn" onClick={() => {
-                const before = record(item.id, {});
-                onSaved(`${base.name.en}: back to ${startName}`, () => record(item.id, before));
+                const before = record(item.id, {}, actor);
+                onSaved(`${base.name.en}: back to ${startName}`, () => record(item.id, before, actor));
               }}>Back to {startName}</button>
+            )}
+            {!item.hidden && (
+              <button type="button" className="chip" aria-pressed={Boolean(item.soldOut)} onClick={() => {
+                setSoldOut(item.id, !item.soldOut, actor);
+                onSaved(item.soldOut ? `${item.name.en} is back` : `${item.name.en}: sold out until morning`, () => setSoldOut(item.id, Boolean(item.soldOut), actor));
+              }}>Sold out today</button>
             )}
           </div>
 
-          {owner && <section className="group">
+          <section className="group">
             <h2>Name</h2>
             <div className="menued__grid">
               <label>English<input value={en} onChange={(e) => setEn(e.target.value)} maxLength={40} required /></label>
@@ -389,23 +474,24 @@ function Editor({ item, owner, onSaved, onClose }: { item: MenuItem; owner: bool
               <label>Tamil<input value={ta} onChange={(e) => setTa(e.target.value)} maxLength={60} lang="ta" /></label>
               <label className="menued__wide">Description<input value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={160} /></label>
             </div>
-          </section>}
+          </section>
 
           <section className="group">
             <h2>Price</h2>
             <div className="menued__grid">
               {sizes.map((id) => {
-                const v = item.variants?.find((x) => x.id === id);
                 const was = basePrice(id);
+                const name = id === 'one' ? 'Price' : `${(own?.find((x) => x.id === id) ?? item.variants?.find((x) => x.id === id))?.label} price`;
                 return (
                   <label key={id}>
-                    {v ? `${v.label}${v.hint ? ` ${v.hint}` : ''}` : 'Price'}
-                    <input className="num" inputMode="numeric" value={price[id]} onChange={(e) => setPrice({ ...price, [id]: e.target.value })} aria-label={v ? `${v.label} price` : 'Price'} />
-                    {toCents(price[id]) !== was && <span className="menued__was num">{base.added ? 'Was' : 'Printed'} {fmt(was)}</span>}
+                    {label(id)}
+                    <input className="num" inputMode="numeric" value={price[id] ?? ''} placeholder="Rs" onChange={(e) => setPrice({ ...price, [id]: e.target.value })} aria-label={name} />
+                    {was !== undefined && toCents(price[id] ?? '') !== was && <span className="menued__was num">{base.added ? 'Was' : 'Printed'} {fmt(was)}</span>}
                   </label>
                 );
               })}
             </div>
+            {own && sizes.length > item.variants!.length && <p className="menued__note">Leave a new size blank if this item is not sold in it.</p>}
           </section>
 
           {base.adds.length > 0 && (
@@ -422,12 +508,12 @@ function Editor({ item, owner, onSaved, onClose }: { item: MenuItem; owner: bool
             </section>
           )}
 
-          {owner && <section className="group">
+          <section className="group">
             <label className="menued__check">
               <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
               Hide from the menu <span>(the counter and online ordering stop offering it; old orders keep it)</span>
             </label>
-          </section>}
+          </section>
           {error && <p className="reason-msg" role="alert">{error}</p>}
         </div>
         <div className="sheet__foot menued__foot">
@@ -439,7 +525,7 @@ function Editor({ item, owner, onSaved, onClose }: { item: MenuItem; owner: bool
   );
 }
 
-export function MenuView({ owner, onBack }: { owner: boolean; onBack: () => void }) {
+export function MenuView({ onBack }: { onBack: () => void }) {
   useMenu();
   const sections = menuSections();
   const [picked, setPicked] = useState<Category | null>(null);
@@ -474,30 +560,29 @@ export function MenuView({ owner, onBack }: { owner: boolean; onBack: () => void
     <div className="owner">
       <OwnerNav current="menu" onRegister={onBack} />
       <main className="owner__main menuv" aria-label="Menu">
-        <h1 className="menuv__title">{empty && owner ? 'Add your menu' : 'Menu'}</h1>
+        <h1 className="menuv__title">{empty ? 'Add your menu' : 'Menu'}</h1>
         <p className="menuv__lead">
-          {!owner ? 'Change a price, or mark something sold out for today. Names and new items are the owner\'s.'
-            : !sections.length ? 'Start with a section, like Kottu, Rice & curry or Drinks. Then add its items, one after another.'
-              : empty ? `Now add what you sell in ${section!.name}.`
-                : 'Change a price, a name or what is on offer, or add something new. It reaches the counter, the kitchen and online ordering at once.'}
+          {!sections.length ? 'Start with a section, like Kottu, Rice & curry or Drinks. Then add its items, one after another.'
+            : empty ? `Now add what you sell in ${section!.name}.`
+              : 'Change a price, a name or what is on offer, or add something new. It reaches the counter, the kitchen and online ordering at once.'}
         </p>
-        {(sections.length > 0 || owner) && (
-          <nav className="cats" aria-label="Menu sections">
-            {sections.map((x) => (
-              <button key={x.id} type="button" className="pill" aria-pressed={section?.id === x.id} onClick={() => setPicked(x.id)}>{x.name}</button>
-            ))}
-            {owner && <button type="button" className={sections.length ? 'pill' : 'cta'} onClick={() => setSectionSheet('new')}>+ Add a section</button>}
-          </nav>
-        )}
+        <nav className="cats" aria-label="Menu sections">
+          {sections.map((x) => (
+            <button key={x.id} type="button" className="pill" aria-pressed={section?.id === x.id} onClick={() => setPicked(x.id)}>
+              {x.name}{x.hours && <small className="menuv__hours"> · {hoursLabel(x.hours)}</small>}
+            </button>
+          ))}
+          <button type="button" className={sections.length ? 'pill' : 'cta'} onClick={() => setSectionSheet('new')}>+ Add a section</button>
+        </nav>
         {section && (
           <p className="menuv__section">
             <span>
-              Ready in {section.cookMinutes} min
+              {section.hours && `${hoursLabel(section.hours)} · `}Ready in {section.cookMinutes} min
               {section.station && ` · ${section.station === 'left' ? 'Left' : 'Right'} kitchen`}
               {section.sizes.length > 0 && ` · ${section.sizes.map((z) => z.label).join(', ')}`}
               {section.adds.length > 0 && ` · extras: ${section.adds.map((a) => a.label).join(', ')}`}
             </span>
-            {owner && NEW_SECTION_ID.test(section.id) && (
+            {NEW_SECTION_ID.test(section.id) && (
               <button type="button" className="linkbtn" onClick={() => setSectionSheet(section)}>Change section</button>
             )}
           </p>
@@ -526,14 +611,14 @@ export function MenuView({ owner, onBack }: { owner: boolean; onBack: () => void
                   {m.soldOut ? 'Sold out today' : 'Available'}
                 </button>
               )}
-              <button type="button" className="chip chip--solid" onClick={() => setEditing(m)} aria-label={`${owner ? 'Change' : 'Price of'} ${m.name.en}`}>{owner ? 'Change' : 'Price'}</button>
+              <button type="button" className="chip chip--solid" onClick={() => setEditing(m)} aria-label={`Change ${m.name.en}`}>Change</button>
             </li>
           ))}
         </ul>
-        {owner && section && (
+        {section && (
           <button type="button" className={items.length ? 'chip menuv__add' : 'cta menuv__add'} onClick={() => setAdding(true)}>+ Add to {section.name}</button>
         )}
-        {owner && empty && (
+        {empty && (
           <p className="menuv__later"><button type="button" className="linkbtn" onClick={onBack}>Do it later</button></p>
         )}
       </main>
@@ -551,7 +636,7 @@ export function MenuView({ owner, onBack }: { owner: boolean; onBack: () => void
         />
       )}
       {adding && section && <AddItems section={section} onClose={() => setAdding(false)} />}
-      {editing && <Editor item={editing} owner={owner} onClose={() => setEditing(null)} onSaved={(msg, undo) => { setEditing(null); said(msg, undo); }} />}
+      {editing && <Editor item={editing} onClose={() => setEditing(null)} onSaved={(msg, undo) => { setEditing(null); said(msg, undo); }} />}
       {toast && !open && (
         <div className="toast" role="status" key={toast.id}>
           <span>{toast.message}</span>
