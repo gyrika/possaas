@@ -90,8 +90,17 @@ test('pricing: variant + adds, times qty', () => {
 });
 
 test('quick cash amounts', () => {
-  assert.deepEqual(quickCashAmounts(620000), [620000, 650000, 1000000, 2000000]);
-  assert.deepEqual(quickCashAmounts(100000), [100000, 200000, 500000, 1000000]);
+  assert.deepEqual(quickCashAmounts(15000), [15000, 20000, 50000, 100000, 500000]);
+  assert.deepEqual(quickCashAmounts(125000), [125000, 130000, 150000, 200000, 500000]);
+  assert.deepEqual(quickCashAmounts(620000), [620000, 650000, 700000, 1000000]);
+  assert.deepEqual(quickCashAmounts(60000), [60000, 100000, 500000]);
+  // Near a big note: the next Rs 5k, never amounts nobody hands over.
+  assert.deepEqual(quickCashAmounts(470000), [470000, 500000, 1000000]);
+  assert.deepEqual(quickCashAmounts(100000), [100000, 500000, 1000000]);
+  assert.deepEqual(quickCashAmounts(500000), [500000, 1000000]);
+  // Cents stay exact.
+  assert.deepEqual(quickCashAmounts(123450), [123450, 130000, 150000, 200000, 500000]);
+  assert.deepEqual(quickCashAmounts(0), []);
 });
 
 test('menu matches the printed prices', () => {
