@@ -44,6 +44,8 @@ export interface AppOptions {
   updating?: () => UpdateStep | null;
   /** The developer's Shops screen (only where CLOUD_ADMIN_KEY is set: the developer's laptop). */
   fleet?: Fleet | null;
+  /** Before a device's first pull: events to add once (the shop's menu, server/firstMenu.ts). */
+  firstMenu?: (device: Device) => Promise<SyncedEvent[]>;
   now?: () => number;
 }
 
@@ -119,7 +121,7 @@ interface Stream {
 
 const send = (ws: WebSocket, m: StreamMessage) => ws.send(JSON.stringify(m));
 
-export function createApp({ store, staticDir, printer, onStored, online, cloudStatus, shop, setup, version, updating, fleet, now = Date.now }: AppOptions): Server {
+export function createApp({ store, staticDir, printer, onStored, online, cloudStatus, shop, setup, version, updating, fleet, firstMenu, now = Date.now }: AppOptions): Server {
   /** Open streams per shop. A shop's events never go to another shop's devices. */
   const streams = new Map<string, Set<Stream>>();
   /** Wrong PIN guesses per device. 10,000 PINs: without a brake, guessing would take minutes. */
@@ -299,6 +301,11 @@ export function createApp({ store, staticDir, printer, onStored, online, cloudSt
     }
 
     if (req.method === 'GET') {
+      const added = (await firstMenu?.(device)) ?? [];
+      if (added.length) {
+        broadcast(device.tenantId, added);
+        onStored?.(device.tenantId, added.map((s) => s.event));
+      }
       const after = nonNegInt(url.searchParams.get('after'), 0);
       const limit = Math.min(PULL_LIMIT, Math.max(1, nonNegInt(url.searchParams.get('limit'), PULL_LIMIT)));
       // One extra tells us whether there is more without a second query.

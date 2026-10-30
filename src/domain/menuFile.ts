@@ -1,4 +1,5 @@
 import { OPTION_ID, allSections, checkNewItem, checkSection, effectiveMenu, slug, type MenuState, type NewItem, type SectionDef, type StartingMenu } from './menuEdits.ts';
+import type { Actor } from './auth.ts';
 import type { Section } from './types.ts';
 
 /**
@@ -56,6 +57,8 @@ export const menuFile = (start: StartingMenu, state: MenuState): MenuFile => {
 };
 
 /** What loading a menu adds, in order: its sections first, then their items, each with an id the shop never used. */
+type Taken = { sections: Iterable<string>; items: Iterable<string> };
+
 export interface MenuLoad { sections: [string, SectionDef][]; items: [string, NewItem][] }
 
 const fresh = (wanted: string, taken: Set<string>): string => {
@@ -70,12 +73,17 @@ const fresh = (wanted: string, taken: Set<string>): string => {
  * this shop has ever used (taken-off ones too), so nothing loaded meets an old one.
  * Returns what to add, or what is wrong, in words for the owner.
  */
-export const readMenuFile = (text: string, taken: { sections: Iterable<string>; items: Iterable<string> }): MenuLoad | string => {
+export const readMenuFile = (text: string, taken: Taken): MenuLoad | string => {
   let file: MenuFile;
   try { file = JSON.parse(text.trim()) as MenuFile; } catch { return 'That is not a copied menu. Copy it again with "Copy menu" and paste all of it.'; }
   if (file?.lume !== 'menu' || file.v !== 1 || !Array.isArray(file.sections) || !Array.isArray(file.items)) {
     return 'That is not a copied menu. Copy it again with "Copy menu" and paste all of it.';
   }
+  return loadMenu(file, taken);
+};
+
+/** A menu file's sections and items, checked, with ids this shop never used (see readMenuFile). */
+export const loadMenu = (file: MenuFile, taken: Taken): MenuLoad | string => {
   if (!file.items.length) return 'That menu has no items.';
   const sectionIds = new Set(taken.sections);
   const itemIds = new Set(taken.items);
@@ -98,3 +106,14 @@ export const readMenuFile = (text: string, taken: { sections: Iterable<string>; 
   }
   return { sections, items };
 };
+
+/**
+ * A loaded menu as the events that add it: sections first, then items. Ids come from the menu's
+ * own ids, so the same menu sent twice is stored once (the server keeps one event per id).
+ */
+export const menuLoadEvents = (load: MenuLoad, shopId: string, actor: Actor, at: number) => [
+  ...load.sections.map(([sectionId, section]) =>
+    ({ id: `menu-load-${sectionId}`, shopId, at, orderNumber: 0 as const, actor, type: 'menu.section_set' as const, sectionId, section })),
+  ...load.items.map(([itemId, item]) =>
+    ({ id: `menu-load-${itemId}`, shopId, at, orderNumber: 0 as const, actor, type: 'menu.item_added' as const, itemId, item })),
+];
