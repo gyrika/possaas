@@ -26,6 +26,11 @@ $every5 = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval
 $once = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName 'Lume POS update' -Action $update -Trigger $every5 -Principal $system -Settings $once -Force | Out-Null
 
+# "Update now" in Shop setup: the shop server starts this task, which skips the waiting. A task of its
+# own so it outlives the server, which the installer stops.
+$updateNow = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$updater -Force"
+Register-ScheduledTask -TaskName 'Lume POS update now' -Action $updateNow -Principal $system -Settings $once -Force | Out-Null
+
 # The nightly backup of the shop's data, at 4 am when the shop is closed (and an update, if one is waiting).
 $nightly = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$updater -Nightly"
 Register-ScheduledTask -TaskName 'Lume POS nightly' -Action $nightly -Trigger (New-ScheduledTaskTrigger -Daily -At 4am) -Principal $system -Settings $once -Force | Out-Null
