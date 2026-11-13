@@ -6,6 +6,7 @@ with what it was ("Two kitchens on").
 
 | Part | Off means |
 |---|---|
+| Kitchen screen | no Kitchen key in the Register corner, `#kitchen` shows the Register, no kitchen QR codes in Shop setup → Devices, no Cooking / Done beside orders. Orders still make kitchen tickets, so switching it on later starts cleanly. A kitchen screen already paired keeps showing its kitchen |
 | Cash out | no F3, no Cash out tab, no card in the Owner view |
 | Two kitchens | one kitchen whatever the menu's Left/Right say: one ticket, one key, nothing flies |
 | Busy mode | no Busy key, F6 does nothing |
@@ -13,8 +14,9 @@ with what it was ("Two kitchens on").
 | Owner's phone | no owner QR code in Shop setup (paired phones keep working until withdrawn) |
 | Serving list | a pay-first kitchen shows cooking tickets (Done) instead of the Serving list; the bill says Cooking / Done |
 
-Defaults (a shop never set): everything on except **Two kitchens** and **Serving list** (the kitchen's
-next module, once the owner is at home with the POS). Paying (or Send, in an eat-first shop) always flies
+Defaults (a shop never set): everything on except **Kitchen screen** (Bata Kade has no kitchen screen
+yet, 2026-11-14), **Two kitchens** and **Serving list** (the kitchen's next module, once the owner is at
+home with the POS). Paying (or Send, in an eat-first shop) always flies
 the order off the Register with a whap: to its side with two kitchens, to the left with one. The list and the defaults are
 `src/domain/features.ts` (`PARTS`, `DEFAULT_FEATURES`).
 

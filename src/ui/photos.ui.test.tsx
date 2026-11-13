@@ -97,10 +97,13 @@ test('a new item gets its photo with it; Bata Kade starts with its own photos, a
   setStartingMenu(FAKE_RICE_START);
   history.replaceState(null, '', '/');
   render(<Root />);
-  await user.click(screen.getByRole('button', { name: 'String Hoppers, Roti & Rolls' }));
+  await user.click(screen.getByRole('button', { name: 'Meals' }));
   const wade = screen.getByText('Parippu Wade').closest('.card') as HTMLElement;
   expect(wade.querySelector('.card__photo img')).toBeTruthy();
-  const vegRoti = screen.getByText('Vegetable Roti').closest('.card') as HTMLElement;
-  expect(vegRoti.querySelector('.card__photo')).toBeTruthy();
-  expect(vegRoti.querySelector('.card__photo img')).toBeNull();
+  // A photo pasted on the demo (WebP), and a blank where the menu has none.
+  expect((screen.getByText('Vegetable Roti').closest('.card') as HTMLElement).querySelector('.card__photo img')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Other' }));
+  const yoghurt = screen.getByText('Yoghurt').closest('.card') as HTMLElement;
+  expect(yoghurt.querySelector('.card__photo')).toBeTruthy();
+  expect(yoghurt.querySelector('.card__photo img')).toBeNull();
 });

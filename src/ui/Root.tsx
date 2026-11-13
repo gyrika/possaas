@@ -168,7 +168,8 @@ export function Root() {
   }
   if (hash === '#receipt') return <ReceiptPreview />; // setup page, not a cashier screen
   if (kitchenOnly) return <Kitchen onSwitch={staff ? lock : undefined} />;
-  if (inKitchen) return <Kitchen key={hash} station={kitchenView ?? undefined} onBack={fromRegister || needsLogin ? () => show(false) : undefined} />;
+  // A shop without the Kitchen part sees the Register at #kitchen (a kitchen device or login still sees its kitchen).
+  if (inKitchen && parts.kitchen) return <Kitchen key={hash} station={kitchenView ?? undefined} onBack={fromRegister || needsLogin ? () => show(false) : undefined} />;
   if (needsLogin && !staff) return <LockScreen />;
   if (hash === OWNER && seesOwner) return <OwnerView onBack={() => go('')} />;
   // The developer's Shops screen (only answers on the developer's laptop: server/fleet.ts).

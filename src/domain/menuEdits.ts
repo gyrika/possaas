@@ -26,7 +26,9 @@ export interface ItemOverride {
 
 /**
  * An item the owner added. It takes its section's sizes and extras, so only its name, prices
- * and (if any) leave-outs are his to type. A size it has no price for is simply not offered.
+ * and (if any) leave-outs are theirs to type. A size it has no price for is simply not offered.
+ * A shop's own menu (src/shop) may give an item sizes and extras of its own instead (Water's 500 ml,
+ * 1 L and 1.5 L in Drinks; bread's egg, fish or chicken in Meals, beside items that have none).
  */
 export interface NewItem {
   category: Category;
@@ -38,6 +40,10 @@ export interface NewItem {
   number?: number;
   /** What a customer may ask to leave out: "No onion". */
   leaveOut?: string[];
+  /** Its own extras, in place of its section's. */
+  adds?: Option[];
+  /** Its own sizes, in place of its section's: one card with a price button per size. */
+  sizes?: Section['sizes'];
 }
 
 /** A section the owner made (or changed): its name, cook time, sizes and extras. */
@@ -190,6 +196,8 @@ export const allSections = (start: StartingMenu, state: MenuState): (Section & {
 /** The sizes an item in this section is priced in ('one' for a single price). */
 export const newItemSizes = (section: Pick<Section, 'sizes'>): { id: SizeId | 'one'; label: string; hint?: string }[] =>
   section.sizes.length ? section.sizes : [{ id: 'one', label: 'Price' }];
+/** An added item's sizes: its own, or its section's. */
+const sizesOf = (n: Pick<NewItem, 'sizes'>, sec: Pick<Section, 'sizes'>): Section['sizes'] => (n.sizes?.length ? n.sizes : sec.sizes);
 
 /** "No onion" → an option the customer can ask for. */
 const leaveOutOption = (label: string): Option => ({ id: `no-${slug(label.replace(/^no\s+/i, ''), 36) || 'thing'}`, label, price: 0 });
@@ -198,14 +206,15 @@ const leaveOutOption = (label: string): Option => ({ id: `no-${slug(label.replac
 export const newMenuItem = (id: string, n: NewItem & { removed?: true }, sections: readonly (Section & { removed?: true })[]): MenuItem | null => {
   const sec = sections.find((x) => x.id === n.category);
   if (!sec) return null;
-  const variants = sec.sizes.filter((z) => (n.prices[z.id] ?? 0) > 0).map((z) => ({ ...z, price: n.prices[z.id]! }));
+  const sizes = sizesOf(n, sec);
+  const variants = sizes.filter((z) => (n.prices[z.id] ?? 0) > 0).map((z) => ({ ...z, price: n.prices[z.id]! }));
   // Nothing it can be sold as (its sizes changed since): kept for old orders, not offered.
-  const unsellable = sec.sizes.length ? variants.length === 0 : !(n.prices.one && n.prices.one > 0);
+  const unsellable = sizes.length ? variants.length === 0 : !(n.prices.one && n.prices.one > 0);
   return {
     id, category: n.category, name: n.name, description: n.description, aliases: [],
     ...(n.number ? { number: n.number } : {}),
-    ...(sec.sizes.length ? { variants } : { price: n.prices.one ?? 0 }),
-    adds: sec.adds, leaveOut: (n.leaveOut ?? []).map(leaveOutOption), added: true,
+    ...(sizes.length ? { variants } : { price: n.prices.one ?? 0 }),
+    adds: n.adds ?? sec.adds, leaveOut: (n.leaveOut ?? []).map(leaveOutOption), added: true,
     ...(n.removed ? { hidden: true, removed: true } : (sec.removed || unsellable) ? { hidden: true } : {}),
   };
 };
@@ -277,8 +286,12 @@ export const checkNewItem = (n: NewItem, sections: readonly (Section & { removed
   if (typeof n.description !== 'string' || !isText(n.description, 160)) return 'the description is too long';
   if (n.number !== undefined && (!Number.isSafeInteger(n.number) || n.number < 1 || n.number > 999)) return 'item numbers are 1 to 999';
   if (n.leaveOut !== undefined && (!Array.isArray(n.leaveOut) || n.leaveOut.length > 12 || !n.leaveOut.every((l) => isLabel(l, 30)))) return 'leave-outs are short words, at most 12';
+  const badAdds = n.adds === undefined ? null : checkAdds(n.adds, 'an item');
+  if (badAdds) return badAdds;
+  const badSizes = n.sizes === undefined ? null : checkSizes(n.sizes, 'an item');
+  if (badSizes) return badSizes;
   const prices = Object.entries(n.prices ?? {});
-  const sizes = sec ? newItemSizes(sec).map((z) => z.id) : null;
+  const sizes = n.sizes?.length ? n.sizes.map((z) => z.id) : sec ? newItemSizes(sec).map((z) => z.id) : null;
   if (prices.some(([k]) => (sizes ? !sizes.includes(k) : k !== 'one' && !SIZE_KEY.test(k)))) return 'a price is for a size this section does not have';
   if (!prices.length || prices.some(([, v]) => !isPrice(v) || v === 0)) return 'prices are whole rupees, more than 0';
   return null;
@@ -288,8 +301,6 @@ export const checkNewItem = (n: NewItem, sections: readonly (Section & { removed
 export const checkSection = (d: SectionDef): string | null => {
   if (!isLabel(d.name, 30)) return 'the section needs a name (at most 30 letters)';
   if (!Number.isSafeInteger(d.cookMinutes) || d.cookMinutes < 1 || d.cookMinutes > 180) return 'the cook time is 1 to 180 minutes';
-  if (!Array.isArray(d.sizes) || d.sizes.length > 6) return 'a section has at most 6 sizes';
-  if (!Array.isArray(d.adds) || d.adds.length > 20) return 'a section has at most 20 extras';
   if (d.station !== undefined && d.station !== 'left' && d.station !== 'right') return 'the kitchen is left or right';
   if (d.hours !== undefined) {
     const ok = (m: unknown) => Number.isSafeInteger(m) && (m as number) >= 0 && (m as number) < 24 * 60;
@@ -297,14 +308,26 @@ export const checkSection = (d: SectionDef): string | null => {
         !ok(d.hours.from) || !ok(d.hours.to)) return 'the hours are times of day';
     if (d.hours.from === d.hours.to) return 'the section starts and stops at the same time';
   }
+  return checkSizes(d.sizes, 'a section') ?? checkAdds(d.adds, 'a section');
+};
+
+/** A section's (or an item's own) sizes: at most 6, short names. */
+const checkSizes = (sizes: Section['sizes'], whose: string): string | null => {
+  if (!Array.isArray(sizes) || sizes.length > 6) return `${whose} has at most 6 sizes`;
   const ids = new Set<string>();
-  for (const z of d.sizes) {
+  for (const z of sizes) {
     if (!OPTION_ID.test(z?.id ?? '') || z.id === 'one' || !isLabel(z.label, 20) || !isText(z.hint, 20)) return 'a size needs a short name';
     if (ids.has(z.id)) return `there are two sizes called ${z.label}`;
     ids.add(z.id);
   }
-  ids.clear();
-  for (const a of d.adds) {
+  return null;
+};
+
+/** A section's (or an item's own) extras: at most 20, short names, whole rupees. */
+const checkAdds = (adds: readonly Option[], whose: string): string | null => {
+  if (!Array.isArray(adds) || adds.length > 20) return `${whose} has at most 20 extras`;
+  const ids = new Set<string>();
+  for (const a of adds) {
     if (!OPTION_ID.test(a?.id ?? '') || !isLabel(a.label, 30)) return 'an extra needs a short name';
     if (!isPrice(a.price)) return 'extras cost whole rupees';
     if (ids.has(a.id)) return `there are two extras called ${a.label}`;

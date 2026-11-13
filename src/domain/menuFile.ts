@@ -9,7 +9,7 @@ import type { Section } from './types.ts';
  * server checks them, they carry the owner, and they reach the cloud like any other change.
  *
  * What it keeps: sections (name, cook time, sizes, extras, kitchen, hours) and each item's names,
- * description, number, prices and leave-outs. Not kept: typing aliases, "sold out today", items
+ * description, number, prices, leave-outs, and sizes and extras of its own (ones its section does not give it). Not kept: typing aliases, "sold out today", items
  * or sections taken off.
  */
 export interface MenuFile {
@@ -36,6 +36,9 @@ export const fileSectionId = (id: string): string => (id.startsWith('sec-') ? id
 /** An item's id in a menu file (and on a shop that loaded it): 'kt-egg' → 'new-kt-egg'. */
 export const fileItemId = (id: string): string => (id.startsWith('new-') ? id : `new-${slug(id, 48) || 'item'}`);
 
+/** Extras compared by what they are, not their prices (an owner's price for an extra is not kept). */
+const optionKeys = (adds: readonly { id: string; label: string }[]): string => adds.map((a) => `${a.id} ${a.label}`).join('|');
+
 /** The menu every screen shows now, as a file. Times of day do not matter: off-hours sections are kept. */
 export const menuFile = (start: StartingMenu, state: MenuState): MenuFile => {
   const sections = allSections(start, state).filter((x) => !x.removed);
@@ -47,7 +50,11 @@ export const menuFile = (start: StartingMenu, state: MenuState): MenuFile => {
       id: ids.get(id)!, ...def, name: fitName(def.name), sizes: def.sizes.map((z) => ({ ...z, id: sizeId(z) })),
     })),
     items: items.map((m) => {
-      const sizes = sections.find((x) => x.id === m.category)!.sizes.map((z) => z.id);
+      const section = sections.find((x) => x.id === m.category)!;
+      // Sizes of its own: a sized item in a section without sizes (Water: 500 ml, 1 L, 1.5 L).
+      const ownSizes = !section.sizes.length && m.variants?.length ? m.variants.map(({ id, label, hint }) => ({ id: sizeId({ id, label }), label, ...(hint ? { hint } : {}) })) : null;
+      const sizes = ownSizes ? m.variants!.map((v) => v.id) : section.sizes.map((z) => z.id);
+      const ownAdds = m.adds.length > 0 && optionKeys(m.adds) !== optionKeys(section.adds);
       const prices = m.variants
         ? Object.fromEntries(m.variants.filter((v) => sizes.includes(v.id)).map((v) => [sizeId(v), v.price]))
         : { one: m.price ?? 0 };
@@ -56,6 +63,8 @@ export const menuFile = (start: StartingMenu, state: MenuState): MenuFile => {
         category: ids.get(m.category)!, name: m.name, description: m.description, prices,
         ...(m.number !== undefined ? { number: m.number } : {}),
         ...(m.leaveOut.length ? { leaveOut: m.leaveOut.map((o) => o.label) } : {}),
+        ...(ownSizes ? { sizes: ownSizes } : {}),
+        ...(ownAdds ? { adds: m.adds.map(({ id, label, price }) => ({ id, label, price })) } : {}),
       };
     }),
   };

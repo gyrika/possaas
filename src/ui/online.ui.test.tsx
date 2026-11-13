@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { OnlineOrder } from '../domain/online.ts';
 import { lock } from '../services/serverAuth.ts';
 import { Root } from './Root.tsx';
+import { setFeatures } from '../domain/features.ts';
 
 const order = (id: string, name: string): OnlineOrder => ({
   id, createdAt: Date.now() - 120_000, status: 'new', name, phone: '0771234567', note: 'Ring the bell', total: 360000, orderNumber: null, readyBy: null, reason: null,
@@ -29,6 +30,7 @@ function shopServer() {
 }
 
 beforeEach(() => {
+  setFeatures({ kitchen: true }); // the kitchen screen, a part a shop has only once it is switched on
   localStorage.clear();
   history.replaceState(null, '', '/');
   localStorage.setItem('cb.sync.token', 'device-token');

@@ -134,8 +134,10 @@ test('the order list labels unpaid and paid orders clearly', async () => {
   await user.click(sendBtn()); // 1001
   await user.click(screen.getAllByRole('button', { name: '450' })[0]);
   await user.click(sendBtn()); // 1002
-  await sendThenOpen(user, 1001);
+  await user.click(within(panel().getByRole('region', { name: 'Waiting to pay' })).getByRole('button', { name: /^1001/ }));
   expect(panel().getByText('Unpaid')).toBeTruthy(); // the opened order says it is unpaid
+  await user.click(panel().getByRole('button', { name: 'Charge' }));
+  expect(panel().getByText('Paying')).toBeTruthy(); // and while it is being paid, says that
   await user.click(screen.getByRole('button', { name: '2,000' }));
   await user.click(panel().getByRole('button', { name: 'Next order' }));
 
@@ -232,7 +234,7 @@ test('busy mode: item, Collected: paid in cash, sent to the kitchen, next order 
 
   await user.click(screen.getAllByRole('button', { name: 'L 2500' })[0]); // click 1
   await user.click(panel().getByRole('button', { name: 'Collected' })); // click 2
-  expect(screen.queryByRole('dialog', { name: 'Payment' })).toBeNull(); // no change screen
+  expect(screen.queryByRole('region', { name: 'Payment' })).toBeNull(); // no change screen
   expect(panel().queryByText('Devilled Chicken')).toBeNull();
   expect(panel().getByText('1002')).toBeTruthy(); // the next customer's order
   expect(readEvents().map((e) => e.type)).toEqual(['order.sent', 'order.paid']);

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { restartApp } from './restart.ts';
 import { Root } from './Root.tsx';
 import { SetupWizard } from './SetupWizard.tsx';
+import { setFeatures } from '../domain/features.ts';
 
 vi.mock('./restart.ts', () => ({ restartApp: vi.fn() }));
 
@@ -65,6 +66,7 @@ function fakeShopServer({ done = false, status = 200, newFails = false, updatesO
 }
 
 beforeEach(() => {
+  setFeatures({ kitchen: true }); // the kitchen screen, a part a shop has only once it is switched on
   localStorage.clear();
   vi.stubEnv('VITE_SETUP_CHECK', '1');
   vi.mocked(restartApp).mockClear();
@@ -114,9 +116,10 @@ test('a new shop: name, printer, staff (owner first), a QR code, finish', async 
 
   expect(await screen.findByRole('heading', { name: 'Connect your devices' })).toBeTruthy();
   // Connected to the cloud, so the owner's phone can have its QR code too.
-  expect(within(screen.getByRole('region', { name: "Owner's phone" })).getByRole('button', { name: 'Show QR code' })).toBeTruthy();
-  await user.click(within(screen.getByRole('region', { name: 'Kitchen tablet' })).getByRole('button', { name: 'Show QR code' }));
-  expect(await screen.findByRole('img', { name: 'QR code for the kitchen tablet' })).toBeTruthy();
+  // No kitchen screen until that part is switched on (Bata Kade for now): no kitchen tablet to pair.
+  expect(screen.queryByRole('region', { name: 'Kitchen tablet' })).toBeNull();
+  await user.click(within(screen.getByRole('region', { name: "Owner's phone" })).getByRole('button', { name: 'Show QR code' }));
+  expect(await screen.findByRole('img', { name: "QR code for the owner's phone" })).toBeTruthy();
 
   await user.click(screen.getByRole('button', { name: 'Finish' }));
   await vi.waitFor(() => expect(restartApp).toHaveBeenCalled());

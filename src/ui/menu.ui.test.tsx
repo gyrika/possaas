@@ -280,7 +280,7 @@ test('a section with hours shows only then: morning rice prices, then lunch & di
     expect(screen.queryByRole('button', { name: 'Normal 220' })).toBeNull();
     // Everything else is sold all day: fried rice too, at the same price morning and night.
     await user.click(screen.getByRole('button', { name: 'Fried Rice' }));
-    expect(screen.getAllByRole('button', { name: 'Full 750' })).toHaveLength(2); // chicken fried rice and biriyani
+    expect(screen.getAllByRole('button', { name: 'Full 750' })).toHaveLength(1); // chicken fried rice
     cleanup();
 
     vi.setSystemTime(new Date(2026, 9, 30, 19, 0));
@@ -291,7 +291,7 @@ test('a section with hours shows only then: morning rice prices, then lunch & di
     expect(screen.getByRole('button', { name: 'Normal 220' })).toBeTruthy(); // lunch & dinner vegetable
     expect(screen.queryByRole('button', { name: 'Normal 200' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Fried Rice' }));
-    expect(screen.getAllByRole('button', { name: 'Full 750' })).toHaveLength(2); // chicken fried rice and biriyani
+    expect(screen.getAllByRole('button', { name: 'Full 750' })).toHaveLength(1); // chicken fried rice
   } finally {
     vi.useRealTimers();
     setStartingMenu(SAMPLE_START);

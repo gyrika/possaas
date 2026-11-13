@@ -57,6 +57,9 @@ function EmptyMenu() {
   );
 }
 
+/** Up to this many sizes get a price button each on the card (Water: 500 ml, 1 L, 1.5 L); more open the item. */
+const BUTTONS = 3;
+
 /** "Short Eats · කෙටි කෑම" → "Short Eats": every section fits on one line at the counter; the cards keep both names. */
 const shortName = (name: string): string => name.split(' · ')[0] || name;
 
@@ -78,7 +81,7 @@ export function Menu({ category, onCategory, onQuickAdd, onCustomise, hint, edit
   const photos = shopHasPhotos();
   /** A tap on the photo: the first size (the one sold most), or the item's only price; more sizes open the item. */
   const photoTap = (item: MenuItem) => {
-    if (item.variants && item.variants.length <= 2 && item.variants[0]) quickAdd(item, item.variants[0].id);
+    if (item.variants && item.variants.length <= BUTTONS && item.variants[0]) quickAdd(item, item.variants[0].id);
     else if (!item.variants) quickAdd(item);
     else customise(item);
   };
@@ -124,10 +127,11 @@ export function Menu({ category, onCategory, onQuickAdd, onCustomise, hint, edit
               <span className="card__desc">{item.description}</span>
             </button>
             <div className="card__prices">
-              {item.variants && (item.variants.length === 2 || item.variants.length === 1) ? (
+              {item.variants && item.variants.length >= 1 && item.variants.length <= BUTTONS ? (
                 item.variants.map((v) => (
-                  <button key={v.id} type="button" className="price num" disabled={item.soldOut && !edit} onClick={() => quickAdd(item, v.id)}>
-                    {sizeTag(v)} {fmtPlain(v.price)}
+                  // Three to a card: the size small above its price, so "1.5 L 150" fits a narrow tile.
+                  <button key={v.id} type="button" className={`price num${item.variants!.length === 3 ? ' price--stack' : ''}`} disabled={item.soldOut && !edit} onClick={() => quickAdd(item, v.id)}>
+                    {item.variants!.length === 3 ? <><span>{sizeTag(v)}</span> {fmtPlain(v.price)}</> : <>{sizeTag(v)} {fmtPlain(v.price)}</>}
                   </button>
                 ))
               ) : item.variants ? (

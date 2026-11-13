@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FAKE_RICE_START } from '../fake/data.ts';
 import { SAMPLE_START } from './menu.ts';
-import { EMPTY_MENU_STATE, EMPTY_START, checkSection, effectiveMenu, menuStateFromEvents } from './menuEdits.ts';
+import { EMPTY_MENU_STATE, EMPTY_START, checkNewItem, checkSection, effectiveMenu, menuStateFromEvents } from './menuEdits.ts';
 import { menuFile, readMenuFile } from './menuFile.ts';
 
 const owner = { id: 'o', name: 'Owner', role: 'owner' as const };
@@ -31,13 +31,26 @@ test('the rice demo copied and loaded on an empty shop sells the same items at t
     const got = menu.find((m) => m.name.en === want.name.en && m.name.si === want.name.si && price(m) === price(want));
     assert.ok(got, `${want.name.en} is on the loaded menu at its price`);
   }
-  // Kitchens and hours stay with their sections; a long Sinhala name keeps its English part.
+  // Kitchens and hours stay with their sections.
   const kottu = load.sections.find(([, s]) => s.name.startsWith('Kottu'))!;
   assert.equal(kottu[1].station, 'right');
   const breakfast = load.sections.find(([, s]) => s.name.startsWith('Rice & Curry') && s.hours?.from === 5 * 60)!;
   assert.deepEqual(breakfast[1].hours, { from: 5 * 60, to: 11 * 60 });
   assert.equal(load.sections.find(([, s]) => s.name.startsWith('Fried Rice'))![1].hours, undefined);
-  assert.ok(load.sections.some(([, s]) => s.name === 'String Hoppers, Roti & Rolls'));
+  assert.deepEqual(load.sections.map(([, s]) => s.name.split(' · ')[0]), ['Rice & Curry', 'Rice & Curry', 'Fried Rice', 'Kottu', 'Meals', 'Drinks', 'Other']);
+  // An item's own extras go with it: bread's egg, fish and chicken; the rest of Meals has none.
+  const meal = (en: string) => load.items.find(([, n]) => n.name.en === en)![1];
+  assert.equal(meal('Bread').adds!.map((a) => `${a.label} ${a.price}`).join(), 'Egg 5000,Fish 10000,Chicken 12000');
+  assert.equal(meal('String Hoppers').adds!.map((a) => a.label).join(), '5 more,10 more');
+  assert.equal(meal('Biriyani').adds, undefined);
+  assert.equal(menu.find((m) => m.name.en === 'Bread')!.adds.map((a) => a.label).join(), 'Egg,Fish,Chicken');
+  assert.equal(menu.find((m) => m.name.en === 'Noodles')!.adds.length, 0);
+  // An item's own sizes go with it too: one Water card, a price per bottle; the rest of Drinks has none.
+  assert.deepEqual(meal('Water').sizes!.map((z) => z.label), ['500 ml', '1 L', '1.5 L']);
+  assert.equal(menu.find((m) => m.name.en === 'Water')!.variants!.map((v) => `${v.label} ${v.price}`).join(), '500 ml 8000,1 L 12000,1.5 L 15000');
+  assert.equal(menu.find((m) => m.name.en === 'String Hoppers')!.variants!.map((v) => `${v.label} ${v.price}`).join(), '10 12000,15 16000,20 20000');
+  assert.equal(meal('Milo').sizes, undefined);
+  assert.ok(load.items.every(([, n]) => checkNewItem(n, load.sections.map(([id, s]) => ({ ...s, id }))) === null));
   assert.ok(load.sections.every(([id, s]) => id.startsWith('sec-') && checkSection(s) === null));
   assert.ok(load.items.every(([id]) => id.startsWith('new-')));
 });

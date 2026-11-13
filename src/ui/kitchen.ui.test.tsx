@@ -8,8 +8,10 @@ import { readAll } from './eventLog.ts';
 import { setShopDetails } from '../services/shop.ts';
 import { SAMPLE_START, setStartingMenu } from '../domain/menu.ts';
 import { FAKE_RICE_START } from '../fake/data.ts';
+import { setFeatures } from '../domain/features.ts';
 
-beforeEach(() => localStorage.clear());
+// These tests use the kitchen screen, a part a shop has only once it is switched on.
+beforeEach(() => { localStorage.clear(); setFeatures({ kitchen: true }); });
 afterEach(() => { cleanup(); setShopDetails({ name: 'Shop', place: '', footer: '', payFirst: false }); });
 
 const panel = () => within(screen.getByRole('complementary', { name: 'Current order' }));
@@ -114,7 +116,7 @@ test('the register shows Cooking until the kitchen taps Done, next to Paid / Unp
 });
 
 test('a pay-first counter with the Serving list part: paid meals wait on the serving list, grouped; one tap hands one over', async () => {
-  setShopDetails({ name: 'Rice Bowl', place: '', footer: '', payFirst: true, features: { serving: true } });
+  setShopDetails({ name: 'Rice Bowl', place: '', footer: '', payFirst: true, features: { kitchen: true, serving: true } });
   const user = userEvent.setup();
   render(<><App /><Kitchen /></>);
   const serving = () => within(screen.getByRole('main', { name: 'Paid, to hand over' }));
@@ -149,11 +151,11 @@ test('a pay-first counter with the Serving list part: paid meals wait on the ser
   expect(serving().getByText('Nothing paid and waiting')).toBeTruthy();
   expect(paid.getAllByText('Served')).toHaveLength(2);
   expect(paid.queryByText('Cooking')).toBeNull();
-  setShopDetails({ name: 'Rice Bowl', place: '', footer: '', payFirst: true, features: {} });
+  setShopDetails({ name: 'Rice Bowl', place: '', footer: '', payFirst: true, features: { kitchen: true } });
 });
 
 test('a pay-first counter without the Serving list (the default): paying sends a cooking ticket that flies off with a whap', async () => {
-  setShopDetails({ name: 'Rice Bowl', place: '', footer: '', payFirst: true, features: {} });
+  setShopDetails({ name: 'Rice Bowl', place: '', footer: '', payFirst: true, features: { kitchen: true } });
   const user = userEvent.setup();
   render(<><App /><Kitchen /></>);
   await user.click(screen.getAllByRole('button', { name: 'L 2500' })[0]); // Devilled Chicken L
@@ -170,15 +172,15 @@ test('a pay-first counter without the Serving list (the default): paying sends a
 
 test('two kitchens: wade goes left, kottu goes right; each flies its way and shows on its own screen', async () => {
   setStartingMenu(FAKE_RICE_START);
-  setShopDetails({ name: 'Bata Kade', place: '', footer: '', payFirst: true, features: { twoKitchens: true, serving: true } });
+  setShopDetails({ name: 'Bata Kade', place: '', footer: '', payFirst: true, features: { kitchen: true, twoKitchens: true, serving: true } });
   try {
     const user = userEvent.setup();
     render(<Root />);
     // Sections sold all day, so the test passes at any hour (rice & curry has hours).
-    await user.click(screen.getByRole('button', { name: 'String Hoppers, Roti & Rolls' }));
+    await user.click(screen.getByRole('button', { name: 'Meals' }));
     await user.click(screen.getByRole('button', { name: '30' })); // Parippu Wade
     await user.click(screen.getByRole('button', { name: 'Kottu' }));
-    await user.click(screen.getAllByRole('button', { name: 'Full 800' })[0]); // Chicken Kottu, Full
+    await user.click(screen.getAllByRole('button', { name: 'Full 750' })[0]); // Chicken Kottu, Full
     await user.click(panel().getByRole('button', { name: 'Charge' }));
     await user.click(screen.getByRole('button', { name: /Exact/ }));
 
@@ -205,19 +207,19 @@ test('two kitchens: wade goes left, kottu goes right; each flies its way and sho
     const serving = within(screen.getByRole('main', { name: 'Paid, to hand over' }));
     expect(serving.getByRole('article', { name: 'Chicken Kottu, Full: 1 paid' })).toBeTruthy();
     expect(serving.queryByRole('article', { name: /Parippu Wade/ })).toBeNull();
-  } finally { setStartingMenu(SAMPLE_START); setShopDetails({ name: 'Bata Kade', place: '', footer: '', features: {} }); }
+  } finally { setStartingMenu(SAMPLE_START); setShopDetails({ name: 'Bata Kade', place: '', footer: '', features: { kitchen: true } }); }
 });
 
 test('Two kitchens switched off (Bata Kade for now): one Kitchen key, one ticket, it flies to the one kitchen', async () => {
   setStartingMenu(FAKE_RICE_START);
-  setShopDetails({ name: 'Bata Kade', place: '', footer: '', payFirst: true, features: {} });
+  setShopDetails({ name: 'Bata Kade', place: '', footer: '', payFirst: true, features: { kitchen: true } });
   try {
     const user = userEvent.setup();
     render(<Root />);
-    await user.click(screen.getByRole('button', { name: 'String Hoppers, Roti & Rolls' }));
+    await user.click(screen.getByRole('button', { name: 'Meals' }));
     await user.click(screen.getByRole('button', { name: '30' })); // Parippu Wade (left)
     await user.click(screen.getByRole('button', { name: 'Kottu' }));
-    await user.click(screen.getAllByRole('button', { name: 'Full 800' })[0]); // Chicken Kottu (right, when switched on)
+    await user.click(screen.getAllByRole('button', { name: 'Full 750' })[0]); // Chicken Kottu (right, when switched on)
     await user.click(panel().getByRole('button', { name: 'Charge' }));
     await user.click(screen.getByRole('button', { name: /Exact/ }));
     const sent = readAll().filter((e) => e.type === 'order.sent');

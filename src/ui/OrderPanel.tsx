@@ -6,9 +6,10 @@ import { itemById, typingExample } from '../domain/menu.ts';
 import { fmt } from '../domain/money.ts';
 import { orderTotal, unsentLines } from '../domain/order.ts';
 import { discountLabel, lineAdjustment, lineNet, totals } from '../domain/totals.ts';
-import type { Cents, Discount, Order, OrderLine, PaidOrder } from '../domain/types.ts';
+import type { Cents, Discount, Order, OrderLine, PaidOrder, Tender } from '../domain/types.ts';
 import { leaveOutsOf, lineItemName, secondHalf } from '../domain/halves.ts';
-import { usePayFirst, useServingList } from '../services/shop.ts';
+import { useFeatures, usePayFirst, useServingList } from '../services/shop.ts';
+import { PayPanel } from './PayPanel.tsx';
 
 const sub = (l: OrderLine): string => {
   const item = itemById(l.itemId);
@@ -42,9 +43,14 @@ function OnlineTag({ order, time = true }: { order: Order; time?: boolean }) {
     : null;
 }
 
-/** A shop whose kitchen is the Serving list hands meals over: Serving / Served; otherwise Cooking / Done. */
+/**
+ * A shop whose kitchen is the Serving list hands meals over: Serving / Served; otherwise Cooking / Done.
+ * Nothing without a kitchen screen: nobody would ever tap Done.
+ */
 function Cook({ tickets, number }: { tickets: KitchenTicket[]; number: number }) {
   const serving = useServingList();
+  const { kitchen } = useFeatures();
+  if (!kitchen) return null;
   return cookState(tickets, number) === 'cooking'
     ? <span className="status status--cooking">{serving ? 'Serving' : 'Cooking'}</span>
     : <span className="status status--done">{serving ? 'Served' : 'Done'}</span>;
@@ -90,6 +96,30 @@ interface Props {
   printState?: 'printing' | 'printed' | 'failed' | null;
   /** Prints a COPY, without opening the drawer. Absent when this device does not print. */
   onReprint?: () => void;
+  /** Present while Charge is open: the panel becomes the payment, in place of a sheet. */
+  paying?: { onPay: (tender: Tender, tendered: Cents) => void; onClose: () => void } | null;
+}
+
+/** The order while paying: one quiet line per item, to check before the money changes hands. */
+function PayLines({ order }: { order: Order }) {
+  const t = totals(order);
+  const discount = order.adjust?.discount;
+  return (
+    <ul className="paylines num" aria-label="Order">
+      {order.lines.map((l) => (
+        <li key={l.id}>
+          <span className="paylines__name">
+            {l.qty > 1 ? `${l.qty} × ` : ''}{lineItemName(l)}
+            {sub(l) && <small>{sub(l)}</small>}
+          </span>
+          <span>{fmt(lineNet(order, l))}</span>
+        </li>
+      ))}
+      {t.orderDiscount > 0 && discount && (
+        <li className="paylines__off"><span>{discountLabel(discount)}</span><span>−{fmt(t.orderDiscount)}</span></li>
+      )}
+    </ul>
+  );
 }
 
 function VoidReasons({ lineId, onVoid }: { lineId: string; onVoid: ManagePanel['onVoid'] }) {
@@ -149,9 +179,23 @@ function AdjustField({ line, order, onAdjust }: { line: OrderLine; order: Order;
  * and changeable, discount chips under the order. No dialogs, no banners.
  */
 export function OrderPanel({
-  order, open, paidToday, tickets, paid, manage, onEdit, onSend, onCharge, onCloseFree, onCollect, onOpen, onNext, onUndo, printState, onReprint,
+  order, open, paidToday, tickets, paid, manage, onEdit, onSend, onCharge, onCloseFree, onCollect, onOpen, onNext, onUndo, printState, onReprint, paying,
 }: Props) {
   const panelClass = `panel${manage ? ' panel--managing' : ''}`;
+
+  if (paying && !paid && order.lines.length > 0) {
+    return (
+      <aside className={`${panelClass} panel--paying`} aria-label="Current order">
+        <PayPanel
+          number={order.number}
+          total={orderTotal(order)}
+          lines={<PayLines order={order} />}
+          onPay={paying.onPay}
+          onClose={paying.onClose}
+        />
+      </aside>
+    );
+  }
 
   if (paid) {
     const cashChange = paid.tender === 'cash' && paid.change > 0;

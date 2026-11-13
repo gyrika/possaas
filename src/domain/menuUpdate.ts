@@ -19,6 +19,14 @@ export interface MenuUpdate {
   names?: string[];
   /** Items taken off. */
   removed?: string[];
+  /**
+   * Items sent again whole as the menu has them (section, names, prices, extras): how an item moves to
+   * another section and keeps its id, so its sales, photo and the owner's own changes stay with it.
+   * One the owner took off stays off.
+   */
+  moved?: string[];
+  /** Sections taken off (after their items moved out). */
+  removedSections?: string[];
 }
 
 /**
@@ -57,6 +65,20 @@ export const menuUpdateEvents = (
       const { id: itemId, name } = item(id);
       const was = now.overrides[itemId] ?? {};
       out.push({ ...base(`${itemId}-name`), type: 'menu.item_set', itemId, before: was, after: { ...was, name } });
+    }
+    for (const id of u.moved ?? []) {
+      const { id: itemId, ...moved } = item(id);
+      if (before.added[itemId]?.removed) continue;
+      out.push({ ...base(`${itemId}-moved`), type: 'menu.item_added', itemId, item: moved });
+    }
+    const moved = menuStateFromEvents([...existing, ...out]);
+    for (const s of u.removedSections ?? []) {
+      const sectionId = fileSectionId(s);
+      if (file.sections.some((x) => x.id === sectionId)) throw new Error(`menu update: ${s} is still a section of the menu`);
+      if (!moved.sections[sectionId] || moved.sections[sectionId].removed) continue;
+      // An item the owner added there themselves keeps its section.
+      if (Object.values(moved.added).some((n) => n.category === sectionId && !n.removed)) continue;
+      out.push({ ...base(sectionId), type: 'menu.section_set', sectionId, section: null });
     }
     for (const id of u.removed ?? []) {
       const itemId = fileItemId(id);

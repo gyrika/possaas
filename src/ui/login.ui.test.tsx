@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { Actor } from '../domain/auth.ts';
 import { lock } from '../services/serverAuth.ts';
 import { IDLE_LOCK_MS, Root } from './Root.tsx';
+import { setFeatures } from '../domain/features.ts';
 
 const STAFF: Record<string, Actor> = {
   1111: { id: 's-nimal', name: 'Nimal', role: 'cashier' },
@@ -26,6 +27,7 @@ const pair = (as = 'counter') => {
 };
 
 beforeEach(() => {
+  setFeatures({ kitchen: true }); // the kitchen screen, a part a shop has only once it is switched on
   localStorage.clear();
   history.replaceState(null, '', '/');
   vi.stubGlobal('fetch', server);

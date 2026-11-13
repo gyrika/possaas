@@ -185,7 +185,7 @@ export const typingExample = (): string => {
 };
 
 /** A size on a price button: the sample's letter ("M"), or a shop's own size name ("Full"). */
-export const sizeTag = (v: { id: string; label: string }): string => (v.id.length <= 2 ? v.id : v.label);
+export const sizeTag = (v: { id: string; label: string }): string => (/^[A-Z]{1,2}$/.test(v.id) ? v.id : v.label);
 /** Any section an item may be in, taken-off ones too (old orders). */
 export const sectionOf = (id: Category): (Section & { removed?: true }) | undefined => sections.find((x) => x.id === id);
 /** Nothing to sell yet: a new shop before its menu. */

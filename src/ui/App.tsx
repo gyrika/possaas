@@ -18,7 +18,6 @@ import type { OnlineOrder } from '../domain/online.ts';
 import { Menu, type CategoryId, type MenuEditing } from './Menu.tsx';
 import { AddItems, Editor, SectionSheet } from './MenuView.tsx';
 import { OrderPanel, VOID_REASONS, type ManagePanel } from './OrderPanel.tsx';
-import { PaySheet } from './PaySheet.tsx';
 import { PinSheet } from './PinSheet.tsx';
 import { ShorthandBar, describe } from './ShorthandBar.tsx';
 import { SyncSign } from './SyncSign.tsx';
@@ -103,7 +102,6 @@ export function App({
   const collect = useCallback(() => {
     if (reg.pay('cash', orderTotal(reg.order), { next: true }) && canPrint()) void openDrawer();
   }, [reg]);
-  const total = orderTotal(reg.order);
   const hasNew = unsentLines(reg.order).length > 0;
   /** A waiting order opened from the list, with nothing new on it: Charge, or go back. */
   const canCharge = !hasNew && reg.order.sentAt !== undefined && !reg.paid;
@@ -272,7 +270,13 @@ export function App({
     reg.startNew();
   };
 
+  // Paying, and the order has nothing left on it (an Undo took the last line): back to the order.
+  const paying = sheet?.kind === 'pay';
+  useEffect(() => { if (paying && listing) setSheet(null); }, [paying, listing]);
+
   const quickAdd = (item: MenuItem, size?: SizeId) => {
+    // The menu stays live while paying: the customer remembered a drink, so it goes on and the order is back.
+    if (paying) setSheet(null);
     const label = item.variants?.find((v) => v.id === size)?.label;
     reg.addSpec(bareLine(item.id, size), `Added ${item.name.en}${label ? ` · ${label}` : ''}`);
   };
@@ -334,7 +338,7 @@ export function App({
   );
 
   return (
-    <div className={`register${manager ? ' register--managing' : ''}`} onClick={onBackground}>
+    <div className={`register${manager ? ' register--managing' : ''}${paying ? ' register--paying' : ''}`} onClick={onBackground}>
       <KitchenFlight />
       <header className="register__head">
         <ShopBrand />
@@ -347,7 +351,7 @@ export function App({
         ) : (
           <span className="corner">
             {parts.onlineOrders && <OnlineChip state={online} looking={sheet?.kind === 'online'} onOpen={() => setSheet({ kind: 'online' })} />}
-            {onKitchen && (twoKitchens()
+            {onKitchen && parts.kitchen && (twoKitchens()
               ? (['left', 'right'] as const).map((k) => <KitchenChip key={k} tickets={tickets} station={k} onOpen={() => onKitchen(k)} />)
               : <KitchenChip tickets={tickets} onOpen={() => onKitchen()} />)}
             <SyncSign />
@@ -411,6 +415,7 @@ export function App({
           onOpen={reg.openOrder}
           onNext={reg.startNew}
           onUndo={reg.undo}
+          paying={paying ? { onPay: (tender, tendered) => { pay(tender, tendered); closeSheet(); }, onClose: closeSheet } : null}
         />
       </div>
 
@@ -441,9 +446,6 @@ export function App({
           onSubmit={(spec) => { reg.editLine({ ...spec, id: sheet.line.id }, 'Updated'); closeSheet(); }}
           onRemove={() => { reg.dropLine(sheet.line.id, 'Removed'); closeSheet(); }}
         />
-      )}
-      {sheet?.kind === 'pay' && (
-        <PaySheet total={total} onClose={closeSheet} onPay={(tender, tendered) => { pay(tender, tendered); closeSheet(); }} />
       )}
       {sheet?.kind === 'online' && <OnlineSheet state={online} onAccept={acceptOnline} onClose={closeSheet} />}
       {sheet?.kind === 'pin' && (

@@ -689,7 +689,7 @@ function DevicesStep({ state, ownerPin, onFinish }: { state: SetupState; ownerPi
   return (
     <div className="setup__form">
       <div className="setup__devices">
-        {twoKitchens
+        {!parts.kitchen ? null : twoKitchens
           ? <>{card('kitchen-left', 'Left kitchen', kitchenHow, true, '')}{card('kitchen-right', 'Right kitchen', kitchenHow, true, '')}</>
           : card('kitchen', 'Kitchen tablet', "Scan it with the tablet's camera. The tablet must be on the shop's Wi-Fi.", true, '')}
         {parts.ownerPhone && card('owner', "Owner's phone", "Scan it with the owner's phone. It then shows the Owner view, from anywhere.", state.cloud,

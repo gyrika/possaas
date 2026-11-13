@@ -34,6 +34,7 @@ test("a shop's parts: switched on /admin, logged with what changed, picked up by
   const page = await (await admin(req('/admin/shops/bata-kade/parts', { session }))).text();
   assert.match(page, /Bata Kade · parts/);
   assert.match(page, /name="twoKitchens" role="switch">/, 'two kitchens off by default');
+  assert.match(page, /name="kitchen" role="switch">/, 'the kitchen screen off by default');
   assert.match(page, /name="cashOut" role="switch" checked>/);
   assert.match(page, /Waiting for the shop/);
 
@@ -55,7 +56,7 @@ test("a shop's parts: switched on /admin, logged with what changed, picked up by
     onFeatures: (f) => { kept = f; },
   });
   await rep.syncNow();
-  assert.deepEqual(kept, { twoKitchens: true, cashOut: true, busyMode: false, onlineOrders: true, ownerPhone: true, serving: false });
+  assert.deepEqual(kept, { kitchen: false, twoKitchens: true, cashOut: true, busyMode: false, onlineOrders: true, ownerPhone: true, serving: false });
   await rep.syncNow(); // the next pass says what it now has
   rep.stop();
   assert.match(await (await admin(req('/admin/shops/bata-kade/parts', { session }))).text(), /The shop has these/);

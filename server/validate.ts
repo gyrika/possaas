@@ -47,7 +47,9 @@ const validNewItem = (value: unknown): boolean =>
   value === null || (isObj(value) && isObj(value.name) && isObj(value.prices) &&
     Object.entries(value.name).every(([key, name]) => ['en', 'si', 'ta'].includes(key) && typeof name === 'string') &&
     Object.values(value.prices).every((price) => typeof price === 'number') &&
-    Object.keys(value).every((key) => ['category', 'name', 'description', 'prices', 'number', 'leaveOut'].includes(key)) &&
+    Object.keys(value).every((key) => ['category', 'name', 'description', 'prices', 'number', 'leaveOut', 'adds', 'sizes'].includes(key)) &&
+    (value.adds === undefined || (Array.isArray(value.adds) && value.adds.every(validOption))) &&
+    (value.sizes === undefined || (Array.isArray(value.sizes) && value.sizes.every(validOption))) &&
     checkNewItem(value as unknown as NewItem, null) === null);
 const validOption = (v: unknown): boolean =>
   isObj(v) && Object.keys(v).every((k) => ['id', 'label', 'hint', 'price'].includes(k));
