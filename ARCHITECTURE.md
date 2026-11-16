@@ -79,7 +79,7 @@
 - Not yet: combos on cheesybeez.com (the cloud's online menu reads only the three item events), typed shorthand for combos, drinks (not on the menu).
 
 ## Run
-`npm i && npm run dev` + `npm run dev:server` (API on 8090, never an installed POS on 8080) · `npm test` (domain + UI) · `npm run test:domain` · `npm run test:ui` · `npm run build` · demo: `/?demo` (manager PIN in `src/fake/data.ts`)
+`npm i && npm run dev` + `npm run dev:server` (app on 5185, API on 8095: never an installed POS on 8080, never CheesyBeez ERP's 5173/8090) · `npm test` (domain + UI) · `npm run test:domain` · `npm run test:ui` · `npm run build` · demo: `/?demo` (manager PIN in `src/fake/data.ts`)
 
 ## Deliberately left out of v0
 Accounts/roles UI, reports, inventory screens, i18n switcher (labels already carry en/si/ta) — each arrives in its own slice.

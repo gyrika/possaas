@@ -5,13 +5,13 @@
       "name": "pos-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 5173
+      "port": 5185
     },
     {
       "name": "pos-server",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:server"],
-      "port": 8090
+      "port": 8095
     },
     {
       "name": "dev-5175",

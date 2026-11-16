@@ -17,13 +17,14 @@ export default defineConfig(({ mode }) => ({
       });
     },
   }],
-  // `npm run dev` + `npm run dev:server`: the app on Vite, the API on this repo's sync server. Port 8090
+  // `npm run dev` + `npm run dev:server`: the app on Vite, the API on this repo's sync server. Port 8095
   // (server/dev.env), not 8080: an installed POS on this PC owns 8080, and its data must never mix with dev.
+  // Not 5173/8090 either: CheesyBeez ERP's dev servers use those, and the same address would share its browser data.
   // strictPort: on another address the app would lose this repo's browser data, or take another repo's.
   server: {
-    port: 5173,
+    port: 5185,
     strictPort: true,
-    proxy: { '/api': { target: 'http://localhost:8090', ws: true } },
+    proxy: { '/api': { target: 'http://localhost:8095', ws: true } },
     // The dev server's data is not source. Watching it holds its folders open, and Windows then refuses
     // the CV pack's final rename (EPERM), so Activate never finished under `npm run dev`.
     watch: { ignored: ['**/server/data/**', '**/server/prints/**'] },

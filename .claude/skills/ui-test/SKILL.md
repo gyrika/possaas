@@ -11,7 +11,7 @@ description: Write or fix frontend tests (Vitest + Testing Library, jsdom) and o
 - Test what the user sees: Send to kitchen, Charge, Undo, kitchen bump, chimes. Fake data comes from `src/fake/data.ts`; don't add fixtures elsewhere.
 - Keyboard paths matter (F2 kitchen, F3, F4 user, Ctrl+M manager): cover them with `user.keyboard`.
 
-Visual check (only if asked or layout changed): `npm run dev`, open `http://localhost:5173/#<view>` with Playwright, one screenshot light + dark. Kitchen at `#kitchen`, owner `#owner`, receipt `#receipt`, menu `#menu`.
+Visual check (only if asked or layout changed): `npm run dev`, open `http://localhost:5185/#<view>` with Playwright, one screenshot light + dark. Kitchen at `#kitchen`, owner `#owner`, receipt `#receipt`, menu `#menu`.
 
 Stop: a test is flaky after 2 reruns → report the timing cause, don't add sleeps.
 Report: tests added/fixed · result.
