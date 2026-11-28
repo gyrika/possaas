@@ -3,6 +3,7 @@ import { itemById } from './menu.ts';
 import type { Cents, OrderLine, Tender } from './types.ts';
 import { lineItemName } from './halves.ts';
 import { changeGiven } from './split.ts';
+import type { SyncEvent } from './sync.ts';
 
 /**
  * The sales ledger: each payment as one tidy row, with the items it paid for, for the
@@ -92,6 +93,36 @@ export const orderLinesFrom = (events: readonly OrderEvent[]): { lines: OrderLin
     }
   }
   return { lines, online, deliveryFee };
+};
+
+/**
+ * Every payment that still stands, with the order's events as they were when paid (plus changes
+ * made after it was paid, SCRUM-242). An undone payment gives its events back to the open order.
+ * Order numbers are not unique (each screen counts from 1001), so each payment keeps its own events.
+ */
+export const paidOrders = (events: readonly SyncEvent[]): { at: number; events: OrderEvent[] }[] => {
+  const open = new Map<number, OrderEvent[]>();
+  const paid = new Map<number, { at: number; events: OrderEvent[] }[]>();
+  for (const e of events) {
+    if (!e.type.startsWith('order.')) continue;
+    const event = e as OrderEvent;
+    if (event.type === 'order.paid') {
+      paid.set(event.orderNumber, [...(paid.get(event.orderNumber) ?? []), { at: event.at, events: open.get(event.orderNumber) ?? [] }]);
+      open.delete(event.orderNumber);
+    } else if (event.type === 'order.payment_undone') {
+      const taken = paid.get(event.orderNumber)?.pop();
+      if (taken) open.set(event.orderNumber, [...taken.events, ...(open.get(event.orderNumber) ?? [])]);
+    } else if ((event.type === 'order.item_changed' || event.type === 'order.item_cancelled') && event.afterPay) {
+      // Changed after it was paid (SCRUM-242): it changes what that payment sold.
+      const last = paid.get(event.orderNumber)?.at(-1);
+      if (last) last.events = [...last.events, event]; else open.set(event.orderNumber, [...(open.get(event.orderNumber) ?? []), event]);
+    } else if (event.type === 'order.change_undone' && paid.get(event.orderNumber)?.at(-1)?.events.some((x) => 'id' in x && x.id === event.undoneEventId)) {
+      paid.get(event.orderNumber)!.at(-1)!.events.push(event);
+    } else {
+      open.set(event.orderNumber, [...(open.get(event.orderNumber) ?? []), event]);
+    }
+  }
+  return [...paid.values()].flat();
 };
 
 const nameOf = (itemId: string): { name: string; size: (id?: string) => string | null; option: (id: string) => string } => {

@@ -15,34 +15,34 @@ afterEach(() => {
   history.replaceState(null, '', '/');
 });
 
-test('the demo Today: the shop at a glance, each part explained on the black screen, and the To do list with one tap each', async () => {
+test('the demo Today: the total, morning/lunch/evening, the dishes sold; a part of the day filters them (owner, 2026-11-28)', async () => {
   history.replaceState(null, '', '/?demo#owner');
   const user = userEvent.setup();
   render(<Root />);
-  const feed = within(await screen.findByRole('region', { name: 'Needs your attention' }));
-  const cards = await feed.findAllByRole('article');
-  // Bata Kade's own cards only: its sales, its staff, its menu. No stock, tables or cameras.
-  const labels = cards.map((c) => c.getAttribute('aria-label') ?? '');
-  expect(labels).toContain("Watalappan hasn't sold in 2 weeks");
-  expect(labels.some((l) => /\bcameras?\b|\btables?\b|running low|recipe|Food costs/i.test(l))).toBe(false);
-  expect(labels.some((l) => /BBQ|Pizza|Margherita/i.test(l))).toBe(false);
-  // The stations: the counter, the money. No kitchen.
-  expect(screen.queryByRole('button', { name: /^Kitchen: / })).toBeNull();
-  expect(screen.queryByRole('button', { name: /^Shelves: / })).toBeNull();
-  expect(screen.queryByRole('button', { name: /^Deliveries: / })).toBeNull();
-  const shopScreen = within(screen.getByRole('region', { name: 'Shop screen' }));
-  expect(shopScreen.getByText('Today in a sentence')).toBeTruthy();
-  // Tapping Money explains it there, with the day's Cash out; tapping it again goes back to the summary.
-  await user.click(screen.getByRole('button', { name: /^Money: / }));
-  expect(shopScreen.getByText(/^Money: Rs [\d,]+ taken today\./)).toBeTruthy();
-  expect(shopScreen.getByRole('link', { name: 'See the records →' }).getAttribute('href')).toBe('#cashout');
-  await user.click(screen.getByRole('button', { name: /^Money: / }));
-  expect(shopScreen.getByText('Today in a sentence')).toBeTruthy();
+  const hero = within(await screen.findByRole('region', { name: 'Sales today' }));
+  const sold = () => within(screen.getByRole('region', { name: 'Sold today' }));
+  // Minimal: no To do, stations, hourly chart or black screen.
+  for (const gone of ['Needs your attention', 'Shop screen', 'Sales by hour']) expect(screen.queryByRole('region', { name: gone })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^(Money|Counter): / })).toBeNull();
+  // Morning, lunch and evening (the demo is at 8:30 pm, so all three have begun).
+  const parts = hero.getAllByRole('button', { name: /^(Morning|Lunch|Evening), / });
+  expect(parts.map((b) => b.getAttribute('aria-label')?.split(',')[0])).toEqual(['Morning', 'Lunch', 'Evening']);
+  const dayRows = sold().getAllByRole('listitem').length;
+  expect(dayRows).toBeGreaterThan(0);
+  expect(sold().getByText('Sold today')).toBeTruthy();
+  // A part of the day: its total and its dishes; again: the whole day.
+  await user.click(parts[0]);
+  expect(parts[0].getAttribute('aria-pressed')).toBe('true');
+  expect(sold().getByText('Sold in the morning')).toBeTruthy();
+  expect(hero.getByText(/ bills? · morning$/)).toBeTruthy();
+  await user.click(parts[0]);
+  expect(sold().getByText('Sold today')).toBeTruthy();
+  expect(sold().getAllByRole('listitem').length).toBe(dayRows);
 }, 15_000); // the whole demo history, worked out twice
 
 test('no history yet: a calm screen, not an empty error; nothing waits', async () => {
   history.replaceState(null, '', '/#owner');
   render(<Root />);
-  expect(await screen.findByText('Nothing needs you right now.')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Sales today Rs 0' })).toBeTruthy(); // no history: no ring yet
+  expect(await screen.findByText('Nothing sold yet today.')).toBeTruthy();
+  expect(within(screen.getByRole('region', { name: 'Sales today' })).getByText('Rs 0', { selector: '.today__big' })).toBeTruthy();
 });

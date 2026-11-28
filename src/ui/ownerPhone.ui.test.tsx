@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import type { SyncEvent } from '../domain/sync.ts';
 import { pairFromUrl } from '../services/pairing.ts';
 import { shopSource } from '../services/ownerData.ts';
@@ -50,9 +50,9 @@ test("the owner's link: kept on the phone, taken out of the address bar, then th
   expect(localStorage.getItem('cb.owner.token')).toBe('secret-owner-token');
 
   render(<Root />);
-  expect(await screen.findByRole('button', { name: /^Sales today Rs 5,000/ })).toBeTruthy();
-  expect(await screen.findByText('2 orders', undefined, { timeout: 3000 })).toBeTruthy(); // once counted up
-  // No counter screens on a phone: the black screen explains, but links nowhere.
+  expect(within(await screen.findByRole('region', { name: 'Sales today' })).getByText('Rs 5,000', { selector: '.today__big' })).toBeTruthy();
+  expect(await screen.findByText('2 bills', undefined, { timeout: 3000 })).toBeTruthy(); // once counted up
+  // No counter screens on a phone.
   expect(screen.queryByRole('link', { name: /See the records/ })).toBeNull();
   expect(screen.queryByRole('navigation', { name: 'Owner sections' })).toBeNull(); // no counter screens on a phone
   expect(screen.getByText(/^Updated /)).toBeTruthy();

@@ -8,9 +8,8 @@ import { prepItems, prepStatus } from './prep.ts';
 import { canMake } from './production.ts';
 import { onOrder, purchasesFromEvents } from './purchaseOrders.ts';
 import { formatQuantity } from './quantity.ts';
-import { orderLinesFrom } from './salesLedger.ts';
+import { orderLinesFrom, paidOrders } from './salesLedger.ts';
 import type { SyncEvent } from './sync.ts';
-import type { OrderEvent } from './events.ts';
 import type { Cents } from './types.ts';
 
 /**
@@ -150,39 +149,16 @@ const cardsFrom = (insights: readonly Insight[], clean: (text: string) => string
 
 /** Dishes in orders paid in the window, as those orders stood when paid; an undone payment does not count. */
 const soldSince = (events: readonly SyncEvent[], since: number): Map<string, number> => {
-  const open = new Map<number, OrderEvent[]>();
-  const paid = new Map<number, { at: number; events: OrderEvent[] }[]>();
-  for (const e of events) {
-    if (!e.type.startsWith('order.')) continue;
-    const event = e as OrderEvent;
-    if (event.type === 'order.paid') {
-      paid.set(event.orderNumber, [...(paid.get(event.orderNumber) ?? []), { at: event.at, events: open.get(event.orderNumber) ?? [] }]);
-      open.delete(event.orderNumber);
-    } else if (event.type === 'order.payment_undone') {
-      const taken = paid.get(event.orderNumber)?.pop();
-      if (taken) open.set(event.orderNumber, [...taken.events, ...(open.get(event.orderNumber) ?? [])]);
-    } else if ((event.type === 'order.item_changed' || event.type === 'order.item_cancelled') && event.afterPay) {
-      // Changed after it was paid (SCRUM-242): it changes what that payment sold.
-      const last = paid.get(event.orderNumber)?.at(-1);
-      if (last) last.events = [...last.events, event]; else open.set(event.orderNumber, [...(open.get(event.orderNumber) ?? []), event]);
-    } else if (event.type === 'order.change_undone' && paid.get(event.orderNumber)?.at(-1)?.events.some((x) => 'id' in x && x.id === event.undoneEventId)) {
-      paid.get(event.orderNumber)!.at(-1)!.events.push(event);
-    } else {
-      open.set(event.orderNumber, [...(open.get(event.orderNumber) ?? []), event]);
-    }
-  }
   const sold = new Map<string, number>();
   const add = (id: string, size: string | undefined, qty: number) => {
     const key = `${id}:${size ?? ''}`;
     sold.set(key, (sold.get(key) ?? 0) + qty);
   };
-  for (const payments of paid.values()) {
-    for (const payment of payments) {
-      if (payment.at < since) continue;
-      for (const line of orderLinesFrom(payment.events).lines) {
-        add(line.itemId, line.size, line.half ? line.qty / 2 : line.qty);
-        if (line.half) add(line.half, line.size, line.qty / 2);
-      }
+  for (const payment of paidOrders(events)) {
+    if (payment.at < since) continue;
+    for (const line of orderLinesFrom(payment.events).lines) {
+      add(line.itemId, line.size, line.half ? line.qty / 2 : line.qty);
+      if (line.half) add(line.half, line.size, line.qty / 2);
     }
   }
   return sold;

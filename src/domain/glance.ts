@@ -1,7 +1,9 @@
 import { businessDayStart, cashOutsBetween } from './cashOut.ts';
-import { salesFrom, type Insight } from './insights.ts';
+import { salesFrom } from './insights.ts';
 import { fmt } from './money.ts';
+import { itemById } from './menu.ts';
 import { OUT_TOO_LONG_MS } from './online.ts';
+import { orderLinesFrom, paidOrders } from './salesLedger.ts';
 import type { SyncEvent } from './sync.ts';
 import type { Cents, Tender } from './types.ts';
 
@@ -14,7 +16,7 @@ import type { Cents, Tender } from './types.ts';
  * "Usual" is the same weekday over the last 4 weeks, days the shop was open only; with fewer
  * than 2 such days there is no usual yet, and the screen says so instead of guessing.
  */
-export type StationId = 'counter' | 'money';
+export type StationId = 'money';
 export type StationTone = 'ok' | 'warn';
 
 export interface Station {
@@ -39,9 +41,42 @@ export interface HourBar {
   explain: string;
 }
 
+/** A part of the day (owner, 2026-11-28): morning to 11 am, lunch 11 am to 3 pm, evening after 3 pm. */
+export type DayPartId = 'morning' | 'lunch' | 'evening';
+export const DAY_PARTS: readonly { id: DayPartId; label: string; from: number; to: number }[] = [
+  { id: 'morning', label: 'Morning', from: 0, to: 11 },
+  { id: 'lunch', label: 'Lunch', from: 11, to: 15 },
+  { id: 'evening', label: 'Evening', from: 15, to: 24 },
+];
+
+export interface DayPart {
+  id: DayPartId;
+  label: string;
+  /** "to 11 am", "11 am – 3 pm", "from 3 pm". */
+  span: string;
+  sales: Cents;
+  orders: number;
+  /** False until the part has begun. */
+  begun: boolean;
+  explain: string;
+}
+
+/** One dish sold today, all its sizes together, from the bills paid today as they stand. */
+export interface ItemSold {
+  /** The menu item id. */
+  key: string;
+  name: string;
+  qty: number;
+  /** How many in each part of the day. */
+  byPart: Record<DayPartId, number>;
+}
+
 export interface Glance {
   sales: Cents;
   orders: number;
+  parts: DayPart[];
+  /** Most sold first. */
+  items: ItemSold[];
   /** A usual day for this weekday, all day; null: not enough history yet. */
   usualDay: Cents | null;
   /** Today against that day, 0..; null: no usual yet. */
@@ -82,8 +117,8 @@ export const unpaidDeliveries = (events: readonly SyncEvent[], today: number, no
   return [...out.values()];
 };
 
-/** The shop at a glance, now. `insights`: the To do list, so the summary names the first. */
-export const glanceOf = (events: readonly SyncEvent[], insights: readonly Insight[], now: number): Glance => {
+/** The shop at a glance, now. */
+export const glanceOf = (events: readonly SyncEvent[], now: number): Glance => {
   const today = startOfDay(now);
   const weekday = WEEKDAYS[new Date(now).getDay()];
   const sales = salesFrom(events).filter((s) => s.at <= now);
@@ -117,18 +152,46 @@ export const glanceOf = (events: readonly SyncEvent[], insights: readonly Insigh
     hours.push({ hour: h, label: hourLabel(h), today: t, usual: u, explain: lines.join('\n') });
   }
 
-  // ----- the stations: the counter, the money -----
-  const voids = insights.find((i) => i.id === 'voids');
-  const discounts = insights.find((i) => i.id === 'discounts');
-  const voidCount = events.filter((e) => (e.type === 'order.item_cancelled' || e.type === 'order.line_removed') && e.at >= today && e.at <= now).length;
-  const counter: Station = {
-    id: 'counter', label: 'Counter', value: String(todays.length), tone: voids || discounts ? 'warn' : 'ok', badge: voids ? voidCount : discounts ? 1 : 0, href: null,
-    explain: [
-      todays.length ? `Counter: ${plural(todays.length, 'order')} paid, ${rs(total / todays.length)} each on average.` : 'Counter: no orders paid yet today.',
-      `${plural(voidCount, 'void')} today.${voids ? ` ${voids.detail}` : ''}`,
-      ...(discounts ? [`${discounts.title}. ${discounts.detail}`] : []),
-    ].join('\n'),
+  // ----- morning, lunch, evening -----
+  const partOf = (t: number): DayPartId => DAY_PARTS.find((p) => hourOf(t) >= p.from && hourOf(t) < p.to)!.id;
+  const parts: DayPart[] = DAY_PARTS.map((p) => {
+    const inPart = todays.filter((s) => partOf(s.at) === p.id);
+    const sum = inPart.reduce((n, s) => n + s.total, 0);
+    const span = p.from === 0 ? `to ${hourLabel(p.to)}` : p.to === 24 ? `from ${hourLabel(p.from)}` : `${hourLabel(p.from)} – ${hourLabel(p.to)}`;
+    const begun = hourOf(now) >= p.from;
+    const ongoing = begun && hourOf(now) < p.to;
+    return {
+      id: p.id, label: p.label, span, sales: sum, orders: inPart.length, begun,
+      explain: !begun ? `${p.label} (${span}): still to come.`
+        : [`${p.label} (${span}): ${rs(sum)} from ${plural(inPart.length, 'bill')}${ongoing ? ' so far' : ''}.`,
+          ...(inPart.length ? [`${rs(sum / inPart.length)} a bill on average.`] : [])].join('\n'),
+    };
+  });
+
+  // ----- each dish sold today, from today's paid bills as they stand -----
+  // One row per dish: its sizes (Half, Full) count together (owner, 2026-11-28).
+  const sold = new Map<string, ItemSold>();
+  const addSold = (itemId: string, qty: number, part: DayPartId) => {
+    let row = sold.get(itemId);
+    if (!row) {
+      let name = itemId;
+      try { name = itemById(itemId).name.en; } catch { /* an item no longer on the menu */ }
+      row = { key: itemId, name, qty: 0, byPart: { morning: 0, lunch: 0, evening: 0 } };
+      sold.set(itemId, row);
+    }
+    row.qty += qty; row.byPart[part] += qty;
   };
+  for (const p of paidOrders(events)) {
+    if (p.at < today || p.at > now) continue;
+    const part = partOf(p.at);
+    for (const l of orderLinesFrom(p.events).lines) {
+      if (l.half) { addSold(l.itemId, l.qty / 2, part); addSold(l.half, l.qty / 2, part); }
+      else addSold(l.itemId, l.qty, part);
+    }
+  }
+  const items = [...sold.values()].sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name));
+
+  // ----- the one station: the money (no Counter station, owner 2026-11-28; voids and discounts stay in To do) -----
 
   const byTender = new Map<Tender, Cents>();
   for (const s of todays) {
@@ -172,17 +235,16 @@ export const glanceOf = (events: readonly SyncEvent[], insights: readonly Insigh
     })()
       : `${rs(total)} from ${plural(todays.length, 'order')} so far.`;
   const peak = hours.filter((h) => (h.today ?? 0) > 0).sort((a, b) => (b.today ?? 0) - (a.today ?? 0))[0];
-  const attention = insights.filter((i) => i.tone === 'attention');
+  const top = items[0];
   const summary = [
     `${greeting} ${pace}`,
     ...(peak ? [`Busiest hour: ${peak.label} (${rs(peak.today ?? 0)}).`] : []),
-    attention.length === 0 ? 'Nothing needs you right now.'
-      : attention.length === 1 ? `Needs you: ${attention[0].title}.` : `${attention.length} things need you, first: ${attention[0].title}.`,
+    ...(top ? [`Most sold: ${top.name} (${top.qty}).`] : []),
   ].join('\n');
 
   return {
-    sales: total, orders: todays.length, usualDay, share, ringExplain,
-    stations: [counter, money],
+    sales: total, orders: todays.length, parts, items, usualDay, share, ringExplain,
+    stations: [money],
     hours,
     summary,
   };

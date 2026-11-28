@@ -2144,6 +2144,44 @@ button.glance__card:disabled { cursor: default; }
 .glance__bar-today { position: relative; width: 100%; border-radius: 4px 4px 0 0; background: var(--ink); }
 .glance__axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); }
 
+/* Today (owner, 2026-11-28): the total, one day bar, the dishes sold; one screen, no scrolling. */
+.today { display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
+.today__hero, .today__sold { padding: 22px 24px; border-radius: 20px; background: var(--surface); box-shadow: var(--card-shadow); animation: rise 220ms var(--ease) both; }
+.today button { border: 0; font: inherit; color: inherit; cursor: pointer; }
+.today button:focus-visible { outline: 2px solid var(--ink-2); outline-offset: 2px; }
+.today__total { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.today__big { font-size: 44px; font-weight: 600; letter-spacing: -1.2px; line-height: 1.05; }
+.today__bills { font-size: 16px; color: var(--ink-2); }
+.today__bar { display: flex; gap: 3px; height: 34px; margin-top: 18px; border-radius: 10px; overflow: hidden; background: var(--chip); }
+.today__seg { flex: 1 1 0; min-width: 34px; display: flex; align-items: center; justify-content: center; padding: 0; font-size: 12px; font-weight: 600; transition: opacity 180ms var(--ease); }
+.today__seg--morning { background: #185FA5; color: #FFFFFF !important; }
+.today__seg--lunch { background: #378ADD; color: #FFFFFF !important; }
+.today__seg--evening { background: #85B7EB; color: #0C447C !important; }
+.today__parts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.today__part { display: flex; flex-direction: column; gap: 2px; min-height: 52px; padding: 6px 8px; margin: 0 -8px; border-radius: 10px; background: none; text-align: left; transition: opacity 180ms var(--ease); }
+.today__part[aria-pressed='true'] { background: var(--chip); }
+.today__part:disabled { cursor: default; }
+.today__part-label { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.today__part-span { color: var(--ink-3); }
+.today__key { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.today__part:disabled .today__key { background: var(--line); }
+.today__part-rs { font-size: 18px; font-weight: 600; }
+.today__part:disabled .today__part-rs { color: var(--ink-3); font-weight: 500; }
+.today__dim { opacity: 0.35; }
+.today__head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+.today__title { font-size: 16px; font-weight: 600; }
+.today__hint { font-size: 13px; color: var(--ink-3); }
+.today__calm { margin: 8px 0 0; font-size: 15px; color: var(--ink-2); }
+.today__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); column-gap: 36px; }
+.today__row { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 44px; border-bottom: 1px solid var(--line); }
+.today__qty { font-size: 20px; font-weight: 600; text-align: right; }
+.today__dish { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.today__name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.today__track { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.today__track > span { display: block; height: 100%; border-radius: 2px; background: var(--ink-3); transition: width 220ms var(--ease); }
+.today__more { margin-top: 10px; min-height: 44px; padding: 0 4px; background: none; font-size: 14px; font-weight: 600; color: var(--ink-2) !important; }
+@media (max-width: 520px) { .today__big { font-size: 36px; } .today__part-span { display: none; } .today__hint { display: none; } }
+@media (prefers-reduced-motion: reduce) { .today__hero, .today__sold { animation: none; } }
 .glance__trio { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .glance__trio > .glance__card { min-height: 220px; }
 .glance__split { display: flex; height: 28px; gap: 2px; }
@@ -2162,15 +2200,7 @@ button.glance__card:disabled { cursor: default; }
 .glance__dot--unknown { background: var(--line); }
 @keyframes glance-breathe { 50% { opacity: 0.55; } }
 
-.glance__todo { display: flex; flex-direction: column; gap: 8px; }
-.glance__todo > .glance__label { padding-left: 4px; }
 .glance__calm { margin: 4px; font-size: 16px; color: var(--ink-2); }
-.glance__task { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 4px; border-radius: 16px; background: var(--surface); box-shadow: 0 0 0 1px var(--line); animation: rise 220ms var(--ease) both; }
-.glance__task-main { flex: 1; min-width: 0; min-height: 52px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-radius: 12px; background: none; font-size: 17px; font-weight: 500; }
-.glance__task-main[aria-pressed='true'] { background: var(--chip); }
-.glance__task-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--ink-3); }
-.glance__task--attention .glance__task-dot { background: var(--warn); }
-.glance__task--good .glance__task-dot { background: var(--ok); }
 
 .glance__screen { position: sticky; top: 16px; min-height: 280px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 20px; border-radius: 22px; background: var(--screen); color: var(--on-screen); box-shadow: inset 0 1px 8px rgba(0, 0, 0, 0.5); }
 .glance__screen-head { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
